@@ -10,7 +10,9 @@ Claude Code + Codex CLI. Spec: harness-adapter.architecture.md (presentations re
 
 ## Performance
 
-Dispatcher no-op dispatch (no matching handler) measured at ~4-5ms steady-state on Apple Silicon (target <20ms).
+Dispatcher no-op dispatch (no matching handler) measured at ~4-5ms steady-state on Apple
+Silicon. A real turn-end dispatch (handler execution included) measures ~15.6ms median /
+~18.7ms p95, also on Apple Silicon (target <20ms).
 
 ## Commands
 
@@ -25,6 +27,27 @@ $ go run ./cmd/adapter-sdk build examples/kb-shaped
 target claude-code: 4 satisfy, 0 degrade, 0 refuse, 0 absent
 target codex: 4 satisfy, 0 degrade, 0 refuse, 0 absent
 ```
+
+Every hooks-file command build just wrote invokes `<bundle>/bin/adapter-hook`, so build also
+makes sure that binary exists: if it's missing, it tries copying an `adapter-hook` found
+alongside the running `adapter-sdk` executable (the layout a packaged release ships both
+binaries in); if that's not available either, it fails with the exact command to build one
+yourself:
+
+```
+go build -o <bundle>/bin/adapter-hook ./cmd/adapter-hook
+```
+
+Pass `--allow-missing-dispatcher` to downgrade that failure to a warning instead (useful in
+a build step that provisions the binary separately). `--targets-dir <dir>` overrides where
+target definitions are loaded from (default `targets`, resolved against the working
+directory); an empty or wrong directory is now a load error rather than a silent
+zero-target build. `--allow-refuse` downgrades a build-time REFUSE (see below) from a
+build failure to a warning.
+
+If any target's contract requirement lands at REFUSE (a hard-required requirement the
+target cannot satisfy at all, or only below its minimum tier), `build` exits 1 and names
+every refusing target/requirement pair on stderr, unless `--allow-refuse` is set.
 
 ### `adapter-sdk preflight`
 
