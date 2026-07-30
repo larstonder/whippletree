@@ -75,9 +75,16 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stderr io.Wr
 			continue
 		}
 
+		// Forward whatever the handler wrote to stderr on every exit
+		// path (0, 2, or anything else): a handler's own diagnostics
+		// are useful regardless of whether it blocked, and swallowing
+		// them on the non-2 paths used to hide real handler output.
+		if len(handlerStderr) > 0 {
+			stderr.Write(handlerStderr)
+		}
+
 		switch {
 		case exitCode == 2:
-			stderr.Write(handlerStderr)
 			return 2
 		case exitCode != 0:
 			fmt.Fprintf(stderr, "adapter-hook: handler %s exited %d (ignored)\n", req.Handler, exitCode)

@@ -128,6 +128,26 @@ func TestRunUnknownExitFailsOpen(t *testing.T) {
 	}
 }
 
+// TestRunForwardsStderrOnCleanExit is the regression test for finding
+// 12: a handler's stderr must be forwarded even when it exits 0 (or any
+// non-2 code), not just on the exit-2 block path.
+func TestRunForwardsStderrOnCleanExit(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "marker.json")
+	script := fmt.Sprintf("#!/bin/bash\ncat > %q\necho \"note: informational\" >&2\nexit 0\n", marker)
+	bundle := newBundle(t, map[string]string{"pull.sh": script})
+
+	stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
+
+	var stderr bytes.Buffer
+	code := dispatch.Run(bundle, "session-start", "codex", stdin, &stderr)
+	if code != 0 {
+		t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "note: informational") {
+		t.Errorf("stderr = %q, want it to contain the handler's stderr output even on a clean exit", stderr.String())
+	}
+}
+
 func TestRunNoMatchingRequirementIsNoop(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "marker.json")
 	script := fmt.Sprintf("#!/bin/bash\ncat > %q\nexit 0\n", marker)
