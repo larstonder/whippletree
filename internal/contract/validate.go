@@ -12,7 +12,7 @@ var validKinds = map[string]bool{
 	"executable-path":    true,
 }
 
-// Validate checks a Contract against the adapter-sdk structural rules,
+// Validate checks a Contract against the whippletree structural rules,
 // collecting every violation via errors.Join rather than stopping at
 // the first one.
 func Validate(c *Contract) error {

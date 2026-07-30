@@ -11,9 +11,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/larstonder/adapter-sdk/internal/contract"
-	"github.com/larstonder/adapter-sdk/internal/target"
-	"github.com/larstonder/adapter-sdk/internal/tier"
+	"github.com/larstonder/whippletree/internal/contract"
+	"github.com/larstonder/whippletree/internal/target"
+	"github.com/larstonder/whippletree/internal/tier"
 )
 
 // Version is a target's detected (or assumed) installed version string,
@@ -161,7 +161,7 @@ func (r *Report) Render(targetName string, v Version) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "adapter-sdk preflight · target %s (probed %s)\n\n", targetName, versionStr)
+	fmt.Fprintf(&b, "whippletree preflight · target %s (probed %s)\n\n", targetName, versionStr)
 
 	var satisfy, degrade, refuse, absent int
 	for _, l := range r.Lines {

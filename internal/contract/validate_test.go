@@ -8,7 +8,7 @@ import (
 func boolPtr(b bool) *bool { return &b }
 
 func wrapRequirement(reqJSON string) []byte {
-	return []byte(`{"name":"x","extensions":{"dev.adaptersdk.v1":{"contractVersion":"1.0.0","requires":[` + reqJSON + `]}}}`)
+	return []byte(`{"name":"x","extensions":{"dev.whippletree.v1":{"contractVersion":"1.0.0","requires":[` + reqJSON + `]}}}`)
 }
 
 func TestValidateRejects(t *testing.T) {

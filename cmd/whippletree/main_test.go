@@ -26,7 +26,7 @@ func writeFile(t *testing.T, dir, rel, body string, perm os.FileMode) {
 // loop-guard field, so a loopGuardRequired blocking-gate requirement
 // against it lands Absent (and, if hardRequired, REFUSE).
 const fakeTargetYAML = `
-apiVersion: adaptersdk.dev/v1
+apiVersion: whippletree.dev/v1
 kind: TargetDefinition
 metadata:
   name: faketarget
@@ -69,7 +69,7 @@ func TestRunBuild_RefusesAndExitsNonZero(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", `{
 		"name": "x",
-		"extensions": { "dev.adaptersdk.v1": {
+		"extensions": { "dev.whippletree.v1": {
 			"contractVersion": "1.0.0",
 			"requires": [
 				{"id":"stop-gate","kind":"blocking-gate","event":"turn-end","minTier":"T1",
@@ -96,7 +96,7 @@ func TestRunBuild_AllowRefuseContinues(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", `{
 		"name": "x",
-		"extensions": { "dev.adaptersdk.v1": {
+		"extensions": { "dev.whippletree.v1": {
 			"contractVersion": "1.0.0",
 			"requires": [
 				{"id":"stop-gate","kind":"blocking-gate","event":"turn-end","minTier":"T1",
@@ -123,7 +123,7 @@ func TestRunBuild_HappyPathExitsZero(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", `{
 		"name": "x",
-		"extensions": { "dev.adaptersdk.v1": {
+		"extensions": { "dev.whippletree.v1": {
 			"contractVersion": "1.0.0",
 			"requires": [
 				{"id":"session-start-signal","kind":"lifecycle-signal","event":"session-start",
@@ -148,7 +148,7 @@ func TestRunBuild_HappyPathExitsZero(t *testing.T) {
 // "compiled for zero targets."
 func TestRunBuild_TargetsDirWithZeroTargetsErrors(t *testing.T) {
 	bundleDir := t.TempDir()
-	writeFile(t, bundleDir, "plugin.json", `{"name":"x","extensions":{"dev.adaptersdk.v1":{"contractVersion":"1.0.0","requires":[]}}}`, 0o644)
+	writeFile(t, bundleDir, "plugin.json", `{"name":"x","extensions":{"dev.whippletree.v1":{"contractVersion":"1.0.0","requires":[]}}}`, 0o644)
 
 	emptyTargetsDir := t.TempDir()
 
@@ -167,7 +167,7 @@ func TestRunBuild_TargetsDirWithZeroTargetsErrors(t *testing.T) {
 // binary is already there, so ensureDispatcher does nothing.
 func TestEnsureDispatcher_AlreadyPresent(t *testing.T) {
 	bundleDir := t.TempDir()
-	writeFile(t, bundleDir, "bin/adapter-hook", "already here", 0o755)
+	writeFile(t, bundleDir, "bin/whippletree-hook", "already here", 0o755)
 
 	var stderr bytes.Buffer
 	if err := ensureDispatcher(bundleDir, false, &stderr); err != nil {
@@ -180,7 +180,7 @@ func TestEnsureDispatcher_AlreadyPresent(t *testing.T) {
 
 // TestEnsureDispatcher_MissingFailsWithActionableMessage is the
 // regression test for finding 2: a build whose bundle has no
-// bin/adapter-hook, and no sibling binary to copy from (the normal
+// bin/whippletree-hook, and no sibling binary to copy from (the normal
 // case under `go test`), must fail with the exact command to fix it,
 // naming the bundle's bin path.
 func TestEnsureDispatcher_MissingFailsWithActionableMessage(t *testing.T) {
@@ -191,7 +191,7 @@ func TestEnsureDispatcher_MissingFailsWithActionableMessage(t *testing.T) {
 	if err == nil {
 		t.Fatal("ensureDispatcher = nil, want an error naming the missing binary")
 	}
-	wantPath := filepath.Join(bundleDir, "bin", "adapter-hook")
+	wantPath := filepath.Join(bundleDir, "bin", "whippletree-hook")
 	if !strings.Contains(err.Error(), "go build -o "+wantPath) {
 		t.Errorf("error = %q, want it to name the exact go build command for %s", err.Error(), wantPath)
 	}
@@ -218,7 +218,7 @@ func TestEnsureDispatcher_AllowMissingDowngradesToWarning(t *testing.T) {
 // message, not conflated with Check's fail-closed error.
 func TestRunPreflight_ProbeFailureMessageIsDistinct(t *testing.T) {
 	bundleDir := t.TempDir()
-	writeFile(t, bundleDir, "plugin.json", `{"name":"x","extensions":{"dev.adaptersdk.v1":{"contractVersion":"1.0.0","requires":[]}}}`, 0o644)
+	writeFile(t, bundleDir, "plugin.json", `{"name":"x","extensions":{"dev.whippletree.v1":{"contractVersion":"1.0.0","requires":[]}}}`, 0o644)
 
 	targetsDirPath := writeFakeTargetsDir(t) // faketarget's probe command does not exist
 

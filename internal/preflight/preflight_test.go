@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/adapter-sdk/internal/contract"
-	"github.com/larstonder/adapter-sdk/internal/preflight"
-	"github.com/larstonder/adapter-sdk/internal/target"
-	"github.com/larstonder/adapter-sdk/internal/tier"
+	"github.com/larstonder/whippletree/internal/contract"
+	"github.com/larstonder/whippletree/internal/preflight"
+	"github.com/larstonder/whippletree/internal/target"
+	"github.com/larstonder/whippletree/internal/tier"
 )
 
 func loadKbExample(t *testing.T) *contract.Contract {

@@ -1,6 +1,6 @@
 package target
 
-import "github.com/larstonder/adapter-sdk/internal/contract"
+import "github.com/larstonder/whippletree/internal/contract"
 
 // Def is the flattened, in-memory representation of a target's
 // target.yaml, populated from the nested apiVersion/kind/metadata/spec
@@ -25,7 +25,7 @@ type Def struct {
 	SourcePath string
 }
 
-// EventMapping describes how an adapter-sdk primitive event maps onto a
+// EventMapping describes how an whippletree primitive event maps onto a
 // target's native hook event.
 type EventMapping struct {
 	Native         string

@@ -1,7 +1,7 @@
-// Command adapter-hook is the process a harness's native hooks file
+// Command whippletree-hook is the process a harness's native hooks file
 // invokes. It is not meant to be run by humans: harnesses call
-// `adapter-hook run <event> --target <name>` with the raw hook payload
-// on stdin, and adapter-hook dispatches it to the bundle's declared
+// `whippletree-hook run <event> --target <name>` with the raw hook payload
+// on stdin, and whippletree-hook dispatches it to the bundle's declared
 // handlers.
 package main
 
@@ -11,33 +11,33 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/larstonder/adapter-sdk/internal/dispatch"
-	"github.com/larstonder/adapter-sdk/internal/target"
+	"github.com/larstonder/whippletree/internal/dispatch"
+	"github.com/larstonder/whippletree/internal/target"
 )
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stderr))
 }
 
-// run implements the adapter-hook CLI. It is split out from main so
+// run implements the whippletree-hook CLI. It is split out from main so
 // tests can exercise it without touching process-global os.Args/Exit.
 func run(args []string, stdin io.Reader, stderr io.Writer) int {
 	event, targetName, err := parseRunArgs(args)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
-		fmt.Fprintln(stderr, "usage: adapter-hook run <event> --target <name>")
+		fmt.Fprintln(stderr, "usage: whippletree-hook run <event> --target <name>")
 		return 1
 	}
 
 	bundleRoot, err := resolveBundleRoot(targetName)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-hook: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree-hook: %v\n", err)
 		return 1
 	}
 
 	in, err := io.ReadAll(stdin)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-hook: read stdin: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree-hook: read stdin: %v\n", err)
 		return 1
 	}
 
@@ -48,14 +48,14 @@ func run(args []string, stdin io.Reader, stderr io.Writer) int {
 // --target's value may appear in either order after "run".
 func parseRunArgs(args []string) (event, targetName string, err error) {
 	if len(args) < 1 || args[0] != "run" {
-		return "", "", fmt.Errorf("adapter-hook: expected subcommand \"run\"")
+		return "", "", fmt.Errorf("whippletree-hook: expected subcommand \"run\"")
 	}
 
 	rest := args[1:]
 	for i := 0; i < len(rest); i++ {
 		if rest[i] == "--target" {
 			if i+1 >= len(rest) {
-				return "", "", fmt.Errorf("adapter-hook: --target requires a value")
+				return "", "", fmt.Errorf("whippletree-hook: --target requires a value")
 			}
 			targetName = rest[i+1]
 			i++
@@ -67,10 +67,10 @@ func parseRunArgs(args []string) (event, targetName string, err error) {
 	}
 
 	if event == "" {
-		return "", "", fmt.Errorf("adapter-hook: missing <event>")
+		return "", "", fmt.Errorf("whippletree-hook: missing <event>")
 	}
 	if targetName == "" {
-		return "", "", fmt.Errorf("adapter-hook: missing --target")
+		return "", "", fmt.Errorf("whippletree-hook: missing --target")
 	}
 	return event, targetName, nil
 }
@@ -87,7 +87,7 @@ func resolveBundleRoot(targetName string) (string, error) {
 		return "", err
 	}
 
-	vendoredPath := filepath.Join(selfRoot, ".adapter-sdk", "targets", targetName+".yaml")
+	vendoredPath := filepath.Join(selfRoot, ".whippletree", "targets", targetName+".yaml")
 	if td, err := target.Load(vendoredPath); err == nil {
 		for _, v := range td.PluginRootVars {
 			if val, ok := os.LookupEnv(v); ok && val != "" {
@@ -100,8 +100,8 @@ func resolveBundleRoot(targetName string) (string, error) {
 }
 
 // selfBundleRoot resolves the binary's own grandparent directory. A
-// bundle-installed adapter-hook always lives at
-// <bundleRoot>/bin/adapter-hook, so dirname(dirname(argv0)) recovers
+// bundle-installed whippletree-hook always lives at
+// <bundleRoot>/bin/whippletree-hook, so dirname(dirname(argv0)) recovers
 // bundleRoot. Symlinks are resolved first: os.Executable can return a
 // symlinked path (e.g. through a plugin marketplace's shared bin/
 // directory), and only the real, installed location sits under the

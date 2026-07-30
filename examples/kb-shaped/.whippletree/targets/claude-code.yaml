@@ -1,18 +1,18 @@
-apiVersion: adaptersdk.dev/v1
+apiVersion: whippletree.dev/v1
 kind: TargetDefinition
 metadata:
-  name: codex
+  name: claude-code
   class: 1
   schemaVersion: "1.0.0"
-  testedVersions: ">=0.144.0"
+  testedVersions: ">=2.1.0"
 spec:
   discovery:
-    manifestDir: ".codex-plugin"
+    manifestDir: ".claude-plugin"
     hooksKey: "hooks"
-    mergeSemantics: replace
+    mergeSemantics: additive
   probe:
-    command: ["codex", "--version"]
-    versionPattern: 'codex-cli (\d+\.\d+\.\d+)'
+    command: ["claude", "--version"]
+    versionPattern: '(\d+\.\d+\.\d+)'
   events:
     session-start: { native: SessionStart, blocking: false }
     session-end:   { native: SessionEnd, blocking: false }
@@ -20,18 +20,13 @@ spec:
     tool-post:     { native: PostToolUse, blocking: false }
     turn-end:      { native: Stop, blocking: true, loopGuardField: stop_hook_active }
   toolClassMap:
-    read: null          # no file-read tool exists (verified: hook_names.rs)
-    write: apply_patch
+    read: Read
+    write: Write
     shell: Bash
-  degradations:
-    file-read:
-      tier: T2
-      matcher: "Bash|Edit|Write|apply_patch"
-      lossage: "misses reads in pipelines/heredocs/scripts; may double-count"
   strictness:
-    unknownFieldsFatal: true
+    unknownFieldsFatal: false
   env:
-    pluginRoot: ["PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"]
+    pluginRoot: ["CLAUDE_PLUGIN_ROOT"]
   capabilities:
     bundleChannel: true
     stopLoopGuard: true

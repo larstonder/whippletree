@@ -4,7 +4,7 @@ import "testing"
 
 const kbExample = `{
   "name": "knowledge-base",
-  "extensions": { "dev.adaptersdk.v1": {
+  "extensions": { "dev.whippletree.v1": {
     "contractVersion": "1.0.0",
     "requires": [
       {"id":"stop-gate","kind":"blocking-gate","event":"turn-end","minTier":"T1",

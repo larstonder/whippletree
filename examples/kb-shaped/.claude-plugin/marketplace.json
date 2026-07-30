@@ -1,1 +1,1 @@
-{"name": "kb-shaped-mkt", "owner": {"name": "adapter-sdk"}, "plugins": [{"name": "kb-shaped", "source": "./", "description": "adapter-sdk example bundle"}]}
+{"name": "kb-shaped-mkt", "owner": {"name": "whippletree"}, "plugins": [{"name": "kb-shaped", "source": "./", "description": "whippletree example bundle"}]}

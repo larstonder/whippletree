@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/larstonder/adapter-sdk/internal/dispatch"
-	"github.com/larstonder/adapter-sdk/internal/target"
+	"github.com/larstonder/whippletree/internal/dispatch"
+	"github.com/larstonder/whippletree/internal/target"
 )
 
 // loadTarget loads the named target's target.yaml from the repo's shared

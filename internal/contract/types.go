@@ -2,7 +2,7 @@ package contract
 
 import "fmt"
 
-const Namespace = "dev.adaptersdk.v1"
+const Namespace = "dev.whippletree.v1"
 
 type Tier int
 

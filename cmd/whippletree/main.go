@@ -1,4 +1,4 @@
-// Command adapter-sdk is the developer-facing CLI: it compiles a
+// Command whippletree is the developer-facing CLI: it compiles a
 // bundle's per-target variants (build) and reports whether a target
 // can satisfy a bundle's contract before install (preflight).
 package main
@@ -13,15 +13,15 @@ import (
 	"sort"
 	"time"
 
-	"github.com/larstonder/adapter-sdk/internal/compile"
-	"github.com/larstonder/adapter-sdk/internal/contract"
-	"github.com/larstonder/adapter-sdk/internal/preflight"
-	"github.com/larstonder/adapter-sdk/internal/target"
+	"github.com/larstonder/whippletree/internal/compile"
+	"github.com/larstonder/whippletree/internal/contract"
+	"github.com/larstonder/whippletree/internal/preflight"
+	"github.com/larstonder/whippletree/internal/target"
 )
 
 // defaultTargetsDir is the on-disk location of the class-1 target
 // definitions, relative to the working directory the CLI is invoked
-// from (the adapter-sdk repo root), used unless --targets-dir
+// from (the whippletree repo root), used unless --targets-dir
 // overrides it.
 const defaultTargetsDir = "targets"
 
@@ -29,11 +29,11 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-// run implements the adapter-sdk CLI. It is split out from main so
+// run implements the whippletree CLI. It is split out from main so
 // tests can exercise it without touching process-global os.Args/Exit.
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: adapter-sdk <build|preflight> ...")
+		fmt.Fprintln(stderr, "usage: whippletree <build|preflight> ...")
 		return 1
 	}
 
@@ -43,12 +43,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "preflight":
 		return runPreflight(args[1:], stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "adapter-sdk: unknown subcommand %q\n", args[0])
+		fmt.Fprintf(stderr, "whippletree: unknown subcommand %q\n", args[0])
 		return 1
 	}
 }
 
-// buildArgs is the parsed form of `adapter-sdk build`'s arguments.
+// buildArgs is the parsed form of `whippletree build`'s arguments.
 type buildArgs struct {
 	bundleDir              string
 	targetsDir             string
@@ -88,31 +88,31 @@ func parseBuildArgs(args []string) (buildArgs, error) {
 }
 
 // runBuild implements
-// `adapter-sdk build <bundleDir> [--targets-dir dir] [--allow-missing-dispatcher] [--allow-refuse]`.
+// `whippletree build <bundleDir> [--targets-dir dir] [--allow-missing-dispatcher] [--allow-refuse]`.
 func runBuild(args []string, stdout, stderr io.Writer) int {
-	const usage = "usage: adapter-sdk build <bundleDir> [--targets-dir dir] [--allow-missing-dispatcher] [--allow-refuse]"
+	const usage = "usage: whippletree build <bundleDir> [--targets-dir dir] [--allow-missing-dispatcher] [--allow-refuse]"
 
 	parsed, err := parseBuildArgs(args)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: %v\n", err)
 		fmt.Fprintln(stderr, usage)
 		return 1
 	}
 
 	targets, err := target.LoadDir(parsed.targetsDir)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: %v\n", err)
 		return 1
 	}
 
 	result, err := compile.Build(parsed.bundleDir, targets)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: build: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: build: %v\n", err)
 		return 1
 	}
 
 	if err := ensureDispatcher(parsed.bundleDir, parsed.allowMissingDispatcher, stderr); err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: %v\n", err)
 		return 1
 	}
 
@@ -154,26 +154,26 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 
 	if len(refusals) > 0 {
 		for _, r := range refusals {
-			fmt.Fprintf(stderr, "adapter-sdk: target %s refuses requirement %s\n", r.target, r.reqID)
+			fmt.Fprintf(stderr, "whippletree: target %s refuses requirement %s\n", r.target, r.reqID)
 		}
 		if !parsed.allowRefuse {
 			return 1
 		}
-		fmt.Fprintln(stderr, "adapter-sdk: continuing past refusals (--allow-refuse)")
+		fmt.Fprintln(stderr, "whippletree: continuing past refusals (--allow-refuse)")
 	}
 
 	return 0
 }
 
-// ensureDispatcher makes sure <bundleDir>/bin/adapter-hook exists,
+// ensureDispatcher makes sure <bundleDir>/bin/whippletree-hook exists,
 // since every hooks-file command this build just wrote invokes it and
 // compile.Build never provisions it itself. If it's missing, it tries
-// copying the adapter-hook binary sitting alongside adapter-sdk's own
-// executable (the layout a packaged release ships). If that's not
+// copying the whippletree-hook binary sitting alongside whippletree's
+// own executable (the layout a packaged release ships). If that's not
 // available either, allowMissing turns the gap into a warning;
 // otherwise it's a build error naming the exact command to run.
 func ensureDispatcher(bundleDir string, allowMissing bool, stderr io.Writer) error {
-	binPath := filepath.Join(bundleDir, "bin", "adapter-hook")
+	binPath := filepath.Join(bundleDir, "bin", "whippletree-hook")
 	if _, err := os.Stat(binPath); err == nil {
 		return nil
 	}
@@ -182,17 +182,17 @@ func ensureDispatcher(bundleDir string, allowMissing bool, stderr io.Writer) err
 		return nil
 	}
 
-	msg := fmt.Sprintf("%s is missing; build it with `go build -o %s ./cmd/adapter-hook`", binPath, binPath)
+	msg := fmt.Sprintf("%s is missing; build it with `go build -o %s ./cmd/whippletree-hook`", binPath, binPath)
 	if allowMissing {
-		fmt.Fprintf(stderr, "adapter-sdk: warning: %s\n", msg)
+		fmt.Fprintf(stderr, "whippletree: warning: %s\n", msg)
 		return nil
 	}
 	return errors.New(msg)
 }
 
-// copyFromSiblingExecutable copies an "adapter-hook" binary found next
-// to adapter-sdk's own executable (dirname(os.Executable())) to dst,
-// the layout a packaged adapter-sdk release ships both binaries in.
+// copyFromSiblingExecutable copies a "whippletree-hook" binary found next
+// to whippletree's own executable (dirname(os.Executable())) to dst,
+// the layout a packaged whippletree release ships both binaries in.
 func copyFromSiblingExecutable(dst string) error {
 	exe, err := os.Executable()
 	if err != nil {
@@ -203,13 +203,13 @@ func copyFromSiblingExecutable(dst string) error {
 		return err
 	}
 
-	src := filepath.Join(filepath.Dir(real), "adapter-hook")
+	src := filepath.Join(filepath.Dir(real), "whippletree-hook")
 	info, err := os.Stat(src)
 	if err != nil {
 		return err
 	}
 	if info.IsDir() {
-		return fmt.Errorf("%s is a directory, not the adapter-hook binary", src)
+		return fmt.Errorf("%s is a directory, not the whippletree-hook binary", src)
 	}
 
 	data, err := os.ReadFile(src)
@@ -223,7 +223,7 @@ func copyFromSiblingExecutable(dst string) error {
 }
 
 // installState is the shape written to
-// <bundleDir>/.adapter-sdk/install-state.json on a successful (non-
+// <bundleDir>/.whippletree/install-state.json on a successful (non-
 // refused) preflight.
 type installState struct {
 	Harness   string            `json:"harness"`
@@ -233,38 +233,38 @@ type installState struct {
 }
 
 // runPreflight implements
-// `adapter-sdk preflight <bundleDir> --target <name> [--assume-version X] [--targets-dir dir]`.
+// `whippletree preflight <bundleDir> --target <name> [--assume-version X] [--targets-dir dir]`.
 func runPreflight(args []string, stdout, stderr io.Writer) int {
 	bundleDir, targetName, assumeVersion, targetsDirArg, err := parsePreflightArgs(args)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: %v\n", err)
-		fmt.Fprintln(stderr, "usage: adapter-sdk preflight <bundleDir> --target <name> [--assume-version X] [--targets-dir dir]")
+		fmt.Fprintf(stderr, "whippletree: %v\n", err)
+		fmt.Fprintln(stderr, "usage: whippletree preflight <bundleDir> --target <name> [--assume-version X] [--targets-dir dir]")
 		return 1
 	}
 
 	targets, err := target.LoadDir(targetsDirArg)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: %v\n", err)
 		return 1
 	}
 	td, ok := targets[targetName]
 	if !ok {
-		fmt.Fprintf(stderr, "adapter-sdk: unknown target %q\n", targetName)
+		fmt.Fprintf(stderr, "whippletree: unknown target %q\n", targetName)
 		return 1
 	}
 
 	rawManifest, err := os.ReadFile(filepath.Join(bundleDir, "plugin.json"))
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: read plugin manifest: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: read plugin manifest: %v\n", err)
 		return 1
 	}
 	c, err := contract.Parse(rawManifest)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: parse contract: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: parse contract: %v\n", err)
 		return 1
 	}
 	if err := contract.Validate(c); err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: validate contract: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: validate contract: %v\n", err)
 		return 1
 	}
 
@@ -306,14 +306,14 @@ func runPreflight(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if err := writeInstallState(bundleDir, targetName, string(probed), report); err != nil {
-		fmt.Fprintf(stderr, "adapter-sdk: write install state: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: write install state: %v\n", err)
 		return 1
 	}
 
 	return 0
 }
 
-// writeInstallState writes <bundleDir>/.adapter-sdk/install-state.json
+// writeInstallState writes <bundleDir>/.whippletree/install-state.json
 // recording the harness, its probed version, when this preflight ran,
 // and the achieved tier per requirement.
 func writeInstallState(bundleDir, targetName, version string, report *preflight.Report) error {
@@ -338,9 +338,9 @@ func writeInstallState(bundleDir, targetName, version string, report *preflight.
 	}
 	body = append(body, '\n')
 
-	dir := filepath.Join(bundleDir, ".adapter-sdk")
+	dir := filepath.Join(bundleDir, ".whippletree")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create .adapter-sdk dir: %w", err)
+		return fmt.Errorf("create .whippletree dir: %w", err)
 	}
 	return os.WriteFile(filepath.Join(dir, "install-state.json"), body, 0o644)
 }

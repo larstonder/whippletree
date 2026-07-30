@@ -1,5 +1,5 @@
 // Package dispatch normalizes a target's raw hook stdin payload into the
-// adapter-sdk's canonical Event shape, so downstream handlers work against
+// whippletree's canonical Event shape, so downstream handlers work against
 // one representation regardless of which target produced the payload.
 package dispatch
 
@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/larstonder/adapter-sdk/internal/contract"
-	"github.com/larstonder/adapter-sdk/internal/target"
+	"github.com/larstonder/whippletree/internal/contract"
+	"github.com/larstonder/whippletree/internal/target"
 )
 
 // Event is the canonical, target-agnostic representation of a single hook

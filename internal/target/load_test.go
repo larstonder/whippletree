@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/adapter-sdk/internal/contract"
+	"github.com/larstonder/whippletree/internal/contract"
 )
 
 func TestLoadDir_ReturnsBothClass1Targets(t *testing.T) {
@@ -47,7 +47,7 @@ func TestLoad_UnknownKeyAnywhereErrors(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "target.yaml")
 	badYAML := `
-apiVersion: adaptersdk.dev/v1
+apiVersion: whippletree.dev/v1
 kind: TargetDefinition
 metadata:
   name: bogus

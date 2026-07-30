@@ -1,4 +1,4 @@
-apiVersion: adaptersdk.dev/v1
+apiVersion: whippletree.dev/v1
 kind: TargetDefinition
 metadata:
   name: claude-code

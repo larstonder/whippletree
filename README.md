@@ -1,12 +1,15 @@
-# adapter-sdk
+# whippletree
+
+A whippletree is the pivoting crossbar that lets one pull drive differently matched
+horses in harness. This does the same for agent tools across AI coding harnesses.
 
 Declare an agent tool's lifecycle requirements once; compile them onto multiple
 AI coding harnesses at the best verifiable fidelity tier. Class-1 spine:
 Claude Code + Codex CLI. Spec: harness-adapter.architecture.md (presentations repo).
 
-- `adapter-sdk build <bundle-dir>`: compile per-target variants
-- `adapter-sdk preflight <bundle-dir> --target <name>`: probe + tier report
-- `adapter-hook run <event> --target <name>`: hook dispatcher (invoked by harnesses, not humans)
+- `whippletree build <bundle-dir>`: compile per-target variants
+- `whippletree preflight <bundle-dir> --target <name>`: probe + tier report
+- `whippletree-hook run <event> --target <name>`: hook dispatcher (invoked by harnesses, not humans)
 
 ## Performance
 
@@ -16,29 +19,29 @@ Silicon. A real turn-end dispatch (handler execution included) measures ~15.6ms 
 
 ## Commands
 
-### `adapter-sdk build`
+### `whippletree build`
 
-Compiles a bundle's `plugin.json` contract (`extensions.dev.adaptersdk.v1`) against every
+Compiles a bundle's `plugin.json` contract (`extensions.dev.whippletree.v1`) against every
 target definition under `targets/`, writing per-target manifests, per-target hooks files,
-and the vendored `.adapter-sdk/` directory the dispatcher reads at runtime.
+and the vendored `.whippletree/` directory the dispatcher reads at runtime.
 
 The dispatcher binary isn't committed to the repo, so on a fresh clone build it first:
 
 ```
-$ go build -o examples/kb-shaped/bin/adapter-hook ./cmd/adapter-hook
-$ go run ./cmd/adapter-sdk build examples/kb-shaped
+$ go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
+$ go run ./cmd/whippletree build examples/kb-shaped
 target claude-code: 4 satisfy, 0 degrade, 0 refuse, 0 absent
 target codex: 4 satisfy, 0 degrade, 0 refuse, 0 absent
 ```
 
-Every hooks-file command build just wrote invokes `<bundle>/bin/adapter-hook`, so build also
-makes sure that binary exists: if it's missing, it tries copying an `adapter-hook` found
-alongside the running `adapter-sdk` executable (the layout a packaged release ships both
+Every hooks-file command build just wrote invokes `<bundle>/bin/whippletree-hook`, so build also
+makes sure that binary exists: if it's missing, it tries copying a `whippletree-hook` found
+alongside the running `whippletree` executable (the layout a packaged release ships both
 binaries in); if that's not available either, it fails with the exact command to build one
 yourself:
 
 ```
-go build -o <bundle>/bin/adapter-hook ./cmd/adapter-hook
+go build -o <bundle>/bin/whippletree-hook ./cmd/whippletree-hook
 ```
 
 Pass `--allow-missing-dispatcher` to downgrade that failure to a warning instead (useful in
@@ -52,14 +55,14 @@ If any target's contract requirement lands at REFUSE (a hard-required requiremen
 target cannot satisfy at all, or only below its minimum tier), `build` exits 1 and names
 every refusing target/requirement pair on stderr, unless `--allow-refuse` is set.
 
-### `adapter-sdk preflight`
+### `whippletree preflight`
 
 Probes an installed harness (or accepts an assumed version, for scripting) and renders a
 terraform-plan-shaped report of what tier each requirement actually lands at.
 
 ```
-$ go run ./cmd/adapter-sdk preflight examples/kb-shaped --target codex --assume-version 0.146.0
-adapter-sdk preflight · target codex (probed 0.146.0)
+$ go run ./cmd/whippletree preflight examples/kb-shaped --target codex --assume-version 0.146.0
+whippletree preflight · target codex (probed 0.146.0)
 
   stop-gate             want ≥T1  got T1  SATISFY   native Stop + stop_hook_active
   session-start-signal  want ≥T2  got T1  SATISFY   native SessionStart
@@ -69,14 +72,14 @@ adapter-sdk preflight · target codex (probed 0.146.0)
 Plan: 4 satisfy, 0 degrade, 0 refuse.
 ```
 
-Exit code is 1 if any requirement REFUSEs; otherwise `.adapter-sdk/install-state.json` is
+Exit code is 1 if any requirement REFUSEs; otherwise `.whippletree/install-state.json` is
 written recording the harness, probed version, and the achieved tier per requirement.
 
-### `adapter-hook run <event> --target <name>`
+### `whippletree-hook run <event> --target <name>`
 
 Not meant to be run by humans. This is the single command every emitted hooks file
 invokes; harnesses call it directly (e.g.
-`"${CLAUDE_PLUGIN_ROOT}/bin/adapter-hook" run session-start --target claude-code`). It
+`"${CLAUDE_PLUGIN_ROOT}/bin/whippletree-hook" run session-start --target claude-code`). It
 resolves the bundle root from the target's plugin-root env var (falling back to its own
 grandparent directory), normalizes the harness's native stdin payload, and executes the
 matching handler(s) declared in the contract.
@@ -126,7 +129,7 @@ to be folded back into that doc:
    `path` field instead (there's nothing to invoke, only a binary to check for).
 2. The handler convention above (stdin/env/exit codes) is new; the architecture doc
    described the contract and target definitions but not the wire format a handler sees.
-3. Compiled bundles carry a vendored `.adapter-sdk/` directory: `contract.json` (the
+3. Compiled bundles carry a vendored `.whippletree/` directory: `contract.json` (the
    normalized contract) and `targets/<name>.yaml` (the exact target definition used at
    build time). This is what the dispatcher reads at runtime, so it never has to
    re-resolve the contract or reload target YAMLs the author might have changed since

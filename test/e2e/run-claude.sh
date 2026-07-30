@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Headless e2e: install the kb-shaped example bundle into a fresh,
 # isolated claude config dir and confirm SessionStart fires the
-# vendored adapter-hook end to end against the real claude CLI, exactly
+# vendored whippletree-hook end to end against the real claude CLI, exactly
 # once (proving hooks/hooks.json is never emitted alongside the
 # per-target hooks file, so there's no double-fire). Runs fully
 # unauthenticated; SessionStart is verified (2026-07-29) to fire before
@@ -18,7 +18,7 @@ mkdir -p "$CLAUDE_CONFIG_DIR"
 export E2E_MARKER="$S/marker.log"
 : >"$E2E_MARKER"
 
-go build -o examples/kb-shaped/bin/adapter-hook ./cmd/adapter-hook
+go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
 
 claude plugin marketplace add "$repo_root/examples/kb-shaped"
 claude plugin install kb-shaped@kb-shaped-mkt

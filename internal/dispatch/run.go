@@ -10,8 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/larstonder/adapter-sdk/internal/contract"
-	"github.com/larstonder/adapter-sdk/internal/target"
+	"github.com/larstonder/whippletree/internal/contract"
+	"github.com/larstonder/whippletree/internal/target"
 )
 
 // Run loads bundleRoot's vendored contract and target definition, selects
@@ -34,7 +34,7 @@ import (
 func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stderr io.Writer) int {
 	c, err := loadVendoredContract(bundleRoot)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-hook: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree-hook: %v\n", err)
 		return 1
 	}
 
@@ -50,18 +50,18 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stderr io.Wr
 
 	td, err := loadVendoredTarget(bundleRoot, targetName)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-hook: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree-hook: %v\n", err)
 		return 1
 	}
 
 	ev, err := Normalize(logicalEvent, td, stdin)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-hook: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree-hook: %v\n", err)
 		return 1
 	}
 	payload, err := json.Marshal(ev)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-hook: marshal event: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree-hook: marshal event: %v\n", err)
 		return 1
 	}
 
@@ -87,7 +87,7 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stderr io.Wr
 		case exitCode == 2:
 			return 2
 		case exitCode != 0:
-			fmt.Fprintf(stderr, "adapter-hook: handler %s exited %d (ignored)\n", req.Handler, exitCode)
+			fmt.Fprintf(stderr, "whippletree-hook: handler %s exited %d (ignored)\n", req.Handler, exitCode)
 		}
 	}
 
@@ -95,10 +95,10 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stderr io.Wr
 }
 
 // loadVendoredContract reads and parses bundleRoot's vendored
-// .adapter-sdk/contract.json (already the parsed, normalized form
+// .whippletree/contract.json (already the parsed, normalized form
 // compile.Build wrote; no re-validation needed here).
 func loadVendoredContract(bundleRoot string) (*contract.Contract, error) {
-	path := filepath.Join(bundleRoot, ".adapter-sdk", "contract.json")
+	path := filepath.Join(bundleRoot, ".whippletree", "contract.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read vendored contract: %w", err)
@@ -111,9 +111,9 @@ func loadVendoredContract(bundleRoot string) (*contract.Contract, error) {
 }
 
 // loadVendoredTarget loads bundleRoot's vendored
-// .adapter-sdk/targets/<targetName>.yaml.
+// .whippletree/targets/<targetName>.yaml.
 func loadVendoredTarget(bundleRoot, targetName string) (*target.Def, error) {
-	path := filepath.Join(bundleRoot, ".adapter-sdk", "targets", targetName+".yaml")
+	path := filepath.Join(bundleRoot, ".whippletree", "targets", targetName+".yaml")
 	td, err := target.Load(path)
 	if err != nil {
 		return nil, fmt.Errorf("load vendored target %q: %w", targetName, err)
@@ -136,11 +136,11 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, pay
 
 	info, err := os.Stat(handlerPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "adapter-hook: handler %s: missing (%v) (ignored)\n", handlerRelPath, err)
+		fmt.Fprintf(stderr, "whippletree-hook: handler %s: missing (%v) (ignored)\n", handlerRelPath, err)
 		return 0, nil, false
 	}
 	if info.IsDir() || info.Mode()&0o111 == 0 {
-		fmt.Fprintf(stderr, "adapter-hook: handler %s: not executable (ignored)\n", handlerRelPath)
+		fmt.Fprintf(stderr, "whippletree-hook: handler %s: not executable (ignored)\n", handlerRelPath)
 		return 0, nil, false
 	}
 
@@ -163,6 +163,6 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, pay
 		return exitErr.ExitCode(), captured.Bytes(), true
 	}
 
-	fmt.Fprintf(stderr, "adapter-hook: handler %s: %v (ignored)\n", handlerRelPath, runErr)
+	fmt.Fprintf(stderr, "whippletree-hook: handler %s: %v (ignored)\n", handlerRelPath, runErr)
 	return 0, nil, false
 }

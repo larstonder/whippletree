@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/adapter-sdk/internal/compile"
-	"github.com/larstonder/adapter-sdk/internal/target"
+	"github.com/larstonder/whippletree/internal/compile"
+	"github.com/larstonder/whippletree/internal/target"
 )
 
 // setupBundle copies the kb-shaped fixture into a fresh temp bundle dir
@@ -134,10 +134,10 @@ func TestBuild_EmitsPerTargetVariants(t *testing.T) {
 		t.Fatalf("codex hooks top-level keys = %v, want exactly {\"hooks\"}", keysOf(codexTop))
 	}
 
-	// 6: vendored .adapter-sdk files exist.
+	// 6: vendored .whippletree files exist.
 	for _, p := range []string{
-		filepath.Join(".adapter-sdk", "contract.json"),
-		filepath.Join(".adapter-sdk", "targets", "codex.yaml"),
+		filepath.Join(".whippletree", "contract.json"),
+		filepath.Join(".whippletree", "targets", "codex.yaml"),
 	} {
 		if _, err := os.Stat(filepath.Join(bundleDir, p)); err != nil {
 			t.Errorf("expected vendored file %s to exist: %v", p, err)
@@ -154,13 +154,13 @@ func keysOf(m map[string]any) []string {
 }
 
 // writeManifestOnly writes a plugin.json with the given contract JSON
-// body (the extensions.dev.adaptersdk.v1 payload) to a fresh temp
+// body (the extensions.dev.whippletree.v1 payload) to a fresh temp
 // bundle dir, without any stand-in handler/path files. Callers that
 // need those files present create them explicitly.
 func writeManifestOnly(t *testing.T, requiresJSON string) string {
 	t.Helper()
 	dir := t.TempDir()
-	manifest := `{"name":"x","extensions":{"dev.adaptersdk.v1":{"contractVersion":"1.0.0","requires":[` + requiresJSON + `]}}}`
+	manifest := `{"name":"x","extensions":{"dev.whippletree.v1":{"contractVersion":"1.0.0","requires":[` + requiresJSON + `]}}}`
 	if err := os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(manifest), 0o644); err != nil {
 		t.Fatalf("write plugin.json: %v", err)
 	}

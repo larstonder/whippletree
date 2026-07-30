@@ -1,7 +1,7 @@
 {
-  "description": "adapter-sdk example bundle: a kb-shaped contract exercising the four requirement kinds against real class-1 harnesses",
+  "description": "whippletree example bundle: a kb-shaped contract exercising the four requirement kinds against real class-1 harnesses",
   "extensions": {
-    "dev.adaptersdk.v1": {
+    "dev.whippletree.v1": {
       "contractVersion": "1.0.0",
       "requires": [
         {

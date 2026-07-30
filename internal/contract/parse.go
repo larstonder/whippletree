@@ -9,7 +9,7 @@ type pluginManifest struct {
 	Extensions map[string]json.RawMessage `json:"extensions"`
 }
 
-// Parse extracts the adapter-sdk Contract from a plugin manifest's
+// Parse extracts the whippletree Contract from a plugin manifest's
 // "extensions" block, keyed by Namespace.
 func Parse(pluginJSON []byte) (*Contract, error) {
 	var manifest pluginManifest

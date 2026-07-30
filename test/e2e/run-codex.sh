@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Headless e2e: install the kb-shaped example bundle into a fresh,
 # isolated codex home and confirm SessionStart fires the vendored
-# adapter-hook end to end against the real codex CLI. Runs fully
+# whippletree-hook end to end against the real codex CLI. Runs fully
 # unauthenticated: no auth.json is copied in (deliberate deviation from
 # the original brief, avoids refresh-token conflicts against the
 # caller's real login). SessionStart is verified (2026-07-29) to fire
@@ -18,7 +18,7 @@ mkdir -p "$CODEX_HOME"
 export E2E_MARKER="$S/marker.log"
 : >"$E2E_MARKER"
 
-go build -o examples/kb-shaped/bin/adapter-hook ./cmd/adapter-hook
+go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
 
 codex plugin marketplace add "$repo_root/examples/kb-shaped"
 codex plugin add kb-shaped@kb-shaped-mkt

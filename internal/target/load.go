@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/larstonder/adapter-sdk/internal/contract"
+	"github.com/larstonder/whippletree/internal/contract"
 	"gopkg.in/yaml.v3"
 )
 

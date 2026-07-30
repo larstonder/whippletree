@@ -10,7 +10,7 @@ import (
 // emission deterministic. Go map iteration is randomized and a plain
 // alphabetical sort of native event names would not match the order
 // authors expect (e.g. SessionStart before PostToolUse), so instead we
-// order by the adapter-sdk primitive each native event maps from.
+// order by the whippletree primitive each native event maps from.
 var primitiveOrder = []string{
 	"session-start",
 	"session-end",

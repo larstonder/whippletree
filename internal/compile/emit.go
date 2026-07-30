@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/larstonder/adapter-sdk/internal/contract"
-	"github.com/larstonder/adapter-sdk/internal/target"
-	"github.com/larstonder/adapter-sdk/internal/tier"
+	"github.com/larstonder/whippletree/internal/contract"
+	"github.com/larstonder/whippletree/internal/target"
+	"github.com/larstonder/whippletree/internal/tier"
 )
 
 // hooksEmittingKinds are the requirement kinds that produce entries in a
@@ -30,15 +30,15 @@ type Result struct {
 }
 
 // Build reads bundleDir's plugin.json, parses and validates its
-// adapter-sdk contract, and for every target in targets writes:
+// whippletree contract, and for every target in targets writes:
 //
 //   - <manifestDir>/plugin.json: the bundle's original manifest fields
 //     plus a "hooks" pointer to that target's hooks file.
 //   - hooks/<name>.json: the native hooks file, one entry per
 //     non-absent blocking-gate/lifecycle-signal/observation-signal
 //     requirement.
-//   - .adapter-sdk/contract.json: the normalized, parsed contract.
-//   - .adapter-sdk/targets/<name>.yaml: a byte copy of the target's
+//   - .whippletree/contract.json: the normalized, parsed contract.
+//   - .whippletree/targets/<name>.yaml: a byte copy of the target's
 //     source target.yaml.
 //
 // It never writes hooks/hooks.json; each target's hooks file is named
@@ -174,7 +174,7 @@ func addHookEntry(hf *hooksFile, req contract.Requirement, td *target.Def, name 
 	if len(td.PluginRootVars) == 0 {
 		return fmt.Errorf("requirement %s: target %q declares no pluginRoot env var", req.ID, name)
 	}
-	command := fmt.Sprintf("\"${%s}/bin/adapter-hook\" run %s --target %s", td.PluginRootVars[0], req.Event, name)
+	command := fmt.Sprintf("\"${%s}/bin/whippletree-hook\" run %s --target %s", td.PluginRootVars[0], req.Event, name)
 
 	hf.add(primitive, mapping.Native, hookEntry{
 		Matcher: matcher,
@@ -227,12 +227,12 @@ func writeHooksFile(bundleDir, name string, hf *hooksFile) error {
 	return nil
 }
 
-// vendorContract writes .adapter-sdk/contract.json: the normalized,
+// vendorContract writes .whippletree/contract.json: the normalized,
 // parsed contract.
 func vendorContract(bundleDir string, c *contract.Contract) error {
-	dir := filepath.Join(bundleDir, ".adapter-sdk")
+	dir := filepath.Join(bundleDir, ".whippletree")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create .adapter-sdk dir: %w", err)
+		return fmt.Errorf("create .whippletree dir: %w", err)
 	}
 
 	body, err := json.MarshalIndent(c, "", "  ")
@@ -247,7 +247,7 @@ func vendorContract(bundleDir string, c *contract.Contract) error {
 	return nil
 }
 
-// vendorTargetYAML writes .adapter-sdk/targets/<name>.yaml: a byte copy
+// vendorTargetYAML writes .whippletree/targets/<name>.yaml: a byte copy
 // of the target's source target.yaml.
 func vendorTargetYAML(bundleDir, name string, td *target.Def) error {
 	if td.SourcePath == "" {
@@ -258,7 +258,7 @@ func vendorTargetYAML(bundleDir, name string, td *target.Def) error {
 		return fmt.Errorf("read target source for %q: %w", name, err)
 	}
 
-	dir := filepath.Join(bundleDir, ".adapter-sdk", "targets")
+	dir := filepath.Join(bundleDir, ".whippletree", "targets")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create vendored targets dir: %w", err)
 	}

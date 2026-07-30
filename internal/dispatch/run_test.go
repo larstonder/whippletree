@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/adapter-sdk/internal/contract"
-	"github.com/larstonder/adapter-sdk/internal/dispatch"
+	"github.com/larstonder/whippletree/internal/contract"
+	"github.com/larstonder/whippletree/internal/dispatch"
 )
 
-// newBundle builds a temp bundle directory with a vendored .adapter-sdk/
+// newBundle builds a temp bundle directory with a vendored .whippletree/
 // contract.json (from the kb-example fixture), a vendored
-// .adapter-sdk/targets/codex.yaml (copied from the repo's shared
+// .whippletree/targets/codex.yaml (copied from the repo's shared
 // targets/), and one handler script per entry in handlers (keyed by
 // filename under handlers/, written 0755).
 func newBundle(t *testing.T, handlers map[string]string) string {
@@ -35,7 +35,7 @@ func newBundle(t *testing.T, handlers map[string]string) string {
 		t.Fatalf("marshal vendored contract: %v", err)
 	}
 
-	sdkDir := filepath.Join(dir, ".adapter-sdk")
+	sdkDir := filepath.Join(dir, ".whippletree")
 	if err := os.MkdirAll(sdkDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

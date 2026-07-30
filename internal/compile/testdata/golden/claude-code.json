@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/adapter-hook\" run session-start --target claude-code"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/whippletree-hook\" run session-start --target claude-code"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/adapter-hook\" run file-read --target claude-code"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/whippletree-hook\" run file-read --target claude-code"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/adapter-hook\" run turn-end --target claude-code"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/whippletree-hook\" run turn-end --target claude-code"
           }
         ]
       }

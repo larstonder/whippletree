@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${PLUGIN_ROOT}/bin/adapter-hook\" run session-start --target codex"
+            "command": "\"${PLUGIN_ROOT}/bin/whippletree-hook\" run session-start --target codex"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${PLUGIN_ROOT}/bin/adapter-hook\" run file-read --target codex"
+            "command": "\"${PLUGIN_ROOT}/bin/whippletree-hook\" run file-read --target codex"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${PLUGIN_ROOT}/bin/adapter-hook\" run turn-end --target codex"
+            "command": "\"${PLUGIN_ROOT}/bin/whippletree-hook\" run turn-end --target codex"
           }
         ]
       }

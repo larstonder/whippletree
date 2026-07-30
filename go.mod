@@ -1,4 +1,4 @@
-module github.com/larstonder/adapter-sdk
+module github.com/larstonder/whippletree
 
 go 1.22
 
