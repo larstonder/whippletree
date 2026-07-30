@@ -3,6 +3,7 @@ package target
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/larstonder/adapter-sdk/internal/contract"
@@ -79,6 +80,23 @@ spec:
 
 	if _, err := Load(path); err == nil {
 		t.Fatalf("expected Load to error on unknown key, got nil error")
+	}
+}
+
+// TestLoadDir_ErrorsOnZeroTargets is the regression test for finding 8:
+// a targets dir that resolves (e.g. via a wrong --targets-dir, or cwd
+// mismatch) but contains no target.yaml files must error loudly rather
+// than silently returning an empty map, which upstream callers would
+// otherwise treat as "compiled for zero targets, nothing to report."
+func TestLoadDir_ErrorsOnZeroTargets(t *testing.T) {
+	dir := t.TempDir() // empty: no subdirectories, no target.yaml files
+
+	_, err := LoadDir(dir)
+	if err == nil {
+		t.Fatal("want error for a targets dir with zero target definitions, got nil")
+	}
+	if !strings.Contains(err.Error(), "no target definitions found") {
+		t.Errorf("error = %q, want it to say no target definitions were found", err.Error())
 	}
 }
 

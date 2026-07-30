@@ -152,5 +152,9 @@ func LoadDir(dir string) (map[string]*Def, error) {
 		defs[def.Name] = def
 	}
 
+	if len(defs) == 0 {
+		return nil, fmt.Errorf("no target definitions found in %s", dir)
+	}
+
 	return defs, nil
 }
