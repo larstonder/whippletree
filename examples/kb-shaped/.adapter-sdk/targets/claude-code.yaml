@@ -1,0 +1,33 @@
+apiVersion: adaptersdk.dev/v1
+kind: TargetDefinition
+metadata:
+  name: claude-code
+  class: 1
+  schemaVersion: "1.0.0"
+  testedVersions: ">=2.1.0"
+spec:
+  discovery:
+    manifestDir: ".claude-plugin"
+    hooksKey: "hooks"
+    mergeSemantics: additive
+  probe:
+    command: ["claude", "--version"]
+    versionPattern: '(\d+\.\d+\.\d+)'
+  events:
+    session-start: { native: SessionStart, blocking: false }
+    session-end:   { native: SessionEnd, blocking: false }
+    tool-pre:      { native: PreToolUse, blocking: true }
+    tool-post:     { native: PostToolUse, blocking: false }
+    turn-end:      { native: Stop, blocking: true, loopGuardField: stop_hook_active }
+  toolClassMap:
+    read: Read
+    write: Write
+    shell: Bash
+  strictness:
+    unknownFieldsFatal: false
+  env:
+    pluginRoot: ["CLAUDE_PLUGIN_ROOT"]
+  capabilities:
+    bundleChannel: true
+    stopLoopGuard: true
+    matcherAlternation: true

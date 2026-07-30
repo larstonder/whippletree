@@ -1,0 +1,45 @@
+{
+  "description": "adapter-sdk example bundle: a kb-shaped contract exercising the four requirement kinds against real class-1 harnesses",
+  "extensions": {
+    "dev.adaptersdk.v1": {
+      "contractVersion": "1.0.0",
+      "requires": [
+        {
+          "event": "turn-end",
+          "handler": "./handlers/capture.sh",
+          "hardRequired": true,
+          "id": "stop-gate",
+          "kind": "blocking-gate",
+          "loopGuardRequired": true,
+          "minTier": "T1"
+        },
+        {
+          "event": "session-start",
+          "handler": "./handlers/pull.sh",
+          "hardRequired": false,
+          "id": "session-start-signal",
+          "kind": "lifecycle-signal",
+          "minTier": "T2"
+        },
+        {
+          "event": "file-read",
+          "handler": "./handlers/log-read.sh",
+          "hardRequired": false,
+          "id": "file-read-signal",
+          "kind": "observation-signal",
+          "minTier": "T4"
+        },
+        {
+          "hardRequired": true,
+          "id": "bin-reachable",
+          "kind": "executable-path",
+          "minTier": "T1",
+          "path": "./bin/kb"
+        }
+      ]
+    }
+  },
+  "hooks": "./hooks/codex.json",
+  "name": "kb-shaped",
+  "version": "0.1.0"
+}
