@@ -8,6 +8,7 @@ import (
 	"github.com/larstonder/adapter-sdk/internal/contract"
 	"github.com/larstonder/adapter-sdk/internal/preflight"
 	"github.com/larstonder/adapter-sdk/internal/target"
+	"github.com/larstonder/adapter-sdk/internal/tier"
 )
 
 func loadKbExample(t *testing.T) *contract.Contract {
@@ -188,5 +189,72 @@ func TestProbeFailsClosedNonInteractive(t *testing.T) {
 	rendered := report.Render("codex", preflight.Version(""))
 	if !strings.Contains(rendered, "unknown") {
 		t.Errorf("Render output should show %q for unprobed version:\n%s", "unknown", rendered)
+	}
+}
+
+// TestClassify exercises preflight.Classify directly, covering all five
+// verdict branches. This is the one piece of logic the project treats
+// as load-bearing (the CRITICAL tier-comparison direction: contract.Tier
+// is best-to-worst T1..T4, so "achieved at least as good as wanted" is
+// the numeric comparison got <= want, not got >= want). Check and the
+// `build` CLI summary both call this single function, so a regression
+// here catches both callers.
+func TestClassify(t *testing.T) {
+	trueVal, falseVal := true, false
+
+	cases := []struct {
+		name string
+		a    tier.Assignment
+		want string
+	}{
+		{
+			name: "absent and hard required refuses",
+			a: tier.Assignment{
+				Req:    contract.Requirement{MinTier: contract.T1, HardRequired: &trueVal},
+				Absent: true,
+			},
+			want: preflight.Refuse,
+		},
+		{
+			name: "absent and not hard required is merely absent",
+			a: tier.Assignment{
+				Req:    contract.Requirement{MinTier: contract.T1, HardRequired: &falseVal},
+				Absent: true,
+			},
+			want: preflight.Absent,
+		},
+		{
+			name: "achieved at least as good as wanted satisfies (kb matrix: want T4, got T2)",
+			a: tier.Assignment{
+				Req:  contract.Requirement{MinTier: contract.T4, HardRequired: &falseVal},
+				Tier: contract.T2,
+			},
+			want: preflight.Satisfy,
+		},
+		{
+			name: "achieved worse than wanted and hard required refuses",
+			a: tier.Assignment{
+				Req:  contract.Requirement{MinTier: contract.T1, HardRequired: &trueVal},
+				Tier: contract.T2,
+			},
+			want: preflight.Refuse,
+		},
+		{
+			name: "achieved worse than wanted and not hard required degrades",
+			a: tier.Assignment{
+				Req:  contract.Requirement{MinTier: contract.T1, HardRequired: &falseVal},
+				Tier: contract.T2,
+			},
+			want: preflight.Degrade,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := preflight.Classify(tc.a)
+			if got != tc.want {
+				t.Errorf("Classify(%+v) = %s, want %s", tc.a, got, tc.want)
+			}
+		})
 	}
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/larstonder/adapter-sdk/internal/contract"
 	"github.com/larstonder/adapter-sdk/internal/preflight"
 	"github.com/larstonder/adapter-sdk/internal/target"
-	"github.com/larstonder/adapter-sdk/internal/tier"
 )
 
 // targetsDir is the on-disk location of the class-1 target definitions,
@@ -76,7 +75,13 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	for _, name := range names {
 		satisfy, degrade, refuse, absent := 0, 0, 0, 0
 		for _, a := range result.PerTarget[name] {
-			switch classifyAssignment(a) {
+			// preflight.Classify is the single source of truth for the
+			// tier-comparison/hard-requirement verdict rules; build has
+			// no probed version to fail closed on (tier assignment
+			// depends only on the target definition, not the installed
+			// version), so it classifies straight from compile.Result
+			// without calling preflight.Check.
+			switch preflight.Classify(a) {
 			case preflight.Satisfy:
 				satisfy++
 			case preflight.Degrade:
@@ -91,27 +96,6 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	}
 
 	return 0
-}
-
-// classifyAssignment mirrors preflight.Check's per-requirement verdict
-// logic, applied directly to an already-computed tier.Assignment. build
-// has no probed version to fail closed on (tier assignment depends only
-// on the target definition, not the installed version), so it can
-// classify straight from compile.Result without calling preflight.Check.
-func classifyAssignment(a tier.Assignment) string {
-	hard := a.Req.HardRequired != nil && *a.Req.HardRequired
-	switch {
-	case a.Absent && hard:
-		return preflight.Refuse
-	case a.Absent:
-		return preflight.Absent
-	case a.Tier <= a.Req.MinTier:
-		return preflight.Satisfy
-	case hard:
-		return preflight.Refuse
-	default:
-		return preflight.Degrade
-	}
 }
 
 // installState is the shape written to

@@ -62,34 +62,48 @@ func Check(c *contract.Contract, td *target.Def, probed Version, interactive boo
 	report := &Report{}
 	for _, req := range c.Requires {
 		a := tier.Assign(req, td)
-		hard := req.HardRequired != nil && *req.HardRequired
+		verdict := Classify(a)
 
-		line := Line{ReqID: req.ID, Want: req.MinTier, Got: a.Tier}
-
-		switch {
-		case a.Absent && hard:
-			line.Verdict = Refuse
-			line.Detail = a.Mechanism
+		line := Line{
+			ReqID:   req.ID,
+			Want:    req.MinTier,
+			Got:     a.Tier,
+			Verdict: verdict,
+			Detail:  withLossage(a.Mechanism, a.Lossage),
+		}
+		if verdict == Refuse {
 			report.Refused = true
-		case a.Absent:
-			line.Verdict = Absent
-			line.Detail = a.Mechanism
-		case a.Tier <= req.MinTier:
-			line.Verdict = Satisfy
-			line.Detail = withLossage(a.Mechanism, a.Lossage)
-		case hard:
-			line.Verdict = Refuse
-			line.Detail = withLossage(a.Mechanism, a.Lossage)
-			report.Refused = true
-		default:
-			line.Verdict = Degrade
-			line.Detail = withLossage(a.Mechanism, a.Lossage)
 		}
 
 		report.Lines = append(report.Lines, line)
 	}
 
 	return report, nil
+}
+
+// Classify determines the preflight verdict for an already-computed
+// tier.Assignment, applying the CRITICAL tier-comparison and
+// hard-requirement rules in one place: Absent+hard → REFUSE,
+// Absent+!hard → ABSENT, achieved at least as good as wanted (numeric
+// got <= want, since contract.Tier is best-to-worst T1..T4) → SATISFY,
+// achieved worse than wanted (got > want) and hard → REFUSE, else
+// DEGRADE. Both Check and the `build` CLI summary call this so the
+// verdict logic exists exactly once.
+func Classify(a tier.Assignment) string {
+	hard := a.Req.HardRequired != nil && *a.Req.HardRequired
+
+	switch {
+	case a.Absent && hard:
+		return Refuse
+	case a.Absent:
+		return Absent
+	case a.Tier <= a.Req.MinTier:
+		return Satisfy
+	case hard:
+		return Refuse
+	default:
+		return Degrade
+	}
 }
 
 // withLossage appends lossage to mechanism (the literal-loss rule: name
