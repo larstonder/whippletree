@@ -101,6 +101,7 @@ func Load(path string) (*Def, error) {
 			VersionPattern: doc.Spec.Probe.VersionPattern,
 		},
 		Capabilities: doc.Spec.Capabilities,
+		SourcePath:   path,
 	}
 
 	for name, ev := range doc.Spec.Events {

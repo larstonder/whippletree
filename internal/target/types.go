@@ -18,6 +18,11 @@ type Def struct {
 	PluginRootVars     []string
 	Probe              ProbeSpec
 	Capabilities       map[string]bool
+
+	// SourcePath is the filesystem path Load read this Def from. It is
+	// bookkeeping populated after YAML decoding, not part of the
+	// target.yaml schema itself.
+	SourcePath string
 }
 
 // EventMapping describes how an adapter-sdk primitive event maps onto a
