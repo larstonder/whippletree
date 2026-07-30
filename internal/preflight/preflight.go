@@ -165,7 +165,13 @@ func (r *Report) Render(targetName string, v Version) string {
 
 	var satisfy, degrade, refuse, absent int
 	for _, l := range r.Lines {
-		fmt.Fprintf(&b, "  %-*s  want ≥%s  got %s  %-9s %s\n", width, l.ReqID, l.Want, l.Got, l.Verdict, l.Detail)
+		gotStr := l.Got.String()
+		if gotStr == "" {
+			// Absent rows have no achieved tier; blank data reads as a
+			// rendering bug, so show the "no value" marker explicitly.
+			gotStr = "—"
+		}
+		fmt.Fprintf(&b, "  %-*s  want ≥%s  got %s  %-9s %s\n", width, l.ReqID, l.Want, gotStr, l.Verdict, l.Detail)
 
 		switch l.Verdict {
 		case Satisfy:

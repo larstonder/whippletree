@@ -192,6 +192,36 @@ func TestProbeFailsClosedNonInteractive(t *testing.T) {
 	}
 }
 
+// TestRenderShowsDashForAbsentGotTier is the regression test for
+// finding 5's Render fix: an ABSENT line has no achieved tier
+// (contract.Tier's zero value stringifies to ""), which used to render
+// as a blank "got " column. Render must show an explicit "—" instead.
+func TestRenderShowsDashForAbsentGotTier(t *testing.T) {
+	falseVal := false
+	c := &contract.Contract{
+		ContractVersion: "1.0.0",
+		Requires: []contract.Requirement{
+			{ID: "ghost", Kind: "lifecycle-signal", Event: "compact-pre", MinTier: contract.T1, HardRequired: &falseVal},
+		},
+	}
+	td := &target.Def{Name: "stub", Events: map[string]target.EventMapping{}}
+
+	report, err := preflight.Check(c, td, preflight.Version("1.0.0"), false)
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+
+	line := lineByID(t, report, "ghost")
+	if line.Verdict != preflight.Absent {
+		t.Fatalf("want verdict ABSENT, got %s", line.Verdict)
+	}
+
+	rendered := report.Render("stub", preflight.Version("1.0.0"))
+	if !strings.Contains(rendered, "got —") {
+		t.Errorf("Render output missing dash for absent got-tier:\n%s", rendered)
+	}
+}
+
 // TestClassify exercises preflight.Classify directly, covering all five
 // verdict branches. This is the one piece of logic the project treats
 // as load-bearing (the CRITICAL tier-comparison direction: contract.Tier

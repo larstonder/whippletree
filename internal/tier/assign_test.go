@@ -120,4 +120,133 @@ func TestAssignBlockingGateAbsentWithoutLoopGuardField(t *testing.T) {
 	if !got.Absent {
 		t.Fatalf("Absent = false, want true (got %+v)", got)
 	}
+	if !strings.Contains(got.Mechanism, "no loop-guard field on Stop") {
+		t.Errorf("Mechanism = %q, want it to name the missing loop-guard field on the native event", got.Mechanism)
+	}
+}
+
+// TestAssignReportsAccurateAbsentReasons covers every Absent branch
+// tier.Assign can take, verifying each carries the specific, accurate
+// reason the caller (build's error path, preflight's Render) needs,
+// rather than the old one-size-fits-all "T3 backend not in this slice".
+func TestAssignReportsAccurateAbsentReasons(t *testing.T) {
+	// td has a native mapping for session-start (non-blocking) and for
+	// turn-end (blocking, but with no loop-guard field). It deliberately
+	// has no mapping for tool-post, so requirements resolving to that
+	// primitive hit the "no native mapping" branch.
+	td := &target.Def{
+		Name: "stub",
+		Events: map[string]target.EventMapping{
+			"session-start": {Native: "SessionStart", Blocking: false},
+			"turn-end":      {Native: "Stop", Blocking: true},
+		},
+		ToolClassMap: map[string]*string{},
+		Degradations: map[string]target.Degradation{},
+		Capabilities: map[string]bool{},
+	}
+
+	// tdWithToolPost additionally maps tool-post, so an observation-signal
+	// requirement can reach past the "no native mapping" branch and hit
+	// the "no <toolClass> tool and no degradation declared" branch.
+	tdWithToolPost := *td
+	events := make(map[string]target.EventMapping, len(td.Events)+1)
+	for k, v := range td.Events {
+		events[k] = v
+	}
+	events["tool-post"] = target.EventMapping{Native: "PostToolUse", Blocking: false}
+	tdWithToolPost.Events = events
+
+	falseVal := false
+
+	cases := []struct {
+		name       string
+		req        contract.Requirement
+		td         *target.Def
+		wantSubstr string
+	}{
+		{
+			name:       "unknown kind",
+			req:        contract.Requirement{Kind: "mystery", HardRequired: &falseVal},
+			td:         td,
+			wantSubstr: "unknown kind",
+		},
+		{
+			name:       "unresolvable event on lifecycle-signal",
+			req:        contract.Requirement{Kind: "lifecycle-signal", Event: "turn-start", HardRequired: &falseVal},
+			td:         td,
+			wantSubstr: "unresolvable event turn-start",
+		},
+		{
+			name:       "unresolvable event on blocking-gate",
+			req:        contract.Requirement{Kind: "blocking-gate", Event: "turn-start", HardRequired: &falseVal},
+			td:         td,
+			wantSubstr: "unresolvable event turn-start",
+		},
+		{
+			name:       "unresolvable event on observation-signal",
+			req:        contract.Requirement{Kind: "observation-signal", Event: "turn-start", HardRequired: &falseVal},
+			td:         td,
+			wantSubstr: "unresolvable event turn-start",
+		},
+		{
+			name:       "no native mapping on lifecycle-signal",
+			req:        contract.Requirement{Kind: "lifecycle-signal", Event: "tool-post", HardRequired: &falseVal},
+			td:         td,
+			wantSubstr: "no native mapping for tool-post on this target",
+		},
+		{
+			name:       "no native mapping on blocking-gate",
+			req:        contract.Requirement{Kind: "blocking-gate", Event: "tool-post", HardRequired: &falseVal},
+			td:         td,
+			wantSubstr: "no native mapping for tool-post on this target",
+		},
+		{
+			name:       "no native mapping on observation-signal",
+			req:        contract.Requirement{Kind: "observation-signal", Event: "file-read", HardRequired: &falseVal},
+			td:         td,
+			wantSubstr: "no native mapping for tool-post on this target",
+		},
+		{
+			name:       "non-blocking event for blocking-gate",
+			req:        contract.Requirement{Kind: "blocking-gate", Event: "session-start", HardRequired: &falseVal},
+			td:         td,
+			wantSubstr: "SessionStart is not blocking on this target",
+		},
+		{
+			name:       "observation with no class and no degradation",
+			req:        contract.Requirement{Kind: "observation-signal", Event: "file-read", HardRequired: &falseVal},
+			td:         &tdWithToolPost,
+			wantSubstr: "no read tool and no degradation declared",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tier.Assign(tc.req, tc.td)
+			if !got.Absent {
+				t.Fatalf("Absent = false, want true (got %+v)", got)
+			}
+			if !strings.Contains(got.Mechanism, tc.wantSubstr) {
+				t.Errorf("Mechanism = %q, want it to contain %q", got.Mechanism, tc.wantSubstr)
+			}
+		})
+	}
+}
+
+// TestAssignExecutablePathAbsentKeepsCoarseTriggerReason covers the one
+// Absent branch that intentionally keeps the old generic message: an
+// executable-path requirement on a target without a bundle channel has
+// no other class-1 mechanism to fall back to.
+func TestAssignExecutablePathAbsentKeepsCoarseTriggerReason(t *testing.T) {
+	falseVal := false
+	req := contract.Requirement{Kind: "executable-path", HardRequired: &falseVal}
+	td := &target.Def{Name: "stub", Capabilities: map[string]bool{}}
+
+	got := tier.Assign(req, td)
+	if !got.Absent {
+		t.Fatalf("Absent = false, want true (got %+v)", got)
+	}
+	if got.Mechanism != "T3 backend not in this slice" {
+		t.Errorf("Mechanism = %q, want %q", got.Mechanism, "T3 backend not in this slice")
+	}
 }

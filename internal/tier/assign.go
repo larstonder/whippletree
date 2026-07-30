@@ -3,13 +3,17 @@
 package tier
 
 import (
+	"fmt"
+
 	"github.com/larstonder/adapter-sdk/internal/contract"
 	"github.com/larstonder/adapter-sdk/internal/target"
 )
 
-// absentMechanism is the Mechanism recorded whenever a requirement would
-// only be satisfiable via a coarse-trigger T3 fallback. This slice has no
-// T3 backend, so any such requirement is reported Absent instead.
+// absentMechanism is the Mechanism recorded for an executable-path
+// requirement on a target without a bundle channel: the only other way
+// to satisfy it would be a coarse-trigger T3 backend (e.g. probing the
+// filesystem for an install marker), and this slice has none, so it is
+// reported Absent instead.
 const absentMechanism = "T3 backend not in this slice"
 
 // Assignment records the outcome of assigning a Requirement to a target:
@@ -37,29 +41,29 @@ func Assign(req contract.Requirement, td *target.Def) Assignment {
 	case "observation-signal":
 		return assignObservationSignal(req, td)
 	default:
-		return absent(req)
+		return absent(req, "unknown kind")
 	}
 }
 
-func absent(req contract.Requirement) Assignment {
-	return Assignment{Req: req, Absent: true, Mechanism: absentMechanism}
+func absent(req contract.Requirement, reason string) Assignment {
+	return Assignment{Req: req, Absent: true, Mechanism: reason}
 }
 
 func assignExecutablePath(req contract.Requirement, td *target.Def) Assignment {
 	if td.Capabilities["bundleChannel"] {
 		return Assignment{Req: req, Tier: contract.T1, Mechanism: "bundle channel"}
 	}
-	return absent(req)
+	return absent(req, absentMechanism)
 }
 
 func assignLifecycleSignal(req contract.Requirement, td *target.Def) Assignment {
 	primitive, _, err := contract.ResolveEvent(req.Event)
 	if err != nil {
-		return absent(req)
+		return absent(req, fmt.Sprintf("unresolvable event %s", req.Event))
 	}
 	mapping, ok := td.Events[primitive]
 	if !ok {
-		return absent(req)
+		return absent(req, fmt.Sprintf("no native mapping for %s on this target", primitive))
 	}
 	return Assignment{Req: req, Tier: contract.T1, Mechanism: "native " + mapping.Native}
 }
@@ -67,14 +71,17 @@ func assignLifecycleSignal(req contract.Requirement, td *target.Def) Assignment 
 func assignBlockingGate(req contract.Requirement, td *target.Def) Assignment {
 	primitive, _, err := contract.ResolveEvent(req.Event)
 	if err != nil {
-		return absent(req)
+		return absent(req, fmt.Sprintf("unresolvable event %s", req.Event))
 	}
 	mapping, ok := td.Events[primitive]
-	if !ok || !mapping.Blocking {
-		return absent(req)
+	if !ok {
+		return absent(req, fmt.Sprintf("no native mapping for %s on this target", primitive))
+	}
+	if !mapping.Blocking {
+		return absent(req, fmt.Sprintf("%s is not blocking on this target", mapping.Native))
 	}
 	if mapping.LoopGuardField == "" && req.LoopGuardRequired {
-		return absent(req)
+		return absent(req, fmt.Sprintf("no loop-guard field on %s", mapping.Native))
 	}
 
 	mechanism := "native " + mapping.Native
@@ -85,9 +92,12 @@ func assignBlockingGate(req contract.Requirement, td *target.Def) Assignment {
 }
 
 func assignObservationSignal(req contract.Requirement, td *target.Def) Assignment {
-	_, toolClass, err := contract.ResolveEvent(req.Event)
+	primitive, toolClass, err := contract.ResolveEvent(req.Event)
 	if err != nil {
-		return absent(req)
+		return absent(req, fmt.Sprintf("unresolvable event %s", req.Event))
+	}
+	if _, ok := td.Events[primitive]; !ok {
+		return absent(req, fmt.Sprintf("no native mapping for %s on this target", primitive))
 	}
 
 	if v, ok := td.ToolClassMap[toolClass]; ok && v != nil {
@@ -98,5 +108,5 @@ func assignObservationSignal(req contract.Requirement, td *target.Def) Assignmen
 		return Assignment{Req: req, Tier: d.Tier, Mechanism: "matcher " + d.Matcher, Lossage: d.Lossage}
 	}
 
-	return absent(req)
+	return absent(req, fmt.Sprintf("no %s tool and no degradation declared", toolClass))
 }
