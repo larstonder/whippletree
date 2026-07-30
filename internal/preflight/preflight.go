@@ -31,11 +31,11 @@ const (
 // Line is one requirement's preflight verdict: what tier it wants, what
 // tier the target actually achieves, and why.
 type Line struct {
-	ReqID  string
-	Want   contract.Tier
-	Got    contract.Tier
+	ReqID   string
+	Want    contract.Tier
+	Got     contract.Tier
 	Verdict string
-	Detail string
+	Detail  string
 }
 
 // Report is the full preflight result for a contract against a target,
