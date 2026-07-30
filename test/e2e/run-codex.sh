@@ -25,7 +25,7 @@ codex plugin add kb-shaped@kb-shaped-mkt
 
 mkdir -p "$S/proj"
 cd "$S/proj"
-codex exec --dangerously-bypass-hook-trust --skip-git-repo-check "say hi" || true
+codex exec --dangerously-bypass-hook-trust --skip-git-repo-check "say hi" </dev/null || true
 
 if grep -q "session-start" "$E2E_MARKER"; then
   echo "PASS: session-start fired on codex"
