@@ -1,0 +1,44 @@
+package target
+
+import "github.com/larstonder/adapter-sdk/internal/contract"
+
+// Def is the flattened, in-memory representation of a target's
+// target.yaml, populated from the nested apiVersion/kind/metadata/spec
+// YAML document.
+type Def struct {
+	Name               string
+	Class              int
+	ManifestDir        string
+	HooksKey           string
+	MergeSemantics     string
+	Events             map[string]EventMapping
+	ToolClassMap       map[string]*string
+	Degradations       map[string]Degradation
+	UnknownFieldsFatal bool
+	PluginRootVars     []string
+	Probe              ProbeSpec
+	Capabilities       map[string]bool
+}
+
+// EventMapping describes how an adapter-sdk primitive event maps onto a
+// target's native hook event.
+type EventMapping struct {
+	Native         string
+	Blocking       bool
+	LoopGuardField string
+}
+
+// Degradation records a known lossy fallback a target uses to approximate
+// a capability it cannot implement natively.
+type Degradation struct {
+	TierRaw string
+	Tier    contract.Tier
+	Matcher string
+	Lossage string
+}
+
+// ProbeSpec describes how to detect the target's installed version.
+type ProbeSpec struct {
+	Command        []string
+	VersionPattern string
+}
