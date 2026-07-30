@@ -33,7 +33,6 @@ type Requirement struct {
 	ID                string `json:"id"`
 	Kind              string `json:"kind"`
 	Event             string `json:"event,omitempty"`
-	ToolClass         string `json:"toolClass,omitempty"`
 	MinTierRaw        string `json:"minTier"`
 	MinTier           Tier   `json:"-"`
 	HardRequired      *bool  `json:"hardRequired"`
