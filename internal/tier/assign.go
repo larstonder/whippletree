@@ -9,13 +9,6 @@ import (
 	"github.com/larstonder/adapter-sdk/internal/target"
 )
 
-// absentMechanism is the Mechanism recorded for an executable-path
-// requirement on a target without a bundle channel: the only other way
-// to satisfy it would be a coarse-trigger T3 backend (e.g. probing the
-// filesystem for an install marker), and this slice has none, so it is
-// reported Absent instead.
-const absentMechanism = "T3 backend not in this slice"
-
 // Assignment records the outcome of assigning a Requirement to a target:
 // the tier it lands at, the mechanism used to satisfy it, any known
 // lossage from a degraded (non-native) implementation, and whether the
@@ -53,7 +46,7 @@ func assignExecutablePath(req contract.Requirement, td *target.Def) Assignment {
 	if td.Capabilities["bundleChannel"] {
 		return Assignment{Req: req, Tier: contract.T1, Mechanism: "bundle channel"}
 	}
-	return absent(req, absentMechanism)
+	return absent(req, "no bundle channel on this target")
 }
 
 func assignLifecycleSignal(req contract.Requirement, td *target.Def) Assignment {

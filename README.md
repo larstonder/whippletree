@@ -22,7 +22,10 @@ Compiles a bundle's `plugin.json` contract (`extensions.dev.adaptersdk.v1`) agai
 target definition under `targets/`, writing per-target manifests, per-target hooks files,
 and the vendored `.adapter-sdk/` directory the dispatcher reads at runtime.
 
+The dispatcher binary isn't committed to the repo, so on a fresh clone build it first:
+
 ```
+$ go build -o examples/kb-shaped/bin/adapter-hook ./cmd/adapter-hook
 $ go run ./cmd/adapter-sdk build examples/kb-shaped
 target claude-code: 4 satisfy, 0 degrade, 0 refuse, 0 absent
 target codex: 4 satisfy, 0 degrade, 0 refuse, 0 absent

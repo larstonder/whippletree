@@ -129,8 +129,8 @@ func loadVendoredTarget(bundleRoot, targetName string) (*target.Def, error) {
 // When ran is true, exitCode and handlerStderr reflect the handler's
 // own exit status and captured stderr, for the caller to interpret
 // (exit 2 is the block dialect; anything else is fail-open logging the
-// caller performs itself, since only the exit-2 case forwards the
-// handler's stderr).
+// caller performs itself). The caller forwards handlerStderr on every
+// exit path, not just exit 2.
 func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, payload []byte, stderr io.Writer) (exitCode int, handlerStderr []byte, ran bool) {
 	handlerPath := filepath.Join(bundleRoot, handlerRelPath)
 

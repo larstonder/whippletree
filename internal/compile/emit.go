@@ -44,6 +44,12 @@ type Result struct {
 // It never writes hooks/hooks.json; each target's hooks file is named
 // for that target.
 func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
+	for name := range targets {
+		if name == "hooks" {
+			return nil, fmt.Errorf("target name %q is reserved: it would collide with hooks/hooks.json", name)
+		}
+	}
+
 	manifestPath := filepath.Join(bundleDir, "plugin.json")
 	rawManifest, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -74,10 +80,6 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 	result := &Result{PerTarget: make(map[string][]tier.Assignment, len(targets))}
 
 	for name, td := range targets {
-		if name == "hooks" {
-			return nil, fmt.Errorf("target name %q is reserved: it would collide with hooks/hooks.json", name)
-		}
-
 		assignments := make([]tier.Assignment, 0, len(c.Requires))
 		hf := newHooksFile()
 

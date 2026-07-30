@@ -233,11 +233,11 @@ func TestAssignReportsAccurateAbsentReasons(t *testing.T) {
 	}
 }
 
-// TestAssignExecutablePathAbsentKeepsCoarseTriggerReason covers the one
-// Absent branch that intentionally keeps the old generic message: an
-// executable-path requirement on a target without a bundle channel has
-// no other class-1 mechanism to fall back to.
-func TestAssignExecutablePathAbsentKeepsCoarseTriggerReason(t *testing.T) {
+// TestAssignExecutablePathAbsentReportsNoBundleChannel covers the
+// executable-path Absent branch: a target without a bundle channel has
+// no other class-1 mechanism to fall back to, so Assign reports that
+// specific cause rather than a generic one.
+func TestAssignExecutablePathAbsentReportsNoBundleChannel(t *testing.T) {
 	falseVal := false
 	req := contract.Requirement{Kind: "executable-path", HardRequired: &falseVal}
 	td := &target.Def{Name: "stub", Capabilities: map[string]bool{}}
@@ -246,7 +246,7 @@ func TestAssignExecutablePathAbsentKeepsCoarseTriggerReason(t *testing.T) {
 	if !got.Absent {
 		t.Fatalf("Absent = false, want true (got %+v)", got)
 	}
-	if got.Mechanism != "T3 backend not in this slice" {
-		t.Errorf("Mechanism = %q, want %q", got.Mechanism, "T3 backend not in this slice")
+	if got.Mechanism != "no bundle channel on this target" {
+		t.Errorf("Mechanism = %q, want %q", got.Mechanism, "no bundle channel on this target")
 	}
 }
