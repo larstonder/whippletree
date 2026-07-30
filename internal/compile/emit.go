@@ -63,6 +63,10 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 		return nil, fmt.Errorf("parse plugin manifest fields: %w", err)
 	}
 
+	if err := checkRequirementPaths(bundleDir, c); err != nil {
+		return nil, err
+	}
+
 	if err := vendorContract(bundleDir, c); err != nil {
 		return nil, err
 	}
@@ -70,6 +74,10 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 	result := &Result{PerTarget: make(map[string][]tier.Assignment, len(targets))}
 
 	for name, td := range targets {
+		if name == "hooks" {
+			return nil, fmt.Errorf("target name %q is reserved: it would collide with hooks/hooks.json", name)
+		}
+
 		assignments := make([]tier.Assignment, 0, len(c.Requires))
 		hf := newHooksFile()
 
@@ -98,6 +106,45 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 	}
 
 	return result, nil
+}
+
+// checkRequirementPaths verifies, for every requirement in c, that any
+// file it names on disk actually exists relative to bundleDir: a
+// non-empty Handler (every kind but executable-path) or, for
+// executable-path requirements, Path. Both are bundle-root-relative
+// regardless of target, so this runs once per Build rather than per
+// target. A missing file is a build error naming the requirement and
+// the path, since an unnoticed typo here would otherwise only surface
+// at hook-fire time, as a silently-ignored missing-handler warning.
+func checkRequirementPaths(bundleDir string, c *contract.Contract) error {
+	for _, req := range c.Requires {
+		if req.Handler != "" {
+			if err := statRequirementFile(bundleDir, req.ID, "handler", req.Handler); err != nil {
+				return err
+			}
+		}
+		if req.Kind == "executable-path" && req.Path != "" {
+			if err := statRequirementFile(bundleDir, req.ID, "path", req.Path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// statRequirementFile verifies relPath exists as a regular file under
+// bundleDir, returning a build error naming reqID, field, and relPath
+// otherwise.
+func statRequirementFile(bundleDir, reqID, field, relPath string) error {
+	full := filepath.Join(bundleDir, relPath)
+	info, err := os.Stat(full)
+	if err != nil {
+		return fmt.Errorf("requirement %s: %s %q: %w", reqID, field, relPath, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("requirement %s: %s %q is a directory, want a file", reqID, field, relPath)
+	}
+	return nil
 }
 
 // addHookEntry appends the hooks-file entry for req (assigned to target

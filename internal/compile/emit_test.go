@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/larstonder/adapter-sdk/internal/compile"
@@ -11,7 +12,9 @@ import (
 )
 
 // setupBundle copies the kb-shaped fixture into a fresh temp bundle dir
-// as plugin.json, returning the bundle dir.
+// as plugin.json, returning the bundle dir. It also creates stand-in
+// files for every handler/path the fixture's contract names, since
+// compile.Build stats them.
 func setupBundle(t *testing.T) string {
 	t.Helper()
 
@@ -24,7 +27,25 @@ func setupBundle(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(dir, "plugin.json"), src, 0o644); err != nil {
 		t.Fatalf("write bundle plugin.json: %v", err)
 	}
+
+	for _, rel := range []string{"handlers/capture.sh", "handlers/pull.sh", "handlers/log-read.sh", "bin/kb"} {
+		writeStandIn(t, dir, rel)
+	}
 	return dir
+}
+
+// writeStandIn creates an executable placeholder file at dir/rel, for
+// requirements whose handler/path fields compile.Build stats but whose
+// actual content this test never invokes.
+func writeStandIn(t *testing.T, dir, rel string) {
+	t.Helper()
+	p := filepath.Join(dir, rel)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatalf("mkdir for %s: %v", rel, err)
+	}
+	if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write stand-in %s: %v", rel, err)
+	}
 }
 
 func loadGolden(t *testing.T, name string) []byte {
@@ -130,4 +151,117 @@ func keysOf(m map[string]any) []string {
 		ks = append(ks, k)
 	}
 	return ks
+}
+
+// writeManifestOnly writes a plugin.json with the given contract JSON
+// body (the extensions.dev.adaptersdk.v1 payload) to a fresh temp
+// bundle dir, without any stand-in handler/path files. Callers that
+// need those files present create them explicitly.
+func writeManifestOnly(t *testing.T, requiresJSON string) string {
+	t.Helper()
+	dir := t.TempDir()
+	manifest := `{"name":"x","extensions":{"dev.adaptersdk.v1":{"contractVersion":"1.0.0","requires":[` + requiresJSON + `]}}}`
+	if err := os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write plugin.json: %v", err)
+	}
+	return dir
+}
+
+// TestBuild_DedupesDuplicateHookEntries is the regression test for the
+// duplicate-hook-entry bug: two requirements resolving to the same
+// primitive (here, two lifecycle-signal requirements both on
+// session-start) must produce exactly one SessionStart entry in the
+// hooks file, not two identical ones each of which the harness would
+// fire on every SessionStart.
+func TestBuild_DedupesDuplicateHookEntries(t *testing.T) {
+	dir := writeManifestOnly(t, `
+		{"id":"session-start-signal-a","kind":"lifecycle-signal","event":"session-start",
+		 "minTier":"T2","hardRequired":false,"handler":"./handlers/a.sh"},
+		{"id":"session-start-signal-b","kind":"lifecycle-signal","event":"session-start",
+		 "minTier":"T2","hardRequired":false,"handler":"./handlers/b.sh"}`)
+	writeStandIn(t, dir, "handlers/a.sh")
+	writeStandIn(t, dir, "handlers/b.sh")
+
+	targets, err := target.LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("target.LoadDir: %v", err)
+	}
+	if _, err := compile.Build(dir, targets); err != nil {
+		t.Fatalf("compile.Build: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "hooks", "claude-code.json"))
+	if err != nil {
+		t.Fatalf("read hooks/claude-code.json: %v", err)
+	}
+	var doc struct {
+		Hooks map[string][]json.RawMessage `json:"hooks"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal hooks file: %v", err)
+	}
+	if got := len(doc.Hooks["SessionStart"]); got != 1 {
+		t.Fatalf("SessionStart entries = %d, want exactly 1 (deduped); raw:\n%s", got, raw)
+	}
+}
+
+func TestBuild_ErrorsOnMissingHandler(t *testing.T) {
+	dir := writeManifestOnly(t, `
+		{"id":"session-start-signal","kind":"lifecycle-signal","event":"session-start",
+		 "minTier":"T2","hardRequired":false,"handler":"./handlers/typo.sh"}`)
+
+	targets, err := target.LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("target.LoadDir: %v", err)
+	}
+
+	_, err = compile.Build(dir, targets)
+	if err == nil {
+		t.Fatal("want error for missing handler file, got nil")
+	}
+	if !strings.Contains(err.Error(), "session-start-signal") || !strings.Contains(err.Error(), "handlers/typo.sh") {
+		t.Errorf("error = %q, want it to name the requirement id and the missing path", err.Error())
+	}
+}
+
+func TestBuild_ErrorsOnMissingExecutablePath(t *testing.T) {
+	dir := writeManifestOnly(t, `
+		{"id":"bin-reachable","kind":"executable-path","minTier":"T1",
+		 "hardRequired":true,"path":"./bin/missing"}`)
+
+	targets, err := target.LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("target.LoadDir: %v", err)
+	}
+
+	_, err = compile.Build(dir, targets)
+	if err == nil {
+		t.Fatal("want error for missing executable-path file, got nil")
+	}
+	if !strings.Contains(err.Error(), "bin-reachable") || !strings.Contains(err.Error(), "bin/missing") {
+		t.Errorf("error = %q, want it to name the requirement id and the missing path", err.Error())
+	}
+}
+
+func TestBuild_RejectsHooksAsTargetName(t *testing.T) {
+	dir := writeManifestOnly(t, `
+		{"id":"session-start-signal","kind":"lifecycle-signal","event":"session-start",
+		 "minTier":"T2","hardRequired":false,"handler":"./handlers/a.sh"}`)
+	writeStandIn(t, dir, "handlers/a.sh")
+
+	targets := map[string]*target.Def{
+		"hooks": {
+			Name:           "hooks",
+			ManifestDir:    ".hooks-plugin",
+			Events:         map[string]target.EventMapping{"session-start": {Native: "SessionStart"}},
+			PluginRootVars: []string{"PLUGIN_ROOT"},
+			SourcePath:     filepath.Join("..", "..", "targets", "codex", "target.yaml"),
+		},
+	}
+
+	if _, err := compile.Build(dir, targets); err == nil {
+		t.Fatal("want error for target named \"hooks\", got nil")
+	} else if !strings.Contains(err.Error(), `"hooks"`) {
+		t.Errorf("error = %q, want it to name the reserved target name", err.Error())
+	}
 }

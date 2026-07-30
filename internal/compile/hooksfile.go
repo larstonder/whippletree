@@ -3,6 +3,7 @@ package compile
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 )
 
 // primitiveOrder is the fixed canonical ordering used to make hooks-file
@@ -49,21 +50,50 @@ type eventGroup struct {
 // map order, so golden-file comparisons are byte-stable.
 type hooksFile struct {
 	byPrimitive map[string]*eventGroup
+	seen        map[string]bool
 }
 
 func newHooksFile() *hooksFile {
-	return &hooksFile{byPrimitive: make(map[string]*eventGroup)}
+	return &hooksFile{byPrimitive: make(map[string]*eventGroup), seen: make(map[string]bool)}
 }
 
 // add appends entry to the group for primitive, creating the group (with
-// native name native) if this is the first entry seen for it.
+// native name native) if this is the first entry seen for it. Two
+// requirements that resolve to the same primitive can independently
+// produce byte-identical entries (same matcher, same command, since the
+// command is built from the event/target pair, not the requirement id);
+// without deduping, both entries would be emitted and the harness would
+// run the (identical) handler invocation twice per firing. add dedupes
+// on (primitive, matcher, command list), so repeat entries are dropped.
 func (h *hooksFile) add(primitive, native string, entry hookEntry) {
+	key := dedupeKey(primitive, entry)
+	if h.seen[key] {
+		return
+	}
+	h.seen[key] = true
+
 	g, ok := h.byPrimitive[primitive]
 	if !ok {
 		g = &eventGroup{native: native}
 		h.byPrimitive[primitive] = g
 	}
 	g.entries = append(g.entries, entry)
+}
+
+// dedupeKey builds the (primitive, matcher, commands) identity used to
+// detect duplicate hook entries.
+func dedupeKey(primitive string, entry hookEntry) string {
+	var b strings.Builder
+	b.WriteString(primitive)
+	b.WriteByte(0)
+	b.WriteString(entry.Matcher)
+	for _, c := range entry.Hooks {
+		b.WriteByte(0)
+		b.WriteString(c.Type)
+		b.WriteByte(0)
+		b.WriteString(c.Command)
+	}
+	return b.String()
 }
 
 // MarshalJSON implements a fixed key order for the top-level "hooks" map,
