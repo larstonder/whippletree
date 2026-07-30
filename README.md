@@ -7,3 +7,7 @@ Claude Code + Codex CLI. Spec: harness-adapter.architecture.md (presentations re
 - `adapter-sdk build <bundle-dir>`: compile per-target variants
 - `adapter-sdk preflight <bundle-dir> --target <name>`: probe + tier report
 - `adapter-hook run <event> --target <name>`: hook dispatcher (invoked by harnesses, not humans)
+
+## Performance
+
+Dispatcher no-op dispatch (no matching handler) measured at ~4-5ms steady-state on Apple Silicon (target <20ms).
