@@ -1,0 +1,1 @@
+{"session_id":"s1","transcript_path":"/tmp/r.jsonl","cwd":"/tmp/proj","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"rg --files -g 'hello.txt' && sed -n '1,120p' hello.txt"},"tool_response":"...","tool_use_id":"exec-1"}
