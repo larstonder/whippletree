@@ -27,7 +27,7 @@ type Event struct {
 }
 
 // pathLikeRE extracts filesystem-path-shaped tokens out of a shell command
-// string. This is a documented lossy heuristic (see research §3.5): it has
+// string. This is a deliberately lossy heuristic: it has
 // no understanding of shell syntax, so it can double-count a path that
 // appears more than once in the command, and it can miss paths embedded in
 // pipelines, heredocs, or scripts. Deliberately not deduped; that decision

@@ -82,13 +82,11 @@ func Check(c *contract.Contract, td *target.Def, probed Version, interactive boo
 }
 
 // Classify determines the preflight verdict for an already-computed
-// tier.Assignment, applying the CRITICAL tier-comparison and
-// hard-requirement rules in one place: Absent+hard → REFUSE,
-// Absent+!hard → ABSENT, achieved at least as good as wanted (numeric
-// got <= want, since contract.Tier is best-to-worst T1..T4) → SATISFY,
-// achieved worse than wanted (got > want) and hard → REFUSE, else
-// DEGRADE. Both Check and the `build` CLI summary call this so the
-// verdict logic exists exactly once.
+// tier.Assignment, applying the tier-comparison and hard-requirement
+// rules in one place: Absent+hard → REFUSE, Absent+!hard → ABSENT,
+// achieved at least as good as wanted (numeric got <= want, since
+// contract.Tier is best-to-worst T1..T4) → SATISFY, achieved worse
+// than wanted (got > want) and hard → REFUSE, else DEGRADE.
 func Classify(a tier.Assignment) string {
 	hard := a.Req.HardRequired != nil && *a.Req.HardRequired
 
@@ -106,9 +104,6 @@ func Classify(a tier.Assignment) string {
 	}
 }
 
-// withLossage appends lossage to mechanism (the literal-loss rule: name
-// the mechanism and the specific gap, never just "reduced fidelity")
-// when lossage is non-empty.
 func withLossage(mechanism, lossage string) string {
 	if lossage == "" {
 		return mechanism
@@ -167,8 +162,7 @@ func (r *Report) Render(targetName string, v Version) string {
 	for _, l := range r.Lines {
 		gotStr := l.Got.String()
 		if gotStr == "" {
-			// Absent rows have no achieved tier; blank data reads as a
-			// rendering bug, so show the "no value" marker explicitly.
+			// Absent rows have no achieved tier.
 			gotStr = "—"
 		}
 		fmt.Fprintf(&b, "  %-*s  want ≥%s  got %s  %-9s %s\n", width, l.ReqID, l.Want, gotStr, l.Verdict, l.Detail)

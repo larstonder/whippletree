@@ -29,8 +29,7 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-// run implements the whippletree CLI. It is split out from main so
-// tests can exercise it without touching process-global os.Args/Exit.
+// run is main's testable body.
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 1 {
 		fmt.Fprintln(stderr, "usage: whippletree <build|preflight> ...")
@@ -56,8 +55,6 @@ type buildArgs struct {
 	allowRefuse            bool
 }
 
-// parseBuildArgs parses
-// `<bundleDir> [--targets-dir dir] [--allow-missing-dispatcher] [--allow-refuse]`.
 func parseBuildArgs(args []string) (buildArgs, error) {
 	parsed := buildArgs{targetsDir: defaultTargetsDir}
 
@@ -87,8 +84,6 @@ func parseBuildArgs(args []string) (buildArgs, error) {
 	return parsed, nil
 }
 
-// runBuild implements
-// `whippletree build <bundleDir> [--targets-dir dir] [--allow-missing-dispatcher] [--allow-refuse]`.
 func runBuild(args []string, stdout, stderr io.Writer) int {
 	const usage = "usage: whippletree build <bundleDir> [--targets-dir dir] [--allow-missing-dispatcher] [--allow-refuse]"
 
@@ -105,7 +100,7 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	result, err := compile.Build(parsed.bundleDir, targets)
+	built, err := compile.Build(parsed.bundleDir, targets)
 	if err != nil {
 		fmt.Fprintf(stderr, "whippletree: build: %v\n", err)
 		return 1
@@ -116,8 +111,8 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	names := make([]string, 0, len(result.PerTarget))
-	for name := range result.PerTarget {
+	names := make([]string, 0, len(built.PerTarget))
+	for name := range built.PerTarget {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -130,13 +125,10 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 
 	for _, name := range names {
 		satisfy, degrade, refuse, absent := 0, 0, 0, 0
-		for _, a := range result.PerTarget[name] {
-			// preflight.Classify is the single source of truth for the
-			// tier-comparison/hard-requirement verdict rules; build has
-			// no probed version to fail closed on (tier assignment
-			// depends only on the target definition, not the installed
-			// version), so it classifies straight from compile.Result
-			// without calling preflight.Check.
+		for _, a := range built.PerTarget[name] {
+			// build has no probed version to fail closed on, so it
+			// classifies straight from compile.Result rather than
+			// going through preflight.Check.
 			switch preflight.Classify(a) {
 			case preflight.Satisfy:
 				satisfy++
@@ -232,8 +224,6 @@ type installState struct {
 	Tiers     map[string]string `json:"tiers"`
 }
 
-// runPreflight implements
-// `whippletree preflight <bundleDir> --target <name> [--assume-version X] [--targets-dir dir]`.
 func runPreflight(args []string, stdout, stderr io.Writer) int {
 	bundleDir, targetName, assumeVersion, targetsDirArg, err := parsePreflightArgs(args)
 	if err != nil {
@@ -260,7 +250,7 @@ func runPreflight(args []string, stdout, stderr io.Writer) int {
 	}
 	c, err := contract.Parse(rawManifest)
 	if err != nil {
-		fmt.Fprintf(stderr, "whippletree: parse contract: %v\n", err)
+		fmt.Fprintf(stderr, "whippletree: %v\n", err)
 		return 1
 	}
 	if err := contract.Validate(c); err != nil {
@@ -268,11 +258,8 @@ func runPreflight(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	// interactive reflects whether this invocation can actually prompt
-	// a human: previously hardcoded false, which meant Check always
-	// failed closed on an unprobed version even when run at a real
-	// terminal. A TTY'd stdin is the signal an interactive session is
-	// possible.
+	// A TTY'd stdin is the signal that this invocation could actually
+	// prompt a human.
 	interactive := stdinIsTTY()
 
 	var probed preflight.Version
@@ -281,9 +268,6 @@ func runPreflight(args []string, stdout, stderr io.Writer) int {
 	} else {
 		v, err := preflight.Probe(td)
 		if err != nil {
-			// Probe failed to run/parse the harness's own version
-			// output: a different failure mode than Check's fail-closed
-			// error below, so it keeps its own distinct message.
 			fmt.Fprintf(stderr, "preflight: probe failed: %v\n", err)
 			return 1
 		}
@@ -292,9 +276,6 @@ func runPreflight(args []string, stdout, stderr io.Writer) int {
 
 	report, err := preflight.Check(c, td, probed, interactive)
 	if err != nil {
-		// Check's only error is the fail-closed "no probed version and
-		// not interactive" case, not a probe failure; wrap it with its
-		// own message so the two failure modes aren't conflated.
 		fmt.Fprintf(stderr, "preflight: %v\n", err)
 		return 1
 	}
@@ -345,8 +326,6 @@ func writeInstallState(bundleDir, targetName, version string, report *preflight.
 	return os.WriteFile(filepath.Join(dir, "install-state.json"), body, 0o644)
 }
 
-// parsePreflightArgs parses
-// `<bundleDir> --target <name> [--assume-version X] [--targets-dir dir]`.
 func parsePreflightArgs(args []string) (bundleDir, targetName, assumeVersion, targetsDirArg string, err error) {
 	targetsDirArg = defaultTargetsDir
 

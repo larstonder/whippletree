@@ -25,8 +25,7 @@ import (
 // is returned immediately, without running any later handler ("first
 // block wins"). Any other non-zero exit, or a missing/non-executable
 // handler file, is logged to stderr and ignored (fail-open); Run keeps
-// going. Requirements with an empty Handler (the executable-path kind)
-// are never executed.
+// going.
 //
 // When no requirement matches logicalEvent, Run returns 0 without ever
 // loading the target definition or calling Normalize: the cheap no-op
@@ -66,19 +65,13 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stderr io.Wr
 	}
 
 	for _, req := range matching {
-		if req.Handler == "" {
-			continue
-		}
-
 		exitCode, handlerStderr, ran := runHandler(bundleRoot, req.Handler, logicalEvent, targetName, payload, stderr)
 		if !ran {
 			continue
 		}
 
-		// Forward whatever the handler wrote to stderr on every exit
-		// path (0, 2, or anything else): a handler's own diagnostics
-		// are useful regardless of whether it blocked, and swallowing
-		// them on the non-2 paths used to hide real handler output.
+		// Handler diagnostics are useful whether or not it blocked, so
+		// forward stderr on every exit path.
 		if len(handlerStderr) > 0 {
 			stderr.Write(handlerStderr)
 		}
@@ -110,13 +103,11 @@ func loadVendoredContract(bundleRoot string) (*contract.Contract, error) {
 	return &c, nil
 }
 
-// loadVendoredTarget loads bundleRoot's vendored
-// .whippletree/targets/<targetName>.yaml.
 func loadVendoredTarget(bundleRoot, targetName string) (*target.Def, error) {
 	path := filepath.Join(bundleRoot, ".whippletree", "targets", targetName+".yaml")
 	td, err := target.Load(path)
 	if err != nil {
-		return nil, fmt.Errorf("load vendored target %q: %w", targetName, err)
+		return nil, fmt.Errorf("load vendored target: %w", err)
 	}
 	return td, nil
 }
@@ -129,8 +120,7 @@ func loadVendoredTarget(bundleRoot, targetName string) (*target.Def, error) {
 // When ran is true, exitCode and handlerStderr reflect the handler's
 // own exit status and captured stderr, for the caller to interpret
 // (exit 2 is the block dialect; anything else is fail-open logging the
-// caller performs itself). The caller forwards handlerStderr on every
-// exit path, not just exit 2.
+// caller performs itself).
 func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, payload []byte, stderr io.Writer) (exitCode int, handlerStderr []byte, ran bool) {
 	handlerPath := filepath.Join(bundleRoot, handlerRelPath)
 

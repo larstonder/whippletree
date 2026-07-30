@@ -35,15 +35,15 @@ func newBundle(t *testing.T, handlers map[string]string) string {
 		t.Fatalf("marshal vendored contract: %v", err)
 	}
 
-	sdkDir := filepath.Join(dir, ".whippletree")
-	if err := os.MkdirAll(sdkDir, 0o755); err != nil {
+	vendorDir := filepath.Join(dir, ".whippletree")
+	if err := os.MkdirAll(vendorDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sdkDir, "contract.json"), body, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(vendorDir, "contract.json"), body, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	targetsDir := filepath.Join(sdkDir, "targets")
+	targetsDir := filepath.Join(vendorDir, "targets")
 	if err := os.MkdirAll(targetsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -128,9 +128,9 @@ func TestRunUnknownExitFailsOpen(t *testing.T) {
 	}
 }
 
-// TestRunForwardsStderrOnCleanExit is the regression test for finding
-// 12: a handler's stderr must be forwarded even when it exits 0 (or any
-// non-2 code), not just on the exit-2 block path.
+// TestRunForwardsStderrOnCleanExit: a handler's stderr must be
+// forwarded even when it exits 0 (or any non-2 code), not just on the
+// exit-2 block path.
 func TestRunForwardsStderrOnCleanExit(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "marker.json")
 	script := fmt.Sprintf("#!/bin/bash\ncat > %q\necho \"note: informational\" >&2\nexit 0\n", marker)

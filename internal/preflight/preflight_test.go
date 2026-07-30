@@ -175,12 +175,10 @@ func TestProbeFailsClosedNonInteractive(t *testing.T) {
 	targets := loadTargets(t)
 	codex := targets["codex"]
 
-	// Fail closed: unprobed (empty Version) + non-interactive must error.
 	if _, err := preflight.Check(c, codex, preflight.Version(""), false); err == nil {
 		t.Fatal("expected Check to fail closed on unprobed version in non-interactive mode")
 	}
 
-	// Interactive mode may proceed without a probed version.
 	report, err := preflight.Check(c, codex, preflight.Version(""), true)
 	if err != nil {
 		t.Fatalf("expected Check to proceed in interactive mode with unprobed version, got error: %v", err)
@@ -192,10 +190,9 @@ func TestProbeFailsClosedNonInteractive(t *testing.T) {
 	}
 }
 
-// TestRenderShowsDashForAbsentGotTier is the regression test for
-// finding 5's Render fix: an ABSENT line has no achieved tier
-// (contract.Tier's zero value stringifies to ""), which used to render
-// as a blank "got " column. Render must show an explicit "—" instead.
+// TestRenderShowsDashForAbsentGotTier: an ABSENT line has no achieved
+// tier (contract.Tier's zero value stringifies to ""); Render must
+// show an explicit no-value marker instead of a blank "got" column.
 func TestRenderShowsDashForAbsentGotTier(t *testing.T) {
 	falseVal := false
 	c := &contract.Contract{
@@ -223,12 +220,9 @@ func TestRenderShowsDashForAbsentGotTier(t *testing.T) {
 }
 
 // TestClassify exercises preflight.Classify directly, covering all five
-// verdict branches. This is the one piece of logic the project treats
-// as load-bearing (the CRITICAL tier-comparison direction: contract.Tier
-// is best-to-worst T1..T4, so "achieved at least as good as wanted" is
-// the numeric comparison got <= want, not got >= want). Check and the
-// `build` CLI summary both call this single function, so a regression
-// here catches both callers.
+// verdict branches (the tier-comparison direction: contract.Tier is
+// best-to-worst T1..T4, so "achieved at least as good as wanted" is the
+// numeric comparison got <= want, not got >= want).
 func TestClassify(t *testing.T) {
 	trueVal, falseVal := true, false
 

@@ -98,8 +98,8 @@ func TestAssignBlockingGateAbsentWithoutLoopGuardField(t *testing.T) {
 		t.Fatal("no target def for codex")
 	}
 
-	// Copy the codex Def and blank the turn-end mapping's LoopGuardField so
-	// a LoopGuardRequired blocking-gate can no longer be satisfied natively.
+	// Blank turn-end's loop-guard field so a LoopGuardRequired gate
+	// can't be satisfied natively.
 	modified := *base
 	events := make(map[string]target.EventMapping, len(base.Events))
 	for k, v := range base.Events {
@@ -125,11 +125,10 @@ func TestAssignBlockingGateAbsentWithoutLoopGuardField(t *testing.T) {
 	}
 }
 
-// TestAssignReportsAccurateAbsentReasons covers every Absent branch
-// tier.Assign can take, verifying each carries the specific, accurate
-// reason the caller (build's error path, preflight's Render) needs,
-// rather than the old one-size-fits-all "T3 backend not in this slice".
-func TestAssignReportsAccurateAbsentReasons(t *testing.T) {
+// TestAssignAbsentReasonsPerBranch covers every Absent branch
+// tier.Assign can take, verifying each carries the specific reason the
+// caller (build's error path, preflight's Render) needs.
+func TestAssignAbsentReasonsPerBranch(t *testing.T) {
 	// td has a native mapping for session-start (non-blocking) and for
 	// turn-end (blocking, but with no loop-guard field). It deliberately
 	// has no mapping for tool-post, so requirements resolving to that

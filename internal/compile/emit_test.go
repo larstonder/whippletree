@@ -69,7 +69,7 @@ func TestBuild_EmitsPerTargetVariants(t *testing.T) {
 		t.Fatalf("compile.Build: %v", err)
 	}
 
-	// 1 & 2: hooks files byte-equal their goldens.
+	// hooks files byte-equal their goldens.
 	for _, tc := range []struct {
 		targetName string
 		golden     string
@@ -87,7 +87,7 @@ func TestBuild_EmitsPerTargetVariants(t *testing.T) {
 		}
 	}
 
-	// 3: manifest hooks keys point at the right hooks file per target.
+	// manifest hooks keys point at the right hooks file per target.
 	for _, tc := range []struct {
 		manifestDir string
 		wantHooks   string
@@ -111,14 +111,14 @@ func TestBuild_EmitsPerTargetVariants(t *testing.T) {
 		}
 	}
 
-	// 4: hooks/hooks.json must never exist.
+	// hooks/hooks.json must never exist.
 	if _, err := os.Stat(filepath.Join(bundleDir, "hooks", "hooks.json")); err == nil {
 		t.Error("hooks/hooks.json exists, want it to never be emitted")
 	} else if !os.IsNotExist(err) {
 		t.Errorf("stat hooks/hooks.json: unexpected error %v", err)
 	}
 
-	// 5: codex hooks file top level has ONLY the "hooks" key.
+	// codex hooks file top level has only the "hooks" key.
 	codexRaw, err := os.ReadFile(filepath.Join(bundleDir, "hooks", "codex.json"))
 	if err != nil {
 		t.Fatalf("read hooks/codex.json: %v", err)
@@ -134,7 +134,7 @@ func TestBuild_EmitsPerTargetVariants(t *testing.T) {
 		t.Fatalf("codex hooks top-level keys = %v, want exactly {\"hooks\"}", keysOf(codexTop))
 	}
 
-	// 6: vendored .whippletree files exist.
+	// vendored .whippletree files exist.
 	for _, p := range []string{
 		filepath.Join(".whippletree", "contract.json"),
 		filepath.Join(".whippletree", "targets", "codex.yaml"),
@@ -167,12 +167,11 @@ func writeManifestOnly(t *testing.T, requiresJSON string) string {
 	return dir
 }
 
-// TestBuild_DedupesDuplicateHookEntries is the regression test for the
-// duplicate-hook-entry bug: two requirements resolving to the same
-// primitive (here, two lifecycle-signal requirements both on
+// TestBuild_DedupesDuplicateHookEntries: two requirements resolving to
+// the same primitive (here, two lifecycle-signal requirements both on
 // session-start) must produce exactly one SessionStart entry in the
-// hooks file, not two identical ones each of which the harness would
-// fire on every SessionStart.
+// hooks file; duplicates would make the harness run the same handler
+// invocation twice per firing.
 func TestBuild_DedupesDuplicateHookEntries(t *testing.T) {
 	dir := writeManifestOnly(t, `
 		{"id":"session-start-signal-a","kind":"lifecycle-signal","event":"session-start",

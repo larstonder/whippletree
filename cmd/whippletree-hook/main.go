@@ -19,8 +19,7 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stderr))
 }
 
-// run implements the whippletree-hook CLI. It is split out from main so
-// tests can exercise it without touching process-global os.Args/Exit.
+// run is main's testable body.
 func run(args []string, stdin io.Reader, stderr io.Writer) int {
 	event, targetName, err := parseRunArgs(args)
 	if err != nil {
@@ -105,7 +104,7 @@ func resolveBundleRoot(targetName string) (string, error) {
 // bundleRoot. Symlinks are resolved first: os.Executable can return a
 // symlinked path (e.g. through a plugin marketplace's shared bin/
 // directory), and only the real, installed location sits under the
-// actual bundle root (the viability §4.5 symlink-self-location lesson).
+// actual bundle root.
 func selfBundleRoot() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {

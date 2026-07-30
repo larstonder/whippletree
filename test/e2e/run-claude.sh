@@ -12,10 +12,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
-S=$(mktemp -d)
-export CLAUDE_CONFIG_DIR="$S/home"
+sandbox=$(mktemp -d)
+export CLAUDE_CONFIG_DIR="$sandbox/home"
 mkdir -p "$CLAUDE_CONFIG_DIR"
-export E2E_MARKER="$S/marker.log"
+export E2E_MARKER="$sandbox/marker.log"
 : >"$E2E_MARKER"
 
 go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
@@ -23,8 +23,8 @@ go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
 claude plugin marketplace add "$repo_root/examples/kb-shaped"
 claude plugin install kb-shaped@kb-shaped-mkt
 
-mkdir -p "$S/proj"
-cd "$S/proj"
+mkdir -p "$sandbox/proj"
+cd "$sandbox/proj"
 claude -p "say hi" --permission-mode bypassPermissions </dev/null || true
 
 count=$(grep -c "session-start" "$E2E_MARKER" || true)

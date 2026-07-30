@@ -58,7 +58,7 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 
 	c, err := contract.Parse(rawManifest)
 	if err != nil {
-		return nil, fmt.Errorf("parse contract: %w", err)
+		return nil, err
 	}
 	if err := contract.Validate(c); err != nil {
 		return nil, fmt.Errorf("validate contract: %w", err)
@@ -110,14 +110,11 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 	return result, nil
 }
 
-// checkRequirementPaths verifies, for every requirement in c, that any
-// file it names on disk actually exists relative to bundleDir: a
-// non-empty Handler (every kind but executable-path) or, for
-// executable-path requirements, Path. Both are bundle-root-relative
-// regardless of target, so this runs once per Build rather than per
-// target. A missing file is a build error naming the requirement and
-// the path, since an unnoticed typo here would otherwise only surface
-// at hook-fire time, as a silently-ignored missing-handler warning.
+// checkRequirementPaths verifies each requirement's on-disk file
+// (Handler, or Path for executable-path) exists relative to bundleDir.
+// A missing file is a build error naming the requirement and the path;
+// an unnoticed typo here would otherwise only surface at hook-fire
+// time, as a silently-ignored missing-handler warning.
 func checkRequirementPaths(bundleDir string, c *contract.Contract) error {
 	for _, req := range c.Requires {
 		if req.Handler != "" {
@@ -134,9 +131,6 @@ func checkRequirementPaths(bundleDir string, c *contract.Contract) error {
 	return nil
 }
 
-// statRequirementFile verifies relPath exists as a regular file under
-// bundleDir, returning a build error naming reqID, field, and relPath
-// otherwise.
 func statRequirementFile(bundleDir, reqID, field, relPath string) error {
 	full := filepath.Join(bundleDir, relPath)
 	info, err := os.Stat(full)
@@ -209,7 +203,6 @@ func writeManifest(bundleDir, name string, td *target.Def, manifestFields map[st
 	return nil
 }
 
-// writeHooksFile writes hooks/<name>.json for target name.
 func writeHooksFile(bundleDir, name string, hf *hooksFile) error {
 	body, err := json.MarshalIndent(hf, "", "  ")
 	if err != nil {
@@ -227,8 +220,6 @@ func writeHooksFile(bundleDir, name string, hf *hooksFile) error {
 	return nil
 }
 
-// vendorContract writes .whippletree/contract.json: the normalized,
-// parsed contract.
 func vendorContract(bundleDir string, c *contract.Contract) error {
 	dir := filepath.Join(bundleDir, ".whippletree")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -247,9 +238,9 @@ func vendorContract(bundleDir string, c *contract.Contract) error {
 	return nil
 }
 
-// vendorTargetYAML writes .whippletree/targets/<name>.yaml: a byte copy
-// of the target's source target.yaml.
 func vendorTargetYAML(bundleDir, name string, td *target.Def) error {
+	// Guards only against a hand-constructed Def in a test; target.Load
+	// (the only producer of a Def outside tests) always sets SourcePath.
 	if td.SourcePath == "" {
 		return fmt.Errorf("target %q has no recorded SourcePath to vendor", name)
 	}

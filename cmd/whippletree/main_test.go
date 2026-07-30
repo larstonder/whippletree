@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// writeFile writes body to dir/rel, creating parent directories as
-// needed.
 func writeFile(t *testing.T, dir, rel, body string, perm os.FileMode) {
 	t.Helper()
 	p := filepath.Join(dir, rel)
@@ -60,11 +58,11 @@ func writeFakeTargetsDir(t *testing.T) string {
 	return dir
 }
 
-// TestRunBuild_RefusesAndExitsNonZero is the regression test for
-// finding 4: a build whose contract has a hard-required requirement
-// the target can't satisfy (here, a loopGuardRequired blocking-gate
-// against a target with no loop-guard field) must exit 1 and name the
-// refusing target/requirement, not silently exit 0.
+// TestRunBuild_RefusesAndExitsNonZero: a build whose contract has a
+// hard-required requirement the target can't satisfy (here, a
+// loopGuardRequired blocking-gate against a target with no loop-guard
+// field) must exit 1 and name the refusing target/requirement, not
+// silently exit 0.
 func TestRunBuild_RefusesAndExitsNonZero(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", `{
@@ -142,10 +140,9 @@ func TestRunBuild_HappyPathExitsZero(t *testing.T) {
 	}
 }
 
-// TestRunBuild_TargetsDirWithZeroTargetsErrors is the regression test
-// for finding 8's other half: --targets-dir pointing at a directory
-// with no target.yaml files must be a build error, not a silent
-// "compiled for zero targets."
+// TestRunBuild_TargetsDirWithZeroTargetsErrors: --targets-dir pointing
+// at a directory with no target.yaml files must be a build error, not
+// a silent "compiled for zero targets."
 func TestRunBuild_TargetsDirWithZeroTargetsErrors(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", `{"name":"x","extensions":{"dev.whippletree.v1":{"contractVersion":"1.0.0","requires":[]}}}`, 0o644)
@@ -178,12 +175,11 @@ func TestEnsureDispatcher_AlreadyPresent(t *testing.T) {
 	}
 }
 
-// TestEnsureDispatcher_MissingFailsWithActionableMessage is the
-// regression test for finding 2: a build whose bundle has no
-// bin/whippletree-hook, and no sibling binary to copy from (the normal
-// case under `go test`), must fail with the exact command to fix it,
-// naming the bundle's bin path.
-func TestEnsureDispatcher_MissingFailsWithActionableMessage(t *testing.T) {
+// TestEnsureDispatcher_MissingNamesBuildCommand: a build whose bundle
+// has no bin/whippletree-hook, and no sibling binary to copy from (the
+// normal case under `go test`), must fail with the exact command to
+// fix it, naming the bundle's bin path.
+func TestEnsureDispatcher_MissingNamesBuildCommand(t *testing.T) {
 	bundleDir := t.TempDir()
 
 	var stderr bytes.Buffer
@@ -212,10 +208,10 @@ func TestEnsureDispatcher_AllowMissingDowngradesToWarning(t *testing.T) {
 	}
 }
 
-// TestRunPreflight_ProbeFailureMessageIsDistinct is the regression
-// test for finding 13: a Probe failure (the harness's version command
-// itself failing) must be reported with its own "probe failed"
-// message, not conflated with Check's fail-closed error.
+// TestRunPreflight_ProbeFailureMessageIsDistinct: a Probe failure (the
+// harness's version command itself failing) must be reported with its
+// own "probe failed" message, not conflated with Check's fail-closed
+// error.
 func TestRunPreflight_ProbeFailureMessageIsDistinct(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", `{"name":"x","extensions":{"dev.whippletree.v1":{"contractVersion":"1.0.0","requires":[]}}}`, 0o644)
@@ -234,10 +230,7 @@ func TestRunPreflight_ProbeFailureMessageIsDistinct(t *testing.T) {
 }
 
 // TestStdinIsTTY_FalseForRegularFile confirms stdinIsTTY reports false
-// for a non-terminal stdin (the common case under `go test`, and
-// exactly what makes preflight's old hardcoded-false behavior correct
-// for every test and CI invocation while still letting a real
-// terminal opt into interactive mode).
+// for a non-terminal stdin.
 func TestStdinIsTTY_FalseForRegularFile(t *testing.T) {
 	f, err := os.CreateTemp(t.TempDir(), "not-a-tty")
 	if err != nil {

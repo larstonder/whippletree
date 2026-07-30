@@ -83,11 +83,9 @@ spec:
 	}
 }
 
-// TestLoadDir_ErrorsOnZeroTargets is the regression test for finding 8:
-// a targets dir that resolves (e.g. via a wrong --targets-dir, or cwd
-// mismatch) but contains no target.yaml files must error loudly rather
-// than silently returning an empty map, which upstream callers would
-// otherwise treat as "compiled for zero targets, nothing to report."
+// TestLoadDir_ErrorsOnZeroTargets: a targets dir that resolves but
+// contains no target.yaml must error, not return an empty map callers
+// would read as "compiled for zero targets."
 func TestLoadDir_ErrorsOnZeroTargets(t *testing.T) {
 	dir := t.TempDir() // empty: no subdirectories, no target.yaml files
 

@@ -57,14 +57,12 @@ func newHooksFile() *hooksFile {
 	return &hooksFile{byPrimitive: make(map[string]*eventGroup), seen: make(map[string]bool)}
 }
 
-// add appends entry to the group for primitive, creating the group (with
-// native name native) if this is the first entry seen for it. Two
-// requirements that resolve to the same primitive can independently
-// produce byte-identical entries (same matcher, same command, since the
-// command is built from the event/target pair, not the requirement id);
+// add appends entry to the group for primitive, creating the group if
+// this is the first entry seen for it. Two requirements that resolve to
+// the same primitive can independently produce byte-identical entries;
 // without deduping, both entries would be emitted and the harness would
-// run the (identical) handler invocation twice per firing. add dedupes
-// on (primitive, matcher, command list), so repeat entries are dropped.
+// run the same handler invocation twice per firing. add dedupes on
+// (primitive, matcher, command list), so repeat entries are dropped.
 func (h *hooksFile) add(primitive, native string, entry hookEntry) {
 	key := dedupeKey(primitive, entry)
 	if h.seen[key] {
@@ -80,8 +78,6 @@ func (h *hooksFile) add(primitive, native string, entry hookEntry) {
 	g.entries = append(g.entries, entry)
 }
 
-// dedupeKey builds the (primitive, matcher, commands) identity used to
-// detect duplicate hook entries.
 func dedupeKey(primitive string, entry hookEntry) string {
 	var b strings.Builder
 	b.WriteString(primitive)

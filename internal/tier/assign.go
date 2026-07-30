@@ -12,7 +12,7 @@ import (
 // Assignment records the outcome of assigning a Requirement to a target:
 // the tier it lands at, the mechanism used to satisfy it, any known
 // lossage from a degraded (non-native) implementation, and whether the
-// target cannot satisfy it at all in this slice.
+// target cannot satisfy it at all.
 type Assignment struct {
 	Req       contract.Requirement
 	Tier      contract.Tier
@@ -22,7 +22,7 @@ type Assignment struct {
 }
 
 // Assign determines how (and whether) target td can satisfy requirement
-// req in this slice.
+// req.
 func Assign(req contract.Requirement, td *target.Def) Assignment {
 	switch req.Kind {
 	case "executable-path":

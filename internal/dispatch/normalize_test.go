@@ -25,7 +25,6 @@ func loadTarget(t *testing.T, name string) *target.Def {
 	return td
 }
 
-// fixture reads a testdata payload verbatim.
 func fixture(t *testing.T, name string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("testdata", name))

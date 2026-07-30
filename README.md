@@ -5,7 +5,7 @@ horses in harness. This does the same for agent tools across AI coding harnesses
 
 Declare an agent tool's lifecycle requirements once; compile them onto multiple
 AI coding harnesses at the best verifiable fidelity tier. Class-1 spine:
-Claude Code + Codex CLI. Spec: harness-adapter.architecture.md (presentations repo).
+Claude Code + Codex CLI.
 
 - `whippletree build <bundle-dir>`: compile per-target variants
 - `whippletree preflight <bundle-dir> --target <name>`: probe + tier report
@@ -47,9 +47,8 @@ go build -o <bundle>/bin/whippletree-hook ./cmd/whippletree-hook
 Pass `--allow-missing-dispatcher` to downgrade that failure to a warning instead (useful in
 a build step that provisions the binary separately). `--targets-dir <dir>` overrides where
 target definitions are loaded from (default `targets`, resolved against the working
-directory); an empty or wrong directory is now a load error rather than a silent
-zero-target build. `--allow-refuse` downgrades a build-time REFUSE (see below) from a
-build failure to a warning.
+directory); an empty or wrong directory is a load error. `--allow-refuse` downgrades a
+build-time REFUSE (see below) from a build failure to a warning.
 
 If any target's contract requirement lands at REFUSE (a hard-required requirement the
 target cannot satisfy at all, or only below its minimum tier), `build` exits 1 and names
@@ -119,10 +118,9 @@ If a contract declares more than one handler for the same event, the dispatcher 
 in order and returns as soon as one exits 2; handlers later in the list never run once an
 earlier one has already blocked.
 
-## Spec additions
+## Conventions this adds
 
-Three additions this implementation made relative to `harness-adapter.architecture.md`,
-to be folded back into that doc:
+Three additions this implementation makes relative to `harness-adapter.architecture.md`:
 
 1. Each requirement gains a `handler` field: a path, relative to the bundle root, to the
    executable the dispatcher runs for that behavior. `executable-path` requirements gain a
@@ -172,8 +170,7 @@ PASS: session-start fired exactly once on claude
 ## Scope
 
 This is the class-1 spine only: Claude Code and Codex CLI, at whatever tier (T1/T2) each
-requirement can verifiably reach on those two harnesses today. Explicitly out of scope
-here, and left to later plans:
+requirement can verifiably reach on those two harnesses today. Out of scope:
 
 - Cursor, opencode, and Zed targets
 - T3 (compiled/coarse-trigger) and T4 (observer) tiers
