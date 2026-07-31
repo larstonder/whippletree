@@ -657,3 +657,28 @@ func TestStdinIsTTY_FalseForRegularFile(t *testing.T) {
 		t.Error("stdinIsTTY() = true for a regular file, want false")
 	}
 }
+
+// TestRunWith_PlumbsWithoutBehaviorChange verifies that runWith accepts
+// injected stdin and TTY-ness without changing behavior: calling runWith
+// with strings.NewReader("") and func() bool { return false } on an
+// existing arg-error path produces identical exit code and stderr output
+// to the same call through run.
+func TestRunWith_PlumbsWithoutBehaviorChange(t *testing.T) {
+	// Use preflight without the required --target flag as an arg-error case.
+	args := []string{"preflight", "bundledir"}
+
+	// Call through run to get the baseline.
+	var runStdout, runStderr bytes.Buffer
+	runCode := run(args, &runStdout, &runStderr)
+
+	// Call through runWith with injected stdin and TTY function.
+	var runWithStdout, runWithStderr bytes.Buffer
+	runWithCode := runWith(args, strings.NewReader(""), func() bool { return false }, &runWithStdout, &runWithStderr)
+
+	if runWithCode != runCode {
+		t.Errorf("runWith exit code = %d, want %d (same as run)", runWithCode, runCode)
+	}
+	if runWithStderr.String() != runStderr.String() {
+		t.Errorf("runWith stderr = %q, want %q (same as run)", runWithStderr.String(), runStderr.String())
+	}
+}

@@ -41,6 +41,14 @@ func main() {
 
 // run is main's testable body.
 func run(args []string, stdout, stderr io.Writer) int {
+	return runWith(args, os.Stdin, stdinIsTTY, stdout, stderr)
+}
+
+// runWith is the dispatcher containing the real logic; it accepts injected
+// stdin and TTY-ness for testing and future interactive verbs. Existing
+// verbs read the global stdin/TTY state (preflight calls stdinIsTTY
+// directly), so this plumbing creates no behavior change.
+func runWith(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr io.Writer) int {
 	if len(args) < 1 {
 		fmt.Fprintln(stderr, "usage: whippletree <build|preflight|install> ...")
 		return 1
