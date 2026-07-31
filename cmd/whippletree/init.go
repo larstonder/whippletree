@@ -246,22 +246,29 @@ var wizardKindMenu = []string{"blocking-gate", "lifecycle-signal", "observation-
 
 // runInitWizard prompts on stdout and reads answers from r: the bundle
 // name, the kinds to include, and, for each chosen blocking-gate or
-// executable-path kind, whether it is hard-required. Empty input takes
-// the printed default; an invalid kind selection re-prompts once with
-// the valid range, then returns an error. It writes nothing to disk:
-// the caller passes the collected name, kinds, and hardSet to the same
-// generator the flag path uses.
+// executable-path kind, whether it is hard-required. An empty line
+// takes the printed default; the stream ending before a question is
+// answered (e.g. Ctrl-D on a real terminal) is treated as cancelling
+// the wizard and returns an error rather than silently falling back to
+// defaults. An invalid kind selection or hard-required answer
+// re-prompts once with the valid range, then returns an error. It
+// writes nothing to disk: the caller passes the collected name, kinds,
+// and hardSet to the same generator the flag path uses.
 func runInitWizard(r io.Reader, stdout io.Writer, defaultName string) (name string, kinds []string, hardSet map[string]bool, err error) {
 	scanner := bufio.NewScanner(r)
-	readLine := func() string {
+	readLine := func() (string, bool) {
 		if !scanner.Scan() {
-			return ""
+			return "", false
 		}
-		return strings.TrimSpace(scanner.Text())
+		return strings.TrimSpace(scanner.Text()), true
 	}
 
 	fmt.Fprintf(stdout, "Bundle name [%s]: ", defaultName)
-	name = readLine()
+	nameLine, ok := readLine()
+	if !ok {
+		return "", nil, nil, fmt.Errorf("input ended before the bundle name was answered; wizard cancelled")
+	}
+	name = nameLine
 	if name == "" {
 		name = defaultName
 	}
@@ -276,11 +283,19 @@ func runInitWizard(r io.Reader, stdout io.Writer, defaultName string) (name stri
 	}
 	fmt.Fprint(stdout, "Kinds to include (comma-separated numbers) [2]: ")
 
-	kinds, kindsErr := parseWizardKinds(readLine())
+	kindsLine, ok := readLine()
+	if !ok {
+		return "", nil, nil, fmt.Errorf("input ended before the kinds question was answered; wizard cancelled")
+	}
+	kinds, kindsErr := parseWizardKinds(kindsLine)
 	if kindsErr != nil {
 		fmt.Fprintf(stdout, "%v; enter numbers between 1 and %d, comma-separated\n", kindsErr, len(wizardKindMenu))
 		fmt.Fprint(stdout, "Kinds to include (comma-separated numbers) [2]: ")
-		kinds, kindsErr = parseWizardKinds(readLine())
+		kindsLine, ok = readLine()
+		if !ok {
+			return "", nil, nil, fmt.Errorf("input ended before the kinds question was answered; wizard cancelled")
+		}
+		kinds, kindsErr = parseWizardKinds(kindsLine)
 		if kindsErr != nil {
 			return "", nil, nil, kindsErr
 		}
@@ -294,11 +309,19 @@ func runInitWizard(r io.Reader, stdout io.Writer, defaultName string) (name stri
 		prompt := fmt.Sprintf("Make %s hard-required? A hard requirement refuses install when the harness cannot meet it. [y/N]: ", k)
 		fmt.Fprint(stdout, prompt)
 
-		hard, hardErr := parseWizardYesNo(readLine())
+		hardLine, ok := readLine()
+		if !ok {
+			return "", nil, nil, fmt.Errorf("input ended before %s hard-required was answered; wizard cancelled", k)
+		}
+		hard, hardErr := parseWizardYesNo(hardLine)
 		if hardErr != nil {
 			fmt.Fprintf(stdout, "%v; enter y or n\n", hardErr)
 			fmt.Fprint(stdout, prompt)
-			hard, hardErr = parseWizardYesNo(readLine())
+			hardLine, ok = readLine()
+			if !ok {
+				return "", nil, nil, fmt.Errorf("input ended before %s hard-required was answered; wizard cancelled", k)
+			}
+			hard, hardErr = parseWizardYesNo(hardLine)
 			if hardErr != nil {
 				return "", nil, nil, hardErr
 			}

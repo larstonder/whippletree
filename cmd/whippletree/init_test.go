@@ -456,6 +456,73 @@ func TestRunInitWizard_InvalidKindTwiceErrors(t *testing.T) {
 	}
 }
 
+// TestRunInitWizard_InvalidHardAnswerTwiceErrors mirrors the kinds
+// reprompt/error test for the hard-required question: an unrecognized
+// y/n answer that is still unrecognized on the reprompt is a clear
+// error, and nothing is created.
+func TestRunInitWizard_InvalidHardAnswerTwiceErrors(t *testing.T) {
+	dir := t.TempDir()
+
+	answers := "\n1\nmaybe\nmaybe\n"
+	var stdout, stderr bytes.Buffer
+	code := runWith([]string{"init", dir}, strings.NewReader(answers), func() bool { return true }, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("runWith(init wizard) = %d, want 1 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("dir entries = %v, want none created", entries)
+	}
+}
+
+// TestRunInitWizard_EOFBeforeFirstQuestionErrors confirms an input
+// stream that ends before the bundle name question is answered (e.g.
+// Ctrl-D on a real terminal) errors cleanly instead of silently
+// completing the wizard with every default, and creates nothing.
+func TestRunInitWizard_EOFBeforeFirstQuestionErrors(t *testing.T) {
+	dir := t.TempDir()
+
+	var stdout, stderr bytes.Buffer
+	code := runWith([]string{"init", dir}, strings.NewReader(""), func() bool { return true }, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("runWith(init wizard) = %d, want 1 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("dir entries = %v, want none created", entries)
+	}
+}
+
+// TestRunInitWizard_EOFMidWizardErrors confirms an input stream that
+// ends after the bundle name answer but before the kinds question
+// errors cleanly and creates nothing, rather than silently completing
+// the wizard with defaults for every remaining question.
+func TestRunInitWizard_EOFMidWizardErrors(t *testing.T) {
+	dir := t.TempDir()
+
+	var stdout, stderr bytes.Buffer
+	code := runWith([]string{"init", dir}, strings.NewReader("acme-tool\n"), func() bool { return true }, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("runWith(init wizard) = %d, want 1 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("dir entries = %v, want none created", entries)
+	}
+}
+
 // TestRunInit_BareOnNonTTYUsesDefaults confirms bare init (no flags at
 // all) on a non-TTY still scaffolds using defaults, since isTTY()==false
 // alone is sufficient to select the non-interactive path.
