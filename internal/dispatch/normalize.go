@@ -45,6 +45,32 @@ type payload struct {
 	} `json:"tool_input"`
 }
 
+// dialectSniff reads only the field that distinguishes an envelope payload
+// from a class-1 one: class-1 targets (Claude Code, Codex) carry
+// hook_event_name and never source.
+type dialectSniff struct {
+	Source string `json:"source"`
+}
+
+// opencodeArgs is the subset of an opencode tool call's args Normalize
+// reads across tool kinds.
+type opencodeArgs struct {
+	FilePath string `json:"filePath"`
+}
+
+// opencodeEnvelope is the shape whippletree's compiled ts-plugin shim wraps
+// opencode's raw hook arguments in before piping them to the dispatcher.
+type opencodeEnvelope struct {
+	Hook      string `json:"hook"`
+	Directory string `json:"directory"`
+	Input     struct {
+		Args opencodeArgs `json:"args"`
+	} `json:"input"`
+	Output struct {
+		Args opencodeArgs `json:"args"`
+	} `json:"output"`
+}
+
 // Normalize decodes stdin (a target's raw hook payload) into the canonical
 // Event shape. logicalEvent may be an alias (e.g. "file-read") or a
 // primitive (e.g. "turn-end"); td supplies the target-specific mapping
@@ -53,6 +79,14 @@ func Normalize(logicalEvent string, td *target.Def, stdin []byte) (*Event, error
 	primitive, toolClass, err := contract.ResolveEvent(logicalEvent)
 	if err != nil {
 		return nil, fmt.Errorf("normalize: %w", err)
+	}
+
+	var sniff dialectSniff
+	if err := json.Unmarshal(stdin, &sniff); err != nil {
+		return nil, fmt.Errorf("normalize: decode stdin: %w", err)
+	}
+	if sniff.Source != "" {
+		return normalizeOpencode(logicalEvent, primitive, toolClass, stdin)
 	}
 
 	var p payload
@@ -94,6 +128,44 @@ func Normalize(logicalEvent string, td *target.Def, stdin []byte) (*Event, error
 				}
 				ev.StopHookActive = &v
 			}
+		}
+	}
+
+	return ev, nil
+}
+
+// normalizeOpencode decodes an envelope-shaped stdin payload, the shape the
+// opencode ts-plugin shim wraps its raw hook arguments in. opencode has no
+// loop guard: a blocking tool-pre throw fails just that tool call and the
+// agent loop continues, so StopHookActive is always nil here.
+func normalizeOpencode(logicalEvent, primitive, toolClass string, stdin []byte) (*Event, error) {
+	var env opencodeEnvelope
+	if err := json.Unmarshal(stdin, &env); err != nil {
+		return nil, fmt.Errorf("normalize: decode opencode envelope: %w", err)
+	}
+
+	ev := &Event{
+		Event:     primitive,
+		ToolClass: toolClass,
+		CWD:       env.Directory,
+		Raw:       json.RawMessage(stdin),
+	}
+	if primitive != logicalEvent {
+		ev.Alias = logicalEvent
+	}
+
+	// opencode's before hook exposes args on output, not input: output is
+	// the mutable slot a plugin can rewrite before the tool runs. The
+	// after hook has already merged the (possibly rewritten) args onto
+	// input.
+	switch env.Hook {
+	case "tool.execute.after":
+		if fp := env.Input.Args.FilePath; fp != "" {
+			ev.Paths = []string{fp}
+		}
+	case "tool.execute.before":
+		if fp := env.Output.Args.FilePath; fp != "" {
+			ev.Paths = []string{fp}
 		}
 	}
 

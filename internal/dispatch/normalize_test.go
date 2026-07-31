@@ -113,6 +113,99 @@ func TestNormalizeClaudeDirectRead(t *testing.T) {
 	}
 }
 
+func TestNormalizeOpencodeSessionStart(t *testing.T) {
+	td := loadTarget(t, "opencode")
+	stdin := fixture(t, "opencode-event-session-created.json")
+
+	ev, err := dispatch.Normalize("session-start", td, stdin)
+	if err != nil {
+		t.Fatalf("Normalize: %v", err)
+	}
+
+	if ev.Event != "session-start" {
+		t.Errorf("Event = %q, want %q", ev.Event, "session-start")
+	}
+	if ev.Alias != "" {
+		t.Errorf("Alias = %q, want empty (session-start is a primitive)", ev.Alias)
+	}
+	if ev.ToolClass != "" {
+		t.Errorf("ToolClass = %q, want empty", ev.ToolClass)
+	}
+	if ev.CWD != "/tmp/proj" {
+		t.Errorf("CWD = %q, want %q", ev.CWD, "/tmp/proj")
+	}
+	if ev.StopHookActive != nil {
+		t.Errorf("StopHookActive = %v, want nil", ev.StopHookActive)
+	}
+	if string(ev.Raw) != string(stdin) {
+		t.Errorf("Raw does not match stdin verbatim")
+	}
+}
+
+func TestNormalizeOpencodeToolPostRead(t *testing.T) {
+	td := loadTarget(t, "opencode")
+	stdin := fixture(t, "opencode-tool-after-read.json")
+
+	ev, err := dispatch.Normalize("file-read", td, stdin)
+	if err != nil {
+		t.Fatalf("Normalize: %v", err)
+	}
+
+	if ev.Event != "tool-post" {
+		t.Errorf("Event = %q, want %q", ev.Event, "tool-post")
+	}
+	if ev.Alias != "file-read" {
+		t.Errorf("Alias = %q, want %q", ev.Alias, "file-read")
+	}
+	if ev.ToolClass != "read" {
+		t.Errorf("ToolClass = %q, want %q", ev.ToolClass, "read")
+	}
+
+	wantPaths := []string{"/private/tmp/claude-501/-Users-larstonder-Documents-presentations/e30d6d6f-5fcd-4673-8140-80fe7adbe2a8/scratchpad/ocprobe.uIUVwz/proj/hello.txt"}
+	if !reflect.DeepEqual(ev.Paths, wantPaths) {
+		t.Errorf("Paths = %v, want %v", ev.Paths, wantPaths)
+	}
+
+	if ev.CWD != "/tmp/proj" {
+		t.Errorf("CWD = %q, want %q", ev.CWD, "/tmp/proj")
+	}
+	if ev.StopHookActive != nil {
+		t.Errorf("StopHookActive = %v, want nil", ev.StopHookActive)
+	}
+	if string(ev.Raw) != string(stdin) {
+		t.Errorf("Raw does not match stdin verbatim")
+	}
+}
+
+func TestNormalizeOpencodeToolPreRead(t *testing.T) {
+	td := loadTarget(t, "opencode")
+	stdin := fixture(t, "opencode-tool-before-read.json")
+
+	ev, err := dispatch.Normalize("tool-pre", td, stdin)
+	if err != nil {
+		t.Fatalf("Normalize: %v", err)
+	}
+
+	if ev.Event != "tool-pre" {
+		t.Errorf("Event = %q, want %q", ev.Event, "tool-pre")
+	}
+	if ev.Alias != "" {
+		t.Errorf("Alias = %q, want empty (tool-pre is a primitive)", ev.Alias)
+	}
+
+	wantPaths := []string{"/private/tmp/claude-501/-Users-larstonder-Documents-presentations/e30d6d6f-5fcd-4673-8140-80fe7adbe2a8/scratchpad/ocprobe.uIUVwz/proj/hello.txt"}
+	if !reflect.DeepEqual(ev.Paths, wantPaths) {
+		t.Errorf("Paths = %v, want %v", ev.Paths, wantPaths)
+	}
+
+	if ev.CWD != "/tmp/proj" {
+		t.Errorf("CWD = %q, want %q", ev.CWD, "/tmp/proj")
+	}
+	if ev.StopHookActive != nil {
+		t.Errorf("StopHookActive = %v, want nil", ev.StopHookActive)
+	}
+}
+
 func TestNormalizeStopCarriesLoopGuard(t *testing.T) {
 	td := loadTarget(t, "codex")
 	stdin := fixture(t, "codex-stop.json")
