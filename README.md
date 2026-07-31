@@ -5,10 +5,11 @@ horses in harness. This does the same for agent tools across AI coding harnesses
 
 Declare an agent tool's lifecycle requirements once; compile them onto multiple
 AI coding harnesses at the best verifiable fidelity tier. Class-1 spine:
-Claude Code + Codex CLI.
+Claude Code + Codex CLI, plus opencode on its own backend.
 
 - `whippletree build <bundle-dir>`: compile per-target variants
 - `whippletree preflight <bundle-dir> --target <name>`: probe + tier report
+- `whippletree install <bundle-dir> --target <name> [--project <dir>]`: place or guide the actual install
 - `whippletree-hook run <event> --target <name>`: hook dispatcher (invoked by harnesses, not humans)
 
 ## Performance
@@ -127,7 +128,8 @@ codex plugin add my-tool@my-tool-mkt
 ```
 
 `examples/kb-shaped/` is the full working reference: all four requirement kinds, real
-handlers, both class-1 targets.
+handlers, both class-1 targets. opencode's install step works differently from the
+marketplace commands above; see "opencode" below.
 
 ## Commands
 
@@ -185,6 +187,41 @@ Plan: 4 satisfy, 0 degrade, 0 refuse.
 
 Exit code is 1 if any requirement REFUSEs; otherwise `.whippletree/install-state.json` is
 written recording the harness, probed version, and the achieved tier per requirement.
+
+### `whippletree install <bundleDir> --target <name>`
+
+Runs the same check `preflight` does, then, on anything short of a REFUSE, performs the
+actual install. What that means depends on the target's backend:
+
+- A hooks-json target (Claude Code, Codex) has its own plugin-marketplace mechanism;
+  installing into it is that harness's job, not whippletree's, so `install` prints the
+  two commands from "Build, preflight, install" above, pointed at this bundle.
+- A ts-plugin target (opencode) has no such mechanism, so `install` places the shim
+  itself: it copies the compiled `hooks/<target>.ts` into
+  `<project>/.opencode/plugin/whippletree-<bundle name>.ts`, resolving the dispatcher
+  placeholder to the bundle's absolute `bin/whippletree-hook` path along the way.
+
+```
+$ go run ./cmd/whippletree install examples/kb-shaped --target claude-code --assume-version 2.1.220
+whippletree preflight · target claude-code (probed 2.1.220)
+
+  stop-gate             want ≥T1  got T1  SATISFY   native Stop + stop_hook_active
+  session-start-signal  want ≥T2  got T1  SATISFY   native SessionStart
+  file-read-signal      want ≥T4  got T1  SATISFY   native matcher Read
+  bin-reachable         want ≥T1  got T1  SATISFY   bundle channel
+
+Plan: 4 satisfy, 0 degrade, 0 refuse.
+install for claude-code is the harness's own plugin mechanism:
+
+  claude plugin marketplace add examples/kb-shaped
+  claude plugin install kb-shaped@kb-shaped-mkt
+```
+
+`--project <dir>` picks the destination project for a ts-plugin target (defaults to the
+current directory; ignored for a hooks-json target, which installs nothing itself).
+Exit code and `install-state.json` behavior match `preflight`. A pre-existing destination
+file is only overwritten if its first line is whippletree's own generated-by marker, so a
+hand-authored file at that path is left alone.
 
 ### `whippletree-hook run <event> --target <name>`
 
@@ -245,31 +282,88 @@ Three additions this implementation makes relative to `harness-adapter.architect
    re-resolve the contract or reload target YAMLs the author might have changed since
    build.
 
+## opencode
+
+opencode has no blocking stop event at all: there is no native primitive `turn-end` can
+map to on this target. A hooks-json target blocks a whole turn; opencode can only ever
+block a single tool call, and even that isn't a native gate. It's whippletree's own
+convention layered on top: the compiled shim throws a JavaScript error when the
+dispatcher exits 2, that error fails the one `tool.execute` call it was thrown from, and
+the agent loop continues past it. There is nothing on this target an author can point a
+`hardRequired` stop-gate at and have it actually stop anything.
+
+The backend is different too. `targets/opencode/target.yaml` sets `backend: ts-plugin`
+instead of the hooks-json default, so `whippletree build` writes `hooks/opencode.ts`
+rather than a manifest pair: an in-process TypeScript plugin shim, zero npm imports,
+that spawns the compiled dispatcher directly via `node:child_process`'s `spawnSync`.
+
+Because the stop-gate requirement genuinely cannot be satisfied here, `examples/kb-shaped`
+refuses preflight and install on opencode exactly as shipped, by design: its `stop-gate`
+requirement is `hardRequired: true`, and the best tier opencode can ever land it at is
+Absent, never Satisfy or Degrade.
+
+```
+$ go run ./cmd/whippletree preflight examples/kb-shaped --target opencode --assume-version 1.18.10
+whippletree preflight · target opencode (probed 1.18.10)
+
+  stop-gate             want ≥T1  got —  REFUSE    no native mapping for turn-end on this target
+  session-start-signal  want ≥T2  got T1  SATISFY   native event:session.created
+  file-read-signal      want ≥T4  got T1  SATISFY   native matcher read
+  bin-reachable         want ≥T1  got T1  SATISFY   installer-resolved absolute path
+
+Plan: 3 satisfy, 0 degrade, 1 refuse.
+```
+
+Soften that one field to `hardRequired: false` and the requirement lands Absent instead
+of refusing; `install` then places the shim rather than stopping:
+
+```
+$ go run ./cmd/whippletree install my-tool --target opencode --project my-project --assume-version 1.18.10
+whippletree preflight · target opencode (probed 1.18.10)
+
+  stop-gate             want ≥T1  got —  ABSENT    no native mapping for turn-end on this target
+  session-start-signal  want ≥T2  got T1  SATISFY   native event:session.created
+  file-read-signal      want ≥T4  got T1  SATISFY   native matcher read
+  bin-reachable         want ≥T1  got T1  SATISFY   installer-resolved absolute path
+
+Plan: 3 satisfy, 0 degrade, 0 refuse, 1 absent.
+```
+
+The shim lands at `my-project/.opencode/plugin/whippletree-my-tool.ts` with the
+dispatcher path baked in absolute (there's no plugin-root environment variable on this
+target to resolve it from at runtime, the way `${CLAUDE_PLUGIN_ROOT}` works for Claude
+Code). See "`whippletree install`" under Commands for the overwrite-protection rule.
+
 ## End-to-end tests
 
-`test/e2e/run-codex.sh` and `test/e2e/run-claude.sh` install the `examples/kb-shaped`
-bundle into a fresh, isolated harness home (`mktemp -d`, `CODEX_HOME` /
-`CLAUDE_CONFIG_DIR` respectively) and drive one real, unauthenticated turn against the
-installed `codex` and `claude` CLIs, then assert on a marker file the example's handlers
-write to. They are standalone bash, not wired into `go test`; they're the
-environment-dependent, real-harness conformance layer.
+`test/e2e/run-codex.sh`, `test/e2e/run-claude.sh`, and `test/e2e/run-opencode.sh` install
+the `examples/kb-shaped` bundle into a fresh, isolated harness home (`mktemp -d`,
+`CODEX_HOME` / `CLAUDE_CONFIG_DIR` / an XDG-isolated set of dirs respectively) and drive
+one real, unauthenticated turn against the installed `codex`, `claude`, and `opencode`
+CLIs, then assert on a marker file the example's handlers write to. They are standalone
+bash, not wired into `go test`; they're the environment-dependent, real-harness
+conformance layer.
 
 ```bash
 test/e2e/run-codex.sh
 test/e2e/run-claude.sh
+test/e2e/run-opencode.sh
 ```
 
-Both scripts run fully unauthenticated (no credentials are copied into the isolated
-home): `SessionStart` is verified to fire before either harness makes any auth/model
-call, so the scripts tolerate the resulting 401/"not logged in" failure and assert only
-on the marker file. `run-codex.sh` proves `SessionStart` fires end to end through the
+All three scripts run fully unauthenticated (no credentials are copied into the isolated
+home): the session-start signal is verified to fire before the harness makes any
+auth/model call, so the scripts tolerate the resulting 401/"not logged in" failure (or,
+for opencode, an anonymous hosted-model call that succeeds on its own) and assert only on
+the marker file. `run-codex.sh` proves `SessionStart` fires end to end through the
 compiled hooks file and the dispatcher; `run-claude.sh` proves the same, plus that it
 fires exactly once, confirming `hooks/hooks.json` is never emitted alongside the
 per-target hooks file (Claude Code merges that file additively, so its presence would
-double-fire every hook).
+double-fire every hook). `run-opencode.sh` proves the REFUSE-by-design behavior from
+"opencode" above, then softens the bundle and proves the compiled shim installs and
+fires session-start exactly once through a real `opencode run`.
 
-Actual PASS output from the last verified run, against `codex-cli 0.144.5` and
-`claude 2.1.220`:
+Actual PASS output from the last verified run, against `codex-cli 0.144.5`,
+`claude 2.1.220`, and `opencode 1.18.10`:
 
 ```
 PASS: session-start fired on codex
@@ -279,12 +373,24 @@ PASS: session-start fired on codex
 PASS: session-start fired exactly once on claude
 ```
 
+```
+PASS: preflight refuses the hard stop gate on opencode
+PASS: install placed the plugin shim at .opencode/plugin/
+PASS: session-start fired exactly once on opencode
+```
+
+Every e2e script also prints a `harness=<name> version=<probed> date=<iso>` line before
+it does anything else, so the exact upstream version and date a given PASS was measured
+against is always available by grepping test output rather than trusting memory. That
+line is also what backs the maintenance log's entries, see `MAINTENANCE.md`.
+
 ## Scope
 
-This is the class-1 spine only: Claude Code and Codex CLI, at whatever tier (T1/T2) each
-requirement can verifiably reach on those two harnesses today. Out of scope:
+This is the class-1 spine, Claude Code and Codex CLI, at whatever tier (T1/T2) each
+requirement can verifiably reach on those two harnesses today, plus opencode as a third
+target on its own ts-plugin backend (see "opencode" above). Out of scope:
 
-- Cursor, opencode, and Zed targets
+- Cursor and Zed targets
 - T3 (compiled/coarse-trigger) and T4 (observer) tiers
 - the conformance kit
 - uninstall and upgrade flows
