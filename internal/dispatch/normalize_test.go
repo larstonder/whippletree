@@ -113,6 +113,41 @@ func TestNormalizeClaudeDirectRead(t *testing.T) {
 	}
 }
 
+// TestNormalizeClaudeSessionStart pins that a class-1 session-start
+// payload is decoded as class-1 even though it carries a top-level
+// "source" field. Claude Code's SessionStart hook input sets source to
+// "startup", "resume", "clear" or "compact", which collides with the
+// field the opencode envelope also uses; the backend on the target
+// definition is what selects the dialect.
+func TestNormalizeClaudeSessionStart(t *testing.T) {
+	td := loadTarget(t, "claude-code")
+	stdin := fixture(t, "claude-sessionstart.json")
+
+	ev, err := dispatch.Normalize("session-start", td, stdin)
+	if err != nil {
+		t.Fatalf("Normalize: %v", err)
+	}
+
+	if ev.Event != "session-start" {
+		t.Errorf("Event = %q, want %q", ev.Event, "session-start")
+	}
+	if ev.Alias != "" {
+		t.Errorf("Alias = %q, want empty (session-start is a primitive)", ev.Alias)
+	}
+	if ev.TranscriptPath != "/tmp/t.jsonl" {
+		t.Errorf("TranscriptPath = %q, want %q", ev.TranscriptPath, "/tmp/t.jsonl")
+	}
+	if ev.CWD != "/tmp/proj" {
+		t.Errorf("CWD = %q, want %q", ev.CWD, "/tmp/proj")
+	}
+	if ev.StopHookActive != nil {
+		t.Errorf("StopHookActive = %v, want nil", ev.StopHookActive)
+	}
+	if string(ev.Raw) != string(stdin) {
+		t.Errorf("Raw does not match stdin verbatim")
+	}
+}
+
 func TestNormalizeOpencodeSessionStart(t *testing.T) {
 	td := loadTarget(t, "opencode")
 	stdin := fixture(t, "opencode-event-session-created.json")

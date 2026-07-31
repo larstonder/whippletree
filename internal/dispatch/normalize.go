@@ -45,13 +45,6 @@ type payload struct {
 	} `json:"tool_input"`
 }
 
-// dialectSniff reads only the field that distinguishes an envelope payload
-// from a class-1 one: class-1 targets (Claude Code, Codex) carry
-// hook_event_name and never source.
-type dialectSniff struct {
-	Source string `json:"source"`
-}
-
 // opencodeArgs is the subset of an opencode tool call's args Normalize
 // reads across tool kinds.
 type opencodeArgs struct {
@@ -73,19 +66,21 @@ type opencodeEnvelope struct {
 
 // Normalize decodes stdin (a target's raw hook payload) into the canonical
 // Event shape. logicalEvent may be an alias (e.g. "file-read") or a
-// primitive (e.g. "turn-end"); td supplies the target-specific mapping
-// needed to read the loop-guard field on turn-end payloads.
+// primitive (e.g. "turn-end"); td supplies the backend that selects the
+// payload dialect and the target-specific mapping needed to read the
+// loop-guard field on turn-end payloads.
 func Normalize(logicalEvent string, td *target.Def, stdin []byte) (*Event, error) {
 	primitive, toolClass, err := contract.ResolveEvent(logicalEvent)
 	if err != nil {
 		return nil, fmt.Errorf("normalize: %w", err)
 	}
 
-	var sniff dialectSniff
-	if err := json.Unmarshal(stdin, &sniff); err != nil {
-		return nil, fmt.Errorf("normalize: decode stdin: %w", err)
-	}
-	if sniff.Source != "" {
+	// The target's backend, not the payload's shape, selects the
+	// dialect. Payload shape is not a reliable discriminator: the
+	// envelope's top-level "source" field also appears on Claude Code's
+	// SessionStart input, where it carries "startup", "resume", "clear"
+	// or "compact".
+	if td.Backend == target.BackendTSPlugin {
 		return normalizeOpencode(logicalEvent, primitive, toolClass, stdin)
 	}
 
