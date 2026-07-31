@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/larstonder/whippletree/internal/contract"
 	"github.com/larstonder/whippletree/internal/target"
@@ -24,13 +25,23 @@ var hooksEmittingKinds = map[string]bool{
 }
 
 // Result collects, per target name, every requirement's tier.Assignment
-// as computed by Build.
+// as computed by Build, plus any target Build declined to build for.
 type Result struct {
 	PerTarget map[string][]tier.Assignment
+	Skipped   []SkippedTarget
+}
+
+// SkippedTarget records a target Build recognized but produced no
+// artifacts for, and why, so a caller can surface that to the user
+// instead of leaving the target's absence unexplained.
+type SkippedTarget struct {
+	Name   string
+	Reason string
 }
 
 // Build reads bundleDir's plugin.json, parses and validates its
-// whippletree contract, and for every target in targets writes:
+// whippletree contract, and for every hooks-json target in targets
+// writes:
 //
 //   - <manifestDir>/plugin.json: the bundle's original manifest fields
 //     plus a "hooks" pointer to that target's hooks file.
@@ -43,6 +54,11 @@ type Result struct {
 //
 // It never writes hooks/hooks.json; each target's hooks file is named
 // for that target.
+//
+// A ts-plugin target gets none of the above, not even the vendored
+// target.yaml copy: Build has no emitter for that backend yet. Such a
+// target is recorded in Result.Skipped instead, so its absence from
+// the build is visible rather than silent.
 func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 	for name := range targets {
 		if name == "hooks" {
@@ -83,6 +99,10 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 		// ts-plugin targets have no manifest or hooks-json file to
 		// write; this loop only emits the hooks-json artifacts.
 		if td.Backend == target.BackendTSPlugin {
+			result.Skipped = append(result.Skipped, SkippedTarget{
+				Name:   name,
+				Reason: "ts-plugin backend not yet implemented",
+			})
 			continue
 		}
 
@@ -112,6 +132,10 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 			return nil, err
 		}
 	}
+
+	sort.Slice(result.Skipped, func(i, j int) bool {
+		return result.Skipped[i].Name < result.Skipped[j].Name
+	})
 
 	return result, nil
 }

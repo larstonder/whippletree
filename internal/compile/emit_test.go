@@ -242,6 +242,53 @@ func TestBuild_ErrorsOnMissingExecutablePath(t *testing.T) {
 	}
 }
 
+// TestBuild_SkipsTSPluginTargetWithVisibleNotice: a ts-plugin target
+// (opencode) has no emitter wired into Build yet. Build must not error
+// on it, must write it no manifest, hooks file, or vendored target.yaml,
+// and must record why in Result.Skipped so its absence from the build
+// is visible rather than silent.
+func TestBuild_SkipsTSPluginTargetWithVisibleNotice(t *testing.T) {
+	dir := writeManifestOnly(t, `
+		{"id":"session-start-signal","kind":"lifecycle-signal","event":"session-start",
+		 "minTier":"T2","hardRequired":false,"handler":"./handlers/a.sh"}`)
+	writeStandIn(t, dir, "handlers/a.sh")
+
+	targets, err := target.LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("target.LoadDir: %v", err)
+	}
+	oc, ok := targets["opencode"]
+	if !ok {
+		t.Fatal("no opencode target loaded")
+	}
+
+	result, err := compile.Build(dir, map[string]*target.Def{"opencode": oc})
+	if err != nil {
+		t.Fatalf("compile.Build: %v", err)
+	}
+
+	if _, ok := result.PerTarget["opencode"]; ok {
+		t.Errorf("PerTarget contains %q, want it absent for a skipped target", "opencode")
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "hooks", "opencode.json")); !os.IsNotExist(err) {
+		t.Errorf("stat hooks/opencode.json = %v, want it to not exist", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".whippletree", "targets", "opencode.yaml")); !os.IsNotExist(err) {
+		t.Errorf("stat .whippletree/targets/opencode.yaml = %v, want it to not exist", err)
+	}
+
+	if len(result.Skipped) != 1 {
+		t.Fatalf("Skipped = %+v, want exactly one entry", result.Skipped)
+	}
+	if result.Skipped[0].Name != "opencode" {
+		t.Errorf("Skipped[0].Name = %q, want %q", result.Skipped[0].Name, "opencode")
+	}
+	if !strings.Contains(result.Skipped[0].Reason, "ts-plugin") || !strings.Contains(result.Skipped[0].Reason, "not yet implemented") {
+		t.Errorf("Skipped[0].Reason = %q, want it to mention ts-plugin and not yet implemented", result.Skipped[0].Reason)
+	}
+}
+
 func TestBuild_RejectsHooksAsTargetName(t *testing.T) {
 	dir := writeManifestOnly(t, `
 		{"id":"session-start-signal","kind":"lifecycle-signal","event":"session-start",
