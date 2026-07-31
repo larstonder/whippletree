@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/larstonder/whippletree/internal/contract"
 	"github.com/larstonder/whippletree/internal/target"
@@ -25,40 +24,32 @@ var hooksEmittingKinds = map[string]bool{
 }
 
 // Result collects, per target name, every requirement's tier.Assignment
-// as computed by Build, plus any target Build declined to build for.
+// as computed by Build.
 type Result struct {
 	PerTarget map[string][]tier.Assignment
-	Skipped   []SkippedTarget
-}
-
-// SkippedTarget records a target Build recognized but produced no
-// artifacts for, and why, so a caller can surface that to the user
-// instead of leaving the target's absence unexplained.
-type SkippedTarget struct {
-	Name   string
-	Reason string
 }
 
 // Build reads bundleDir's plugin.json, parses and validates its
-// whippletree contract, and for every hooks-json target in targets
-// writes:
+// whippletree contract, and for every target in targets writes:
 //
-//   - <manifestDir>/plugin.json: the bundle's original manifest fields
-//     plus a "hooks" pointer to that target's hooks file.
-//   - hooks/<name>.json: the native hooks file, one entry per
-//     non-absent blocking-gate/lifecycle-signal/observation-signal
-//     requirement.
 //   - .whippletree/contract.json: the normalized, parsed contract.
 //   - .whippletree/targets/<name>.yaml: a byte copy of the target's
 //     source target.yaml.
 //
+// plus, per target backend:
+//
+//   - hooks-json: <manifestDir>/plugin.json (the bundle's original
+//     manifest fields plus a "hooks" pointer to that target's hooks
+//     file) and hooks/<name>.json (the native hooks file, one entry
+//     per non-absent blocking-gate/lifecycle-signal/observation-signal
+//     requirement).
+//   - ts-plugin: hooks/<name>.ts, an in-process TypeScript shim
+//     carrying the same set of non-absent requirements as dispatch
+//     calls. No manifest pair is written: a ts-plugin target has no
+//     manifest for whippletree to extend.
+//
 // It never writes hooks/hooks.json; each target's hooks file is named
 // for that target.
-//
-// A ts-plugin target gets none of the above, not even the vendored
-// target.yaml copy: Build has no emitter for that backend yet. Such a
-// target is recorded in Result.Skipped instead, so its absence from
-// the build is visible rather than silent.
 func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 	for name := range targets {
 		if name == "hooks" {
@@ -96,18 +87,9 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 	result := &Result{PerTarget: make(map[string][]tier.Assignment, len(targets))}
 
 	for name, td := range targets {
-		// ts-plugin targets have no manifest or hooks-json file to
-		// write; this loop only emits the hooks-json artifacts.
-		if td.Backend == target.BackendTSPlugin {
-			result.Skipped = append(result.Skipped, SkippedTarget{
-				Name:   name,
-				Reason: "ts-plugin backend not yet implemented",
-			})
-			continue
-		}
-
 		assignments := make([]tier.Assignment, 0, len(c.Requires))
 		hf := newHooksFile()
+		tp := newTSPlugin()
 
 		for _, req := range c.Requires {
 			a := tier.Assign(req, td)
@@ -116,11 +98,29 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 			if a.Absent || !hooksEmittingKinds[req.Kind] {
 				continue
 			}
+
+			if td.Backend == target.BackendTSPlugin {
+				if err := addTSHookEntry(tp, req, td, name); err != nil {
+					return nil, err
+				}
+				continue
+			}
 			if err := addHookEntry(hf, req, td, name); err != nil {
 				return nil, err
 			}
 		}
 		result.PerTarget[name] = assignments
+
+		if err := vendorTargetYAML(bundleDir, name, td); err != nil {
+			return nil, err
+		}
+
+		if td.Backend == target.BackendTSPlugin {
+			if err := writeTSPluginFile(bundleDir, name, tp); err != nil {
+				return nil, err
+			}
+			continue
+		}
 
 		if err := writeManifest(bundleDir, name, td, manifestFields); err != nil {
 			return nil, err
@@ -128,14 +128,7 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 		if err := writeHooksFile(bundleDir, name, hf); err != nil {
 			return nil, err
 		}
-		if err := vendorTargetYAML(bundleDir, name, td); err != nil {
-			return nil, err
-		}
 	}
-
-	sort.Slice(result.Skipped, func(i, j int) bool {
-		return result.Skipped[i].Name < result.Skipped[j].Name
-	})
 
 	return result, nil
 }
@@ -186,14 +179,7 @@ func addHookEntry(hf *hooksFile, req contract.Requirement, td *target.Def, name 
 		return fmt.Errorf("requirement %s: target %q has no mapping for primitive %q", req.ID, name, primitive)
 	}
 
-	var matcher string
-	if req.Kind == "observation-signal" {
-		if v, ok := td.ToolClassMap[toolClass]; ok && v != nil {
-			matcher = *v
-		} else if d, ok := td.Degradations[req.Event]; ok {
-			matcher = d.Matcher
-		}
-	}
+	matcher := matcherFor(req, td, toolClass)
 
 	if len(td.PluginRootVars) == 0 {
 		return fmt.Errorf("requirement %s: target %q declares no pluginRoot env var", req.ID, name)
@@ -205,6 +191,25 @@ func addHookEntry(hf *hooksFile, req contract.Requirement, td *target.Def, name 
 		Hooks:   []hookCommand{{Type: "command", Command: command}},
 	})
 	return nil
+}
+
+// matcherFor resolves the tool-id matcher a requirement fires under,
+// shared by both backends' emitters: only observation-signal
+// requirements carry a tool-id filter, resolved first via the
+// target's native toolClassMap and falling back to a declared
+// degradation. Any other kind (blocking-gate, lifecycle-signal) fires
+// unconditionally, so its matcher is empty.
+func matcherFor(req contract.Requirement, td *target.Def, toolClass string) string {
+	if req.Kind != "observation-signal" {
+		return ""
+	}
+	if v, ok := td.ToolClassMap[toolClass]; ok && v != nil {
+		return *v
+	}
+	if d, ok := td.Degradations[req.Event]; ok {
+		return d.Matcher
+	}
+	return ""
 }
 
 // writeManifest writes <manifestDir>/plugin.json for target name,

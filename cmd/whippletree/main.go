@@ -144,10 +144,6 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "target %s: %d satisfy, %d degrade, %d refuse, %d absent\n", name, satisfy, degrade, refuse, absent)
 	}
 
-	for _, s := range built.Skipped {
-		fmt.Fprintf(stdout, "target %s: skipped (%s)\n", s.Name, s.Reason)
-	}
-
 	if len(refusals) > 0 {
 		for _, r := range refusals {
 			fmt.Fprintf(stderr, "whippletree: target %s refuses requirement %s\n", r.target, r.reqID)
