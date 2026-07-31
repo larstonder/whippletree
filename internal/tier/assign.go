@@ -49,7 +49,7 @@ func assignExecutablePath(req contract.Requirement, td *target.Def) Assignment {
 	if td.Capabilities["installerPath"] {
 		return Assignment{Req: req, Tier: contract.T1, Mechanism: "installer-resolved absolute path"}
 	}
-	return absent(req, "no bundle channel on this target")
+	return absent(req, "no bundle channel or installer path on this target")
 }
 
 func assignLifecycleSignal(req contract.Requirement, td *target.Def) Assignment {

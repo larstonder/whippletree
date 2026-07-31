@@ -6,7 +6,14 @@ Whippletree owning a target definition instead of leaning on a harness's own plu
 system is only worth doing if it stays cheap to keep correct. The opencode target is the
 test case: the bet is that keeping `targets/opencode/target.yaml`, the ts-plugin
 compiler, and the dispatcher's opencode-specific decoding correct against real upstream
-opencode releases costs under 2 hours per month, sustained over a full quarter. Every
+opencode releases costs under 2 hours per month, sustained over a full quarter. Those
+three are not the whole surface. `internal/compile/tsplugin.go` also bakes opencode's
+hook object shape and its `spawnSync` call convention into the emitted shim, and
+`cmd/whippletree/main.go` knows where an opencode plugin has to land
+(`<project>/.opencode/plugin/`) as well as the guidance strings printed for targets that
+install by hand instead. Count time spent in any of those against the budget: the
+measurement is only honest if the denominator covers everywhere opencode knowledge
+lives. Every
 entry below is a data point toward proving or disproving that, logged as it happens
 rather than reconstructed afterward. If a quarter's total lands under roughly 6 hours,
 the bet holds. If it doesn't, a project-owned target definition is too expensive for a

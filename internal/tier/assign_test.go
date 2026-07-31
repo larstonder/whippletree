@@ -257,11 +257,11 @@ func TestAssignAbsentReasonsPerBranch(t *testing.T) {
 	}
 }
 
-// TestAssignExecutablePathAbsentReportsNoBundleChannel covers the
-// executable-path Absent branch: a target without a bundle channel has
-// no other class-1 mechanism to fall back to, so Assign reports that
-// specific cause rather than a generic one.
-func TestAssignExecutablePathAbsentReportsNoBundleChannel(t *testing.T) {
+// TestAssignExecutablePathAbsentReportsNoSatisfier covers the
+// executable-path Absent branch: a target with neither a bundle channel
+// nor an installer path has no class-1 mechanism left to fall back to,
+// so Assign names both missing satisfiers rather than a generic cause.
+func TestAssignExecutablePathAbsentReportsNoSatisfier(t *testing.T) {
 	falseVal := false
 	req := contract.Requirement{Kind: "executable-path", HardRequired: &falseVal}
 	td := &target.Def{Name: "stub", Capabilities: map[string]bool{}}
@@ -270,7 +270,7 @@ func TestAssignExecutablePathAbsentReportsNoBundleChannel(t *testing.T) {
 	if !got.Absent {
 		t.Fatalf("Absent = false, want true (got %+v)", got)
 	}
-	if got.Mechanism != "no bundle channel on this target" {
-		t.Errorf("Mechanism = %q, want %q", got.Mechanism, "no bundle channel on this target")
+	if got.Mechanism != "no bundle channel or installer path on this target" {
+		t.Errorf("Mechanism = %q, want %q", got.Mechanism, "no bundle channel or installer path on this target")
 	}
 }
