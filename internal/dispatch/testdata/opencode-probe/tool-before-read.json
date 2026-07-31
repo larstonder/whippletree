@@ -1,0 +1,12 @@
+{
+  "input": {
+    "tool": "read",
+    "sessionID": "ses_048a7cf75ffexsyrP65ouyAped",
+    "callID": "call_00_m8NVwMM7Ds4onAu6Q9UW6623"
+  },
+  "output": {
+    "args": {
+      "filePath": "/private/tmp/claude-501/-Users-larstonder-Documents-presentations/e30d6d6f-5fcd-4673-8140-80fe7adbe2a8/scratchpad/ocprobe.uIUVwz/proj/hello.txt"
+    }
+  }
+}
