@@ -80,6 +80,12 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 	result := &Result{PerTarget: make(map[string][]tier.Assignment, len(targets))}
 
 	for name, td := range targets {
+		// ts-plugin targets have no manifest or hooks-json file to
+		// write; this loop only emits the hooks-json artifacts.
+		if td.Backend == target.BackendTSPlugin {
+			continue
+		}
+
 		assignments := make([]tier.Assignment, 0, len(c.Requires))
 		hf := newHooksFile()
 

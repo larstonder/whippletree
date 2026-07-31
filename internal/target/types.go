@@ -2,12 +2,23 @@ package target
 
 import "github.com/larstonder/whippletree/internal/contract"
 
+// Known Backend values. hooks-json is the zero-value default: a
+// target.yaml that omits backend entirely loads as hooks-json.
+const (
+	BackendHooksJSON = "hooks-json"
+	BackendTSPlugin  = "ts-plugin"
+)
+
 // Def is the flattened, in-memory representation of a target's
 // target.yaml, populated from the nested apiVersion/kind/metadata/spec
 // YAML document.
 type Def struct {
-	Name               string
-	Class              int
+	Name  string
+	Class int
+	// Backend selects the compiler path used to emit this target's
+	// artifacts: hooks-json writes a native JSON hooks file, ts-plugin
+	// writes an in-process TypeScript shim.
+	Backend            string
 	ManifestDir        string
 	HooksKey           string
 	MergeSemantics     string

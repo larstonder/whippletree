@@ -43,6 +43,166 @@ func TestLoadDir_ReturnsBothClass1Targets(t *testing.T) {
 	}
 }
 
+func TestLoad_BackendDefaultsToHooksJSONWhenAbsent(t *testing.T) {
+	defs, err := LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("LoadDir: %v", err)
+	}
+
+	for _, name := range []string{"codex", "claude-code"} {
+		def, ok := defs[name]
+		if !ok {
+			t.Fatalf("expected defs to contain %q, got keys %v", name, keys(defs))
+		}
+		if def.Backend != "hooks-json" {
+			t.Fatalf("expected %s.Backend == %q, got %q", name, "hooks-json", def.Backend)
+		}
+	}
+}
+
+func TestLoad_BackendExplicitTSPluginRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "target.yaml")
+	tsPluginYAML := `
+apiVersion: whippletree.dev/v1
+kind: TargetDefinition
+metadata:
+  name: ts-plugin-probe
+  class: 3
+  schemaVersion: "1.0.0"
+  testedVersions: ">=0.0.0"
+spec:
+  backend: ts-plugin
+  probe:
+    command: ["probe", "--version"]
+    versionPattern: '(\d+\.\d+\.\d+)'
+  events:
+    session-start: { native: "event:session.created", blocking: false }
+  toolClassMap:
+    read: read
+  strictness:
+    unknownFieldsFatal: true
+  env:
+    pluginRoot: []
+  capabilities:
+    installerPath: true
+`
+	if err := os.WriteFile(path, []byte(tsPluginYAML), 0o644); err != nil {
+		t.Fatalf("write temp yaml: %v", err)
+	}
+
+	def, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if def.Backend != "ts-plugin" {
+		t.Fatalf("expected Backend == %q, got %q", "ts-plugin", def.Backend)
+	}
+}
+
+func TestLoad_UnknownBackendErrors(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "target.yaml")
+	badBackendYAML := `
+apiVersion: whippletree.dev/v1
+kind: TargetDefinition
+metadata:
+  name: bogus-backend
+  class: 1
+  schemaVersion: "1.0.0"
+  testedVersions: ">=0.0.0"
+spec:
+  backend: not-a-real-backend
+  discovery:
+    manifestDir: ".bogus-plugin"
+    hooksKey: "hooks"
+    mergeSemantics: replace
+  probe:
+    command: ["bogus", "--version"]
+    versionPattern: '(\d+\.\d+\.\d+)'
+  events:
+    session-start: { native: SessionStart, blocking: false }
+  toolClassMap:
+    read: Read
+  strictness:
+    unknownFieldsFatal: true
+  env:
+    pluginRoot: ["BOGUS_PLUGIN_ROOT"]
+  capabilities:
+    bundleChannel: true
+`
+	if err := os.WriteFile(path, []byte(badBackendYAML), 0o644); err != nil {
+		t.Fatalf("write temp yaml: %v", err)
+	}
+
+	if _, err := Load(path); err == nil {
+		t.Fatalf("expected Load to error on unknown backend value, got nil error")
+	}
+}
+
+func TestLoadDir_OpencodeTargetLoadsWithExpectedValues(t *testing.T) {
+	defs, err := LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("LoadDir: %v", err)
+	}
+
+	oc, ok := defs["opencode"]
+	if !ok {
+		t.Fatalf("expected defs to contain %q, got keys %v", "opencode", keys(defs))
+	}
+
+	if oc.Backend != "ts-plugin" {
+		t.Fatalf("expected opencode.Backend == %q, got %q", "ts-plugin", oc.Backend)
+	}
+
+	if got := oc.Events["session-start"].Native; got != "event:session.created" {
+		t.Fatalf("expected opencode session-start.Native == %q, got %q", "event:session.created", got)
+	}
+	if got := oc.Events["tool-pre"]; got.Native != "tool.execute.before" || !got.Blocking {
+		t.Fatalf("expected opencode tool-pre == {native: tool.execute.before, blocking: true}, got %+v", got)
+	}
+	if got := oc.Events["tool-post"]; got.Native != "tool.execute.after" || got.Blocking {
+		t.Fatalf("expected opencode tool-post == {native: tool.execute.after, blocking: false}, got %+v", got)
+	}
+
+	if _, ok := oc.Events["turn-end"]; ok {
+		t.Fatalf("expected opencode to declare no turn-end event, got %+v", oc.Events["turn-end"])
+	}
+
+	wantToolClassMap := map[string]string{"read": "read", "write": "write", "shell": "bash"}
+	for class, want := range wantToolClassMap {
+		v, ok := oc.ToolClassMap[class]
+		if !ok || v == nil || *v != want {
+			t.Fatalf("expected opencode.ToolClassMap[%q] == %q, got ok=%v v=%v", class, want, ok, v)
+		}
+	}
+
+	if len(oc.Degradations) != 0 {
+		t.Fatalf("expected opencode to declare no degradations, got %+v", oc.Degradations)
+	}
+
+	if len(oc.PluginRootVars) != 0 {
+		t.Fatalf("expected opencode.PluginRootVars to be empty, got %v", oc.PluginRootVars)
+	}
+
+	wantProbe := []string{"opencode", "--version"}
+	if len(oc.Probe.Command) != len(wantProbe) || oc.Probe.Command[0] != wantProbe[0] || oc.Probe.Command[1] != wantProbe[1] {
+		t.Fatalf("expected opencode.Probe.Command == %v, got %v", wantProbe, oc.Probe.Command)
+	}
+
+	wantCapabilities := map[string]bool{
+		"bundleChannel":      false,
+		"installerPath":      true,
+		"stopLoopGuard":      false,
+		"matcherAlternation": false,
+	}
+	for k, want := range wantCapabilities {
+		if got := oc.Capabilities[k]; got != want {
+			t.Fatalf("expected opencode.Capabilities[%q] == %v, got %v", k, want, got)
+		}
+	}
+}
+
 func TestLoad_UnknownKeyAnywhereErrors(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "target.yaml")

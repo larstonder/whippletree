@@ -26,6 +26,7 @@ type yamlMetadata struct {
 }
 
 type yamlSpec struct {
+	Backend      string                     `yaml:"backend"`
 	Discovery    yamlDiscovery              `yaml:"discovery"`
 	Probe        yamlProbe                  `yaml:"probe"`
 	Events       map[string]yamlEvent       `yaml:"events"`
@@ -85,9 +86,18 @@ func Load(path string) (*Def, error) {
 		return nil, fmt.Errorf("decode target file %s: %w", path, err)
 	}
 
+	backend := doc.Spec.Backend
+	if backend == "" {
+		backend = BackendHooksJSON
+	}
+	if backend != BackendHooksJSON && backend != BackendTSPlugin {
+		return nil, fmt.Errorf("target %q: unknown backend %q", doc.Metadata.Name, backend)
+	}
+
 	def := &Def{
 		Name:               doc.Metadata.Name,
 		Class:              doc.Metadata.Class,
+		Backend:            backend,
 		ManifestDir:        doc.Spec.Discovery.ManifestDir,
 		HooksKey:           doc.Spec.Discovery.HooksKey,
 		MergeSemantics:     doc.Spec.Discovery.MergeSemantics,
