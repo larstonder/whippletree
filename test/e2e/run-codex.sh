@@ -17,6 +17,9 @@ mkdir -p "$CODEX_HOME"
 export E2E_MARKER="$sandbox/marker.log"
 : >"$E2E_MARKER"
 
+version=$(codex --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+echo "harness=codex version=${version:-unknown} date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
 go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
 
 codex plugin marketplace add "$repo_root/examples/kb-shaped"

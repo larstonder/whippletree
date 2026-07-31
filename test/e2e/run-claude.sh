@@ -18,6 +18,9 @@ mkdir -p "$CLAUDE_CONFIG_DIR"
 export E2E_MARKER="$sandbox/marker.log"
 : >"$E2E_MARKER"
 
+version=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+echo "harness=claude-code version=${version:-unknown} date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
 go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
 
 claude plugin marketplace add "$repo_root/examples/kb-shaped"

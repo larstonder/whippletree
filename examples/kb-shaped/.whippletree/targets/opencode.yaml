@@ -1,0 +1,30 @@
+apiVersion: whippletree.dev/v1
+kind: TargetDefinition
+metadata:
+  name: opencode
+  class: 3
+  schemaVersion: "1.0.0"
+  testedVersions: ">=1.18.10"
+spec:
+  # backend is additive to schemaVersion 1.0.0: absent means hooks-json.
+  backend: ts-plugin
+  probe:
+    command: ["opencode", "--version"]
+    versionPattern: '(\d+\.\d+\.\d+)'
+  events:
+    session-start: { native: "event:session.created", blocking: false }
+    tool-pre:       { native: "tool.execute.before", blocking: true }
+    tool-post:      { native: "tool.execute.after", blocking: false }
+  toolClassMap:
+    read: read
+    write: write
+    shell: bash
+  strictness:
+    unknownFieldsFatal: true
+  env:
+    pluginRoot: []
+  capabilities:
+    bundleChannel: false
+    installerPath: true
+    stopLoopGuard: false
+    matcherAlternation: false
