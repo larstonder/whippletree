@@ -50,11 +50,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 // directly), so this plumbing creates no behavior change.
 func runWith(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr io.Writer) int {
 	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: whippletree <build|preflight|install> ...")
+		fmt.Fprintln(stderr, "usage: whippletree <init|build|preflight|install> ...")
 		return 1
 	}
 
 	switch args[0] {
+	case "init":
+		return runInit(args[1:], isTTY, stdout, stderr)
 	case "build":
 		return runBuild(args[1:], stdout, stderr)
 	case "preflight":
