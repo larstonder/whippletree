@@ -46,6 +46,9 @@ func assignExecutablePath(req contract.Requirement, td *target.Def) Assignment {
 	if td.Capabilities["bundleChannel"] {
 		return Assignment{Req: req, Tier: contract.T1, Mechanism: "bundle channel"}
 	}
+	if td.Capabilities["installerPath"] {
+		return Assignment{Req: req, Tier: contract.T1, Mechanism: "installer-resolved absolute path"}
+	}
 	return absent(req, "no bundle channel on this target")
 }
 

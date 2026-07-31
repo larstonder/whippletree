@@ -49,12 +49,16 @@ func TestAssignKbEngineMatrix(t *testing.T) {
 	}{
 		{"stop-gate", "claude-code", contract.T1, false},
 		{"stop-gate", "codex", contract.T1, false},
+		{"stop-gate", "opencode", 0, true}, // opencode has no turn-end mapping
 		{"session-start-signal", "claude-code", contract.T1, false},
 		{"session-start-signal", "codex", contract.T1, false},
+		{"session-start-signal", "opencode", contract.T1, false},
 		{"file-read-signal", "claude-code", contract.T1, false},
 		{"file-read-signal", "codex", contract.T2, false}, // via matcher alternation degradation
+		{"file-read-signal", "opencode", contract.T1, false},
 		{"bin-reachable", "claude-code", contract.T1, false},
 		{"bin-reachable", "codex", contract.T1, false},
+		{"bin-reachable", "opencode", contract.T1, false},
 	}
 
 	for _, tc := range cases {
@@ -80,6 +84,27 @@ func TestAssignKbEngineMatrix(t *testing.T) {
 				}
 				if got.Lossage == "" {
 					t.Errorf("Lossage = empty, want non-empty for degraded observation-signal")
+				}
+			}
+
+			if tc.reqID == "stop-gate" && tc.targetName == "opencode" {
+				if !strings.Contains(got.Mechanism, "no native mapping") {
+					t.Errorf("Mechanism = %q, want it to contain %q", got.Mechanism, "no native mapping")
+				}
+			}
+			if tc.reqID == "session-start-signal" && tc.targetName == "opencode" {
+				if !strings.Contains(got.Mechanism, "event:session.created") {
+					t.Errorf("Mechanism = %q, want it to contain %q", got.Mechanism, "event:session.created")
+				}
+			}
+			if tc.reqID == "file-read-signal" && tc.targetName == "opencode" {
+				if !strings.Contains(got.Mechanism, "read") {
+					t.Errorf("Mechanism = %q, want it to contain the native read matcher", got.Mechanism)
+				}
+			}
+			if tc.reqID == "bin-reachable" && tc.targetName == "opencode" {
+				if got.Mechanism != "installer-resolved absolute path" {
+					t.Errorf("Mechanism = %q, want %q", got.Mechanism, "installer-resolved absolute path")
 				}
 			}
 		})
