@@ -164,3 +164,133 @@ func TestRunNoMatchingRequirementIsNoop(t *testing.T) {
 		t.Errorf("marker file exists, want no handler invoked")
 	}
 }
+
+// envDumpScript writes a handler that dumps every ADAPTER_-prefixed
+// environment variable it sees to marker, one KEY=VALUE line each,
+// then exits 0.
+func envDumpScript(marker string) string {
+	return fmt.Sprintf("#!/bin/bash\nenv | grep '^ADAPTER_' > %q\nexit 0\n", marker)
+}
+
+// readEnvMarker parses a marker file written by envDumpScript into a
+// map of env var name to value. A key present with an empty value
+// (e.g. "ADAPTER_STOP_ACTIVE=") is recorded as "", distinct from a key
+// that never appears at all.
+func readEnvMarker(t *testing.T, marker string) map[string]string {
+	t.Helper()
+	raw, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("read env marker: %v", err)
+	}
+	got := map[string]string{}
+	for _, line := range strings.Split(strings.TrimRight(string(raw), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			t.Fatalf("env marker line %q: no '='", line)
+		}
+		got[k] = v
+	}
+	return got
+}
+
+// TestRunProjectsADAPTERVarsFromNormalizedEvent pins the additive
+// ADAPTER_PRIMITIVE/ADAPTER_STOP_ACTIVE/ADAPTER_CWD/ADAPTER_PATH env
+// vars runHandler must project from the normalized Event, alongside
+// the existing ADAPTER_EVENT/ADAPTER_TARGET, always set (empty string
+// when not applicable).
+func TestRunProjectsADAPTERVarsFromNormalizedEvent(t *testing.T) {
+	t.Run("turn-end with stop hook active", func(t *testing.T) {
+		marker := filepath.Join(t.TempDir(), "marker.env")
+		bundle := newBundle(t, map[string]string{"capture.sh": envDumpScript(marker)})
+		stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/r.jsonl","cwd":"/tmp/proj","hook_event_name":"Stop","stop_hook_active":true}`)
+
+		var stderr bytes.Buffer
+		code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stderr)
+		if code != 0 {
+			t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
+		}
+
+		env := readEnvMarker(t, marker)
+		if got, want := env["ADAPTER_PRIMITIVE"], "turn-end"; got != want {
+			t.Errorf("ADAPTER_PRIMITIVE = %q, want %q", got, want)
+		}
+		if got, want := env["ADAPTER_STOP_ACTIVE"], "true"; got != want {
+			t.Errorf("ADAPTER_STOP_ACTIVE = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("session-start with no loop guard", func(t *testing.T) {
+		marker := filepath.Join(t.TempDir(), "marker.env")
+		bundle := newBundle(t, map[string]string{"pull.sh": envDumpScript(marker)})
+		stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
+
+		var stderr bytes.Buffer
+		code := dispatch.Run(bundle, "session-start", "codex", stdin, &stderr)
+		if code != 0 {
+			t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
+		}
+
+		env := readEnvMarker(t, marker)
+		if got, want := env["ADAPTER_PRIMITIVE"], "session-start"; got != want {
+			t.Errorf("ADAPTER_PRIMITIVE = %q, want %q", got, want)
+		}
+		if got, ok := env["ADAPTER_STOP_ACTIVE"]; !ok || got != "" {
+			t.Errorf("ADAPTER_STOP_ACTIVE = %q (present=%v), want empty", got, ok)
+		}
+		if got, want := env["ADAPTER_CWD"], "/tmp/proj"; got != want {
+			t.Errorf("ADAPTER_CWD = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("file-read alias", func(t *testing.T) {
+		marker := filepath.Join(t.TempDir(), "marker.env")
+		bundle := newBundle(t, map[string]string{"log-read.sh": envDumpScript(marker)})
+		stdin, err := os.ReadFile("testdata/codex-posttooluse-shell.json")
+		if err != nil {
+			t.Fatalf("read codex-posttooluse-shell fixture: %v", err)
+		}
+
+		var stderr bytes.Buffer
+		code := dispatch.Run(bundle, "file-read", "codex", stdin, &stderr)
+		if code != 0 {
+			t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
+		}
+
+		env := readEnvMarker(t, marker)
+		if got, want := env["ADAPTER_PRIMITIVE"], "tool-post"; got != want {
+			t.Errorf("ADAPTER_PRIMITIVE = %q, want %q", got, want)
+		}
+		if got, want := env["ADAPTER_EVENT"], "file-read"; got != want {
+			t.Errorf("ADAPTER_EVENT = %q, want %q (existing var unchanged)", got, want)
+		}
+		if got, want := env["ADAPTER_PATH"], "hello.txt"; got != want {
+			t.Errorf("ADAPTER_PATH = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("event with no paths", func(t *testing.T) {
+		marker := filepath.Join(t.TempDir(), "marker.env")
+		bundle := newBundle(t, map[string]string{"capture.sh": envDumpScript(marker)})
+		stdin, err := os.ReadFile("testdata/codex-stop.json")
+		if err != nil {
+			t.Fatalf("read codex-stop fixture: %v", err)
+		}
+
+		var stderr bytes.Buffer
+		code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stderr)
+		if code != 0 {
+			t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
+		}
+
+		env := readEnvMarker(t, marker)
+		if got, want := env["ADAPTER_STOP_ACTIVE"], "false"; got != want {
+			t.Errorf("ADAPTER_STOP_ACTIVE = %q, want %q", got, want)
+		}
+		if got, ok := env["ADAPTER_PATH"]; !ok || got != "" {
+			t.Errorf("ADAPTER_PATH = %q (present=%v), want empty", got, ok)
+		}
+	})
+}

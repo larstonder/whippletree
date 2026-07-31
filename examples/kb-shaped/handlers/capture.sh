@@ -2,9 +2,9 @@
 set -euo pipefail
 
 marker="${E2E_MARKER:-/tmp/kb-shaped-marker.log}"
-stdin="$(cat)"
+cat >/dev/null
 
-if echo "$stdin" | grep -o '"stopHookActive":true' >/dev/null; then
+if [ "${ADAPTER_STOP_ACTIVE:-}" = "true" ]; then
   echo "turn-end-allowed" >>"$marker"
   exit 0
 fi

@@ -65,7 +65,7 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stderr io.Wr
 	}
 
 	for _, req := range matching {
-		exitCode, handlerStderr, ran := runHandler(bundleRoot, req.Handler, logicalEvent, targetName, payload, stderr)
+		exitCode, handlerStderr, ran := runHandler(bundleRoot, req.Handler, logicalEvent, targetName, ev, payload, stderr)
 		if !ran {
 			continue
 		}
@@ -113,15 +113,21 @@ func loadVendoredTarget(bundleRoot, targetName string) (*target.Def, error) {
 }
 
 // runHandler executes handlerRelPath (resolved relative to bundleRoot)
-// with payload on stdin and ADAPTER_EVENT/ADAPTER_TARGET added to the
-// parent environment. ran is false when the handler file is missing or
-// not executable; runHandler has already written a clear, fail-open
-// message to stderr in that case, and the caller should just continue.
-// When ran is true, exitCode and handlerStderr reflect the handler's
-// own exit status and captured stderr, for the caller to interpret
-// (exit 2 is the block dialect; anything else is fail-open logging the
-// caller performs itself).
-func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, payload []byte, stderr io.Writer) (exitCode int, handlerStderr []byte, ran bool) {
+// with payload on stdin and the handler env vars added to the parent
+// environment: ADAPTER_EVENT (logicalEvent, verbatim as the contract
+// author wrote it) and ADAPTER_TARGET, plus a projection of ev's
+// normalized fields, always set (empty string means not applicable to
+// this event): ADAPTER_PRIMITIVE (ev.Event, never empty),
+// ADAPTER_STOP_ACTIVE ("true"/"false" when ev.StopHookActive is
+// non-nil, else empty), ADAPTER_CWD (ev.CWD), and ADAPTER_PATH
+// (ev.Paths[0] when present, else empty). ran is false when the
+// handler file is missing or not executable; runHandler has already
+// written a clear, fail-open message to stderr in that case, and the
+// caller should just continue. When ran is true, exitCode and
+// handlerStderr reflect the handler's own exit status and captured
+// stderr, for the caller to interpret (exit 2 is the block dialect;
+// anything else is fail-open logging the caller performs itself).
+func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev *Event, payload []byte, stderr io.Writer) (exitCode int, handlerStderr []byte, ran bool) {
 	handlerPath := filepath.Join(bundleRoot, handlerRelPath)
 
 	info, err := os.Stat(handlerPath)
@@ -134,6 +140,15 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, pay
 		return 0, nil, false
 	}
 
+	stopActive := ""
+	if ev.StopHookActive != nil {
+		stopActive = fmt.Sprintf("%t", *ev.StopHookActive)
+	}
+	path := ""
+	if len(ev.Paths) > 0 {
+		path = ev.Paths[0]
+	}
+
 	cmd := exec.Command(handlerPath)
 	cmd.Stdin = bytes.NewReader(payload)
 	var captured bytes.Buffer
@@ -141,6 +156,10 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, pay
 	cmd.Env = append(os.Environ(),
 		"ADAPTER_EVENT="+logicalEvent,
 		"ADAPTER_TARGET="+targetName,
+		"ADAPTER_PRIMITIVE="+ev.Event,
+		"ADAPTER_STOP_ACTIVE="+stopActive,
+		"ADAPTER_CWD="+ev.CWD,
+		"ADAPTER_PATH="+path,
 	)
 
 	runErr := cmd.Run()
