@@ -395,5 +395,5 @@ target on its own ts-plugin backend (see "opencode" above). Out of scope:
 - the conformance kit
 - uninstall and upgrade flows
 
-See `blog-posts/harness-adapter.architecture.md` in the presentations repo for the full
-architecture this implementation is a slice of.
+This implementation is a slice of a larger architecture (a four-tier fidelity ladder
+across harness classes); the remaining tiers and targets land in later slices.

@@ -196,7 +196,7 @@ func TestNormalizeOpencodeToolPostRead(t *testing.T) {
 		t.Errorf("ToolClass = %q, want %q", ev.ToolClass, "read")
 	}
 
-	wantPaths := []string{"/private/tmp/claude-501/-Users-larstonder-Documents-presentations/e30d6d6f-5fcd-4673-8140-80fe7adbe2a8/scratchpad/ocprobe.uIUVwz/proj/hello.txt"}
+	wantPaths := []string{"/tmp/ocprobe/proj/hello.txt"}
 	if !reflect.DeepEqual(ev.Paths, wantPaths) {
 		t.Errorf("Paths = %v, want %v", ev.Paths, wantPaths)
 	}
@@ -228,7 +228,7 @@ func TestNormalizeOpencodeToolPreRead(t *testing.T) {
 		t.Errorf("Alias = %q, want empty (tool-pre is a primitive)", ev.Alias)
 	}
 
-	wantPaths := []string{"/private/tmp/claude-501/-Users-larstonder-Documents-presentations/e30d6d6f-5fcd-4673-8140-80fe7adbe2a8/scratchpad/ocprobe.uIUVwz/proj/hello.txt"}
+	wantPaths := []string{"/tmp/ocprobe/proj/hello.txt"}
 	if !reflect.DeepEqual(ev.Paths, wantPaths) {
 		t.Errorf("Paths = %v, want %v", ev.Paths, wantPaths)
 	}
