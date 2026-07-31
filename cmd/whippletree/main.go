@@ -56,7 +56,7 @@ func runWith(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr i
 
 	switch args[0] {
 	case "init":
-		return runInit(args[1:], isTTY, stdout, stderr)
+		return runInit(args[1:], stdin, isTTY, stdout, stderr)
 	case "build":
 		return runBuild(args[1:], stdout, stderr)
 	case "preflight":

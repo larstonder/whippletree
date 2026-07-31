@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/larstonder/whippletree/internal/contract"
@@ -160,11 +162,12 @@ func normalizeHard(raw []string, kinds []string) (map[string]bool, error) {
 	return hardSet, nil
 }
 
-// runInit implements `whippletree init`'s non-interactive core. The
-// bare-TTY interactive wizard is a separate, later feature: for now,
-// bare init (no scaffolding flags at all) on a TTY returns a clear
-// error naming the seam instead of hanging or guessing.
-func runInit(args []string, isTTY func() bool, stdout, stderr io.Writer) int {
+// runInit implements `whippletree init`: the non-interactive path
+// driven by flags, and the interactive wizard that runs when init is
+// invoked bare on a TTY. Both paths converge on the same scaffold
+// generator, so a wizard session and the equivalent flags produce
+// identical output.
+func runInit(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr io.Writer) int {
 	const usage = "usage: whippletree init [<dir>] [--name <s>] [--kinds <csv>] [--hard <csv>] [--yes]"
 
 	parsed, err := parseInitArgs(args)
@@ -174,38 +177,46 @@ func runInit(args []string, isTTY func() bool, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	if !parsed.hasScaffoldFlag() && isTTY() {
-		fmt.Fprintln(stderr, "whippletree: init needs --yes or scaffolding flags (--name/--kinds/--hard) to run non-interactively; the interactive wizard is not yet available")
-		return 1
-	}
-
 	absDir, err := filepath.Abs(parsed.dir)
 	if err != nil {
 		fmt.Fprintf(stderr, "whippletree: %v\n", err)
 		return 1
 	}
 
-	name := parsed.name
-	if name == "" {
-		name = filepath.Base(absDir)
-	}
-	if !validNamePattern.MatchString(name) {
-		fmt.Fprintf(stderr, "whippletree: invalid name %q: must match ^[a-z0-9-]+$\n", name)
-		return 1
-	}
+	var name string
+	var kinds []string
+	var hardSet map[string]bool
 
-	kinds := []string{"lifecycle-signal"}
-	if parsed.kindsGiven {
-		kinds, err = normalizeKinds(parsed.kinds)
+	if !parsed.hasScaffoldFlag() && isTTY() {
+		name, kinds, hardSet, err = runInitWizard(stdin, stdout, filepath.Base(absDir))
+		if err != nil {
+			fmt.Fprintf(stderr, "whippletree: %v\n", err)
+			return 1
+		}
+	} else {
+		name = parsed.name
+		if name == "" {
+			name = filepath.Base(absDir)
+		}
+
+		kinds = []string{"lifecycle-signal"}
+		if parsed.kindsGiven {
+			kinds, err = normalizeKinds(parsed.kinds)
+			if err != nil {
+				fmt.Fprintf(stderr, "whippletree: %v\n", err)
+				return 1
+			}
+		}
+
+		hardSet, err = normalizeHard(parsed.hard, kinds)
 		if err != nil {
 			fmt.Fprintf(stderr, "whippletree: %v\n", err)
 			return 1
 		}
 	}
 
-	hardSet, err := normalizeHard(parsed.hard, kinds)
-	if err != nil {
-		fmt.Fprintf(stderr, "whippletree: %v\n", err)
+	if !validNamePattern.MatchString(name) {
+		fmt.Fprintf(stderr, "whippletree: invalid name %q: must match ^[a-z0-9-]+$\n", name)
 		return 1
 	}
 
@@ -227,6 +238,116 @@ func runInit(args []string, isTTY func() bool, stdout, stderr io.Writer) int {
 
 	fmt.Fprintf(stdout, "whippletree: scaffolded %s in %s\n", name, absDir)
 	return 0
+}
+
+// wizardKindMenu is the order the wizard numbers kinds in, matching
+// the order --kinds documents them in its own error messages.
+var wizardKindMenu = []string{"blocking-gate", "lifecycle-signal", "observation-signal", "executable-path"}
+
+// runInitWizard prompts on stdout and reads answers from r: the bundle
+// name, the kinds to include, and, for each chosen blocking-gate or
+// executable-path kind, whether it is hard-required. Empty input takes
+// the printed default; an invalid kind selection re-prompts once with
+// the valid range, then returns an error. It writes nothing to disk:
+// the caller passes the collected name, kinds, and hardSet to the same
+// generator the flag path uses.
+func runInitWizard(r io.Reader, stdout io.Writer, defaultName string) (name string, kinds []string, hardSet map[string]bool, err error) {
+	scanner := bufio.NewScanner(r)
+	readLine := func() string {
+		if !scanner.Scan() {
+			return ""
+		}
+		return strings.TrimSpace(scanner.Text())
+	}
+
+	fmt.Fprintf(stdout, "Bundle name [%s]: ", defaultName)
+	name = readLine()
+	if name == "" {
+		name = defaultName
+	}
+
+	fmt.Fprintln(stdout, "Kinds:")
+	for i, k := range wizardKindMenu {
+		marker := ""
+		if k == "lifecycle-signal" {
+			marker = " (default)"
+		}
+		fmt.Fprintf(stdout, "  %d. %s%s\n", i+1, k, marker)
+	}
+	fmt.Fprint(stdout, "Kinds to include (comma-separated numbers) [2]: ")
+
+	kinds, kindsErr := parseWizardKinds(readLine())
+	if kindsErr != nil {
+		fmt.Fprintf(stdout, "%v; enter numbers between 1 and %d, comma-separated\n", kindsErr, len(wizardKindMenu))
+		fmt.Fprint(stdout, "Kinds to include (comma-separated numbers) [2]: ")
+		kinds, kindsErr = parseWizardKinds(readLine())
+		if kindsErr != nil {
+			return "", nil, nil, kindsErr
+		}
+	}
+
+	hardSet = make(map[string]bool)
+	for _, k := range kinds {
+		if k != "blocking-gate" && k != "executable-path" {
+			continue
+		}
+		prompt := fmt.Sprintf("Make %s hard-required? A hard requirement refuses install when the harness cannot meet it. [y/N]: ", k)
+		fmt.Fprint(stdout, prompt)
+
+		hard, hardErr := parseWizardYesNo(readLine())
+		if hardErr != nil {
+			fmt.Fprintf(stdout, "%v; enter y or n\n", hardErr)
+			fmt.Fprint(stdout, prompt)
+			hard, hardErr = parseWizardYesNo(readLine())
+			if hardErr != nil {
+				return "", nil, nil, hardErr
+			}
+		}
+		hardSet[k] = hard
+	}
+
+	return name, kinds, hardSet, nil
+}
+
+// parseWizardKinds parses raw as comma-separated 1-based indices into
+// wizardKindMenu, defaulting to lifecycle-signal alone when raw is
+// empty, and returns the chosen kinds in scaffoldFiles' canonical
+// order.
+func parseWizardKinds(raw string) ([]string, error) {
+	if raw == "" {
+		return []string{"lifecycle-signal"}, nil
+	}
+
+	var chosen []string
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		n, convErr := strconv.Atoi(part)
+		if convErr != nil || n < 1 || n > len(wizardKindMenu) {
+			return nil, fmt.Errorf("invalid kind number %q", part)
+		}
+		chosen = append(chosen, wizardKindMenu[n-1])
+	}
+	if len(chosen) == 0 {
+		return nil, fmt.Errorf("no kinds selected")
+	}
+
+	return normalizeKinds(chosen)
+}
+
+// parseWizardYesNo parses a y/n answer, treating an empty answer as
+// the printed default of "no".
+func parseWizardYesNo(raw string) (bool, error) {
+	switch strings.ToLower(raw) {
+	case "", "n", "no":
+		return false, nil
+	case "y", "yes":
+		return true, nil
+	default:
+		return false, fmt.Errorf("invalid answer %q", raw)
+	}
 }
 
 // scaffoldFile is one file init will write, relative to the bundle

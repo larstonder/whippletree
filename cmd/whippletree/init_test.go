@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,36 @@ import (
 
 	"github.com/larstonder/whippletree/internal/contract"
 )
+
+// readTree walks dir and returns every regular file's contents, keyed
+// by its path relative to dir, so two scaffolded trees can be compared
+// file-by-file.
+func readTree(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	out := make(map[string]string)
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, relErr := filepath.Rel(dir, path)
+		if relErr != nil {
+			return relErr
+		}
+		body, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		out[rel] = string(body)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", dir, err)
+	}
+	return out
+}
 
 // TestRunInit_YesDefaultsToLifecycleOnly covers Step 1 (i): --yes in a
 // temp dir creates exactly the lifecycle-only file set, and the
@@ -271,20 +302,149 @@ func TestRunInit_BadNameErrors(t *testing.T) {
 	}
 }
 
-// TestRunInit_BareOnTTYReturnsWizardNotYetAvailable confirms the seam
-// for the not-yet-built interactive wizard: bare init (no scaffolding
-// flags) on a TTY errors clearly instead of silently doing nothing or
-// crashing, and creates nothing.
-func TestRunInit_BareOnTTYReturnsWizardNotYetAvailable(t *testing.T) {
+// TestRunInitWizard_AllDefaultsMatchesYes confirms answering every
+// wizard question with a bare newline (taking every default) produces
+// exactly the same files --yes would, byte for byte.
+func TestRunInitWizard_AllDefaultsMatchesYes(t *testing.T) {
+	wizardDir := filepath.Join(t.TempDir(), "acme-tool")
+	yesDir := filepath.Join(t.TempDir(), "acme-tool")
+
+	var wizardStdout, wizardStderr bytes.Buffer
+	code := runWith([]string{"init", wizardDir}, strings.NewReader("\n\n\n"), func() bool { return true }, &wizardStdout, &wizardStderr)
+	if code != 0 {
+		t.Fatalf("runWith(init wizard) = %d, want 0 (stdout=%s stderr=%s)", code, wizardStdout.String(), wizardStderr.String())
+	}
+
+	var yesStdout, yesStderr bytes.Buffer
+	yesCode := runWith([]string{"init", yesDir, "--yes"}, strings.NewReader(""), func() bool { return false }, &yesStdout, &yesStderr)
+	if yesCode != 0 {
+		t.Fatalf("runWith(init --yes) = %d, want 0 (stdout=%s stderr=%s)", yesCode, yesStdout.String(), yesStderr.String())
+	}
+
+	wizardFiles := readTree(t, wizardDir)
+	yesFiles := readTree(t, yesDir)
+	if len(wizardFiles) != len(yesFiles) {
+		t.Fatalf("wizard produced %d files, --yes produced %d: wizard=%v yes=%v", len(wizardFiles), len(yesFiles), wizardFiles, yesFiles)
+	}
+	for rel, body := range yesFiles {
+		wb, ok := wizardFiles[rel]
+		if !ok {
+			t.Errorf("wizard is missing %s", rel)
+			continue
+		}
+		if wb != body {
+			t.Errorf("%s differs between wizard and --yes:\nwizard=%q\nyes=%q", rel, wb, body)
+		}
+	}
+
+	if !strings.Contains(wizardStdout.String(), "Bundle name [acme-tool]: ") {
+		t.Errorf("stdout = %q, want it to contain the bundle name prompt", wizardStdout.String())
+	}
+	if !strings.Contains(wizardStdout.String(), "Kinds to include (comma-separated numbers) [2]: ") {
+		t.Errorf("stdout = %q, want it to contain the kinds prompt", wizardStdout.String())
+	}
+}
+
+// TestRunInitWizard_AllFourKindsWithHardGate confirms choosing all four
+// kinds and answering yes to blocking-gate's hard-required question
+// (while leaving executable-path's blank) produces a plugin.json
+// matching those choices, and the hard-required prompts appear on
+// stdout with the expected wording.
+func TestRunInitWizard_AllFourKindsWithHardGate(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "acme-tool")
+
+	answers := "\n1,2,3,4\ny\n\n"
+	var stdout, stderr bytes.Buffer
+	code := runWith([]string{"init", dir}, strings.NewReader(answers), func() bool { return true }, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("runWith(init wizard) = %d, want 0 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+
+	wantPrompts := []string{
+		"Bundle name [acme-tool]: ",
+		"Kinds to include (comma-separated numbers) [2]: ",
+		"Make blocking-gate hard-required? A hard requirement refuses install when the harness cannot meet it. [y/N]: ",
+		"Make executable-path hard-required? A hard requirement refuses install when the harness cannot meet it. [y/N]: ",
+	}
+	for _, p := range wantPrompts {
+		if !strings.Contains(stdout.String(), p) {
+			t.Errorf("stdout = %q, want it to contain %q", stdout.String(), p)
+		}
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "plugin.json"))
+	if err != nil {
+		t.Fatalf("read plugin.json: %v", err)
+	}
+	c, err := contract.Parse(raw)
+	if err != nil {
+		t.Fatalf("contract.Parse = %v", err)
+	}
+	if err := contract.Validate(c); err != nil {
+		t.Fatalf("contract.Validate = %v", err)
+	}
+	if len(c.Requires) != 4 {
+		t.Fatalf("Requires = %+v, want all four kinds", c.Requires)
+	}
+
+	byKind := make(map[string]contract.Requirement, len(c.Requires))
+	for _, r := range c.Requires {
+		byKind[r.Kind] = r
+	}
+	if hr := byKind["blocking-gate"].HardRequired; hr == nil || !*hr {
+		t.Errorf("blocking-gate hardRequired = %v, want true", hr)
+	}
+	if hr := byKind["executable-path"].HardRequired; hr == nil || *hr {
+		t.Errorf("executable-path hardRequired = %v, want false (blank answer keeps default)", hr)
+	}
+	if hr := byKind["lifecycle-signal"].HardRequired; hr == nil || *hr {
+		t.Errorf("lifecycle-signal hardRequired = %v, want false (always soft)", hr)
+	}
+	if hr := byKind["observation-signal"].HardRequired; hr == nil || *hr {
+		t.Errorf("observation-signal hardRequired = %v, want false (always soft)", hr)
+	}
+}
+
+// TestRunInitWizard_InvalidKindThenValidSucceeds confirms an
+// out-of-range kind number re-prompts once with the valid range, and a
+// valid answer on that reprompt succeeds.
+func TestRunInitWizard_InvalidKindThenValidSucceeds(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "acme-tool")
+
+	answers := "\n9\n2\n"
+	var stdout, stderr bytes.Buffer
+	code := runWith([]string{"init", dir}, strings.NewReader(answers), func() bool { return true }, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("runWith(init wizard) = %d, want 0 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "1 and 4") {
+		t.Errorf("stdout = %q, want it to reprompt naming the valid range", stdout.String())
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "plugin.json"))
+	if err != nil {
+		t.Fatalf("read plugin.json: %v", err)
+	}
+	c, err := contract.Parse(raw)
+	if err != nil {
+		t.Fatalf("contract.Parse = %v", err)
+	}
+	if len(c.Requires) != 1 || c.Requires[0].Kind != "lifecycle-signal" {
+		t.Errorf("Requires = %+v, want exactly lifecycle-signal (recovered choice 2)", c.Requires)
+	}
+}
+
+// TestRunInitWizard_InvalidKindTwiceErrors confirms an out-of-range
+// kind number that is still out of range on the reprompt is a clear
+// error, and nothing is created.
+func TestRunInitWizard_InvalidKindTwiceErrors(t *testing.T) {
 	dir := t.TempDir()
 
+	answers := "\n9\n9\n"
 	var stdout, stderr bytes.Buffer
-	code := runWith([]string{"init", dir}, strings.NewReader(""), func() bool { return true }, &stdout, &stderr)
+	code := runWith([]string{"init", dir}, strings.NewReader(answers), func() bool { return true }, &stdout, &stderr)
 	if code != 1 {
-		t.Fatalf("runWith(init, isTTY=true) = %d, want 1 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
-	}
-	if !strings.Contains(stderr.String(), "wizard") {
-		t.Errorf("stderr = %q, want it to mention the wizard is not yet available", stderr.String())
+		t.Fatalf("runWith(init wizard) = %d, want 1 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
 	}
 
 	entries, err := os.ReadDir(dir)
