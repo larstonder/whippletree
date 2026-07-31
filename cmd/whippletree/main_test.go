@@ -315,6 +315,77 @@ func TestRunInstall_TSPluginPlacesResolvedShim(t *testing.T) {
 	}
 }
 
+// TestRunInstall_ZeroPlaceholderOccurrencesErrors: a compiled shim
+// that's missing the __WHIPPLETREE_HOOK__ placeholder entirely (stale
+// or hand-corrupted hooks/<target>.ts) must fail loudly rather than
+// installing an unresolved file unchanged with exit 0.
+func TestRunInstall_ZeroPlaceholderOccurrencesErrors(t *testing.T) {
+	bundleDir := t.TempDir()
+	writeFile(t, bundleDir, "plugin.json", tsPluginContractPluginJSON("acme-tool"), 0o644)
+	writeFile(t, bundleDir, "bin/whippletree-hook", "#!/bin/sh\n", 0o755)
+	noPlaceholderShim := generatedByMarkerLine + "\n" + `const HOOK = "/some/stale/absolute/path"
+const TARGET = "opencode"
+`
+	writeFile(t, bundleDir, "hooks/opencode.ts", noPlaceholderShim, 0o644)
+
+	projectDir := t.TempDir()
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"install", bundleDir,
+		"--target", "opencode",
+		"--project", projectDir,
+		"--targets-dir", realTargetsDir(),
+		"--assume-version", "1.20.0",
+	}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(install) = %d, want 1 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "0") {
+		t.Errorf("stderr = %q, want it to name the occurrence count found (0)", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, ".opencode")); !os.IsNotExist(err) {
+		t.Errorf("expected no .opencode dir to be created, stat err = %v", err)
+	}
+}
+
+// TestRunInstall_TwoPlaceholderOccurrencesErrors: a compiled shim
+// carrying the placeholder twice (a future compiler bug, or a
+// hand-tampered file) must fail loudly rather than resolving only the
+// first occurrence and shipping the literal placeholder in the second.
+func TestRunInstall_TwoPlaceholderOccurrencesErrors(t *testing.T) {
+	bundleDir := t.TempDir()
+	writeFile(t, bundleDir, "plugin.json", tsPluginContractPluginJSON("acme-tool"), 0o644)
+	writeFile(t, bundleDir, "bin/whippletree-hook", "#!/bin/sh\n", 0o755)
+	doublePlaceholderShim := generatedByMarkerLine + "\n" + `const HOOK = "__WHIPPLETREE_HOOK__"
+const HOOK2 = "__WHIPPLETREE_HOOK__"
+const TARGET = "opencode"
+`
+	writeFile(t, bundleDir, "hooks/opencode.ts", doublePlaceholderShim, 0o644)
+
+	projectDir := t.TempDir()
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"install", bundleDir,
+		"--target", "opencode",
+		"--project", projectDir,
+		"--targets-dir", realTargetsDir(),
+		"--assume-version", "1.20.0",
+	}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(install) = %d, want 1 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "2") {
+		t.Errorf("stderr = %q, want it to name the occurrence count found (2)", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, ".opencode")); !os.IsNotExist(err) {
+		t.Errorf("expected no .opencode dir to be created, stat err = %v", err)
+	}
+}
+
 // TestRunInstall_RefuseExitsNonZeroAndPlacesNothing: a REFUSE must
 // print the preflight report, exit 1, and place nothing: no plugin
 // file, no install-state.json.

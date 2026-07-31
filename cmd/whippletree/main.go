@@ -539,6 +539,18 @@ func placeTSPlugin(bundleDir, projectDir, targetName string, stderr io.Writer) e
 		return fmt.Errorf("resolve absolute path for %s: %w", bundleDir, err)
 	}
 	dispatcherPath := filepath.Join(absBundleDir, "bin", "whippletree-hook")
+
+	// The compiler contract guarantees exactly one HOOK placeholder
+	// occurrence. A stale or hand-corrupted hooks file could have zero
+	// (nothing to resolve, install would otherwise silently ship an
+	// already-broken shim), and a future compiler bug or tampering
+	// could produce two or more (a plain Replace(..., 1) would resolve
+	// only the first, silently shipping the literal placeholder
+	// alongside it). Either way this is not something install should
+	// paper over with a fail-open success.
+	if n := strings.Count(string(body), tsPluginHookPlaceholder); n != 1 {
+		return fmt.Errorf("%s: expected exactly one %s placeholder, found %d; regenerate it with `whippletree build`", hooksSrc, tsPluginHookPlaceholder, n)
+	}
 	resolved := strings.Replace(string(body), tsPluginHookPlaceholder, dispatcherPath, 1)
 
 	bundleName, err := readBundleName(bundleDir)
