@@ -140,6 +140,45 @@ func TestRunBuild_HappyPathExitsZero(t *testing.T) {
 	}
 }
 
+// TestRunBuild_ForeignCWDUsesEmbeddedTargets confirms that omitting
+// --targets-dir entirely still succeeds when the process's current
+// working directory has no "targets" subdirectory at all: the CLI
+// falls back to the embedded targets package rather than the old
+// cwd-relative default.
+func TestRunBuild_ForeignCWDUsesEmbeddedTargets(t *testing.T) {
+	bundleDir := t.TempDir()
+	writeFile(t, bundleDir, "plugin.json", `{
+		"name": "x",
+		"extensions": { "dev.whippletree.v1": {
+			"contractVersion": "1.0.0",
+			"requires": [
+				{"id":"session-start-signal","kind":"lifecycle-signal","event":"session-start",
+				 "minTier":"T2","hardRequired":false,"handler":"./handlers/pull.sh"}
+			]}}}`, 0o644)
+	writeFile(t, bundleDir, "handlers/pull.sh", "#!/bin/sh\n", 0o755)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignDir := t.TempDir() // deliberately has no "targets" subdirectory
+	if err := os.Chdir(foreignDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"build", bundleDir, "--allow-missing-dispatcher"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(build) in foreign cwd without --targets-dir = %d, want 0 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+}
+
 // TestRunBuild_TargetsDirWithZeroTargetsErrors: --targets-dir pointing
 // at a directory with no target.yaml files must be a build error, not
 // a silent "compiled for zero targets."

@@ -1,9 +1,12 @@
 package target
 
 import (
+	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/larstonder/whippletree/internal/contract"
 	"gopkg.in/yaml.v3"
@@ -72,18 +75,24 @@ type yamlEnv struct {
 // the flattened Def. Any unknown key anywhere in the document is an
 // error.
 func Load(path string) (*Def, error) {
-	f, err := os.Open(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("open target file %s: %w", path, err)
 	}
-	defer f.Close()
+	return decodeTarget(raw, path)
+}
 
-	dec := yaml.NewDecoder(f)
+// decodeTarget is the strict-decode logic shared by Load and LoadFS:
+// it turns raw target.yaml bytes into a flattened Def, stamping
+// sourcePath onto both Def.SourcePath and (verbatim, as the decoded
+// bytes) Def.RawYAML.
+func decodeTarget(raw []byte, sourcePath string) (*Def, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
 	dec.KnownFields(true)
 
 	var doc yamlDoc
 	if err := dec.Decode(&doc); err != nil {
-		return nil, fmt.Errorf("decode target file %s: %w", path, err)
+		return nil, fmt.Errorf("decode target file %s: %w", sourcePath, err)
 	}
 
 	backend := doc.Spec.Backend
@@ -111,7 +120,8 @@ func Load(path string) (*Def, error) {
 			VersionPattern: doc.Spec.Probe.VersionPattern,
 		},
 		Capabilities: doc.Spec.Capabilities,
-		SourcePath:   path,
+		SourcePath:   sourcePath,
+		RawYAML:      raw,
 	}
 
 	for name, ev := range doc.Spec.Events {
@@ -164,6 +174,40 @@ func LoadDir(dir string) (map[string]*Def, error) {
 
 	if len(defs) == 0 {
 		return nil, fmt.Errorf("no target definitions found in %s", dir)
+	}
+
+	return defs, nil
+}
+
+// LoadFS loads every target.yaml found in the immediate subdirectories
+// of fsys (as matched by the glob "*/target.yaml"), keyed by each
+// target's metadata name. It applies the same strict decoding Load
+// does; the only difference is where the bytes come from. Each
+// resulting Def's SourcePath is set to "embedded:<dir>/target.yaml"
+// rather than a real filesystem path, since fsys is typically an
+// embed.FS with no on-disk location of its own.
+func LoadFS(fsys fs.FS) (map[string]*Def, error) {
+	matches, err := fs.Glob(fsys, "*/target.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("glob embedded targets: %w", err)
+	}
+	sort.Strings(matches)
+
+	defs := make(map[string]*Def)
+	for _, match := range matches {
+		raw, err := fs.ReadFile(fsys, match)
+		if err != nil {
+			return nil, fmt.Errorf("read embedded target file %s: %w", match, err)
+		}
+		def, err := decodeTarget(raw, "embedded:"+match)
+		if err != nil {
+			return nil, err
+		}
+		defs[def.Name] = def
+	}
+
+	if len(defs) == 0 {
+		return nil, fmt.Errorf("no target definitions found in embedded targets")
 	}
 
 	return defs, nil

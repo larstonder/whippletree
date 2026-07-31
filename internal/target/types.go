@@ -30,10 +30,17 @@ type Def struct {
 	Probe              ProbeSpec
 	Capabilities       map[string]bool
 
-	// SourcePath is the filesystem path Load read this Def from. It is
-	// bookkeeping populated after YAML decoding, not part of the
-	// target.yaml schema itself.
+	// SourcePath is the filesystem path Load read this Def from, or
+	// "embedded:<name>/target.yaml" for a Def LoadFS produced from the
+	// embedded targets package. It is bookkeeping populated after YAML
+	// decoding, not part of the target.yaml schema itself.
 	SourcePath string
+
+	// RawYAML is the exact bytes the Def was decoded from, set by
+	// Load, LoadDir, and LoadFS alike. Vendoring writes this directly
+	// rather than re-reading SourcePath from disk, which is what makes
+	// vendoring work for embedded (non-disk-backed) Defs.
+	RawYAML []byte
 }
 
 // EventMapping describes how an whippletree primitive event maps onto a

@@ -274,21 +274,18 @@ func vendorContract(bundleDir string, c *contract.Contract) error {
 }
 
 func vendorTargetYAML(bundleDir, name string, td *target.Def) error {
-	// Guards only against a hand-constructed Def in a test; target.Load
-	// (the only producer of a Def outside tests) always sets SourcePath.
-	if td.SourcePath == "" {
-		return fmt.Errorf("target %q has no recorded SourcePath to vendor", name)
-	}
-	src, err := os.ReadFile(td.SourcePath)
-	if err != nil {
-		return fmt.Errorf("read target source for %q: %w", name, err)
+	// Guards only against a hand-constructed Def in a test; every real
+	// producer of a Def (target.Load, LoadDir, LoadFS) always sets
+	// RawYAML.
+	if len(td.RawYAML) == 0 {
+		return fmt.Errorf("target %q has no recorded RawYAML to vendor", name)
 	}
 
 	dir := filepath.Join(bundleDir, ".whippletree", "targets")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create vendored targets dir: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, name+".yaml"), src, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name+".yaml"), td.RawYAML, 0o644); err != nil {
 		return fmt.Errorf("write vendored target %q: %w", name, err)
 	}
 	return nil

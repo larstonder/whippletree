@@ -18,13 +18,22 @@ import (
 	"github.com/larstonder/whippletree/internal/contract"
 	"github.com/larstonder/whippletree/internal/preflight"
 	"github.com/larstonder/whippletree/internal/target"
+	"github.com/larstonder/whippletree/targets"
 )
 
-// defaultTargetsDir is the on-disk location of the class-1 target
-// definitions, relative to the working directory the CLI is invoked
-// from (the whippletree repo root), used unless --targets-dir
-// overrides it.
-const defaultTargetsDir = "targets"
+// loadTargets resolves the target definitions every verb (build,
+// preflight, install) compiles or checks against. An explicit
+// --targets-dir always wins, loaded straight off disk exactly as
+// before; with no flag, it falls back to the target definitions
+// embedded into this binary at build time (targets.FS), which is what
+// lets the CLI work from any working directory, not just the
+// whippletree repo root.
+func loadTargets(targetsDirArg string) (map[string]*target.Def, error) {
+	if targetsDirArg != "" {
+		return target.LoadDir(targetsDirArg)
+	}
+	return target.LoadFS(targets.FS)
+}
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -59,7 +68,7 @@ type buildArgs struct {
 }
 
 func parseBuildArgs(args []string) (buildArgs, error) {
-	parsed := buildArgs{targetsDir: defaultTargetsDir}
+	var parsed buildArgs
 
 	var positional []string
 	for i := 0; i < len(args); i++ {
@@ -97,13 +106,13 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	targets, err := target.LoadDir(parsed.targetsDir)
+	targetDefs, err := loadTargets(parsed.targetsDir)
 	if err != nil {
 		fmt.Fprintf(stderr, "whippletree: %v\n", err)
 		return 1
 	}
 
-	built, err := compile.Build(parsed.bundleDir, targets)
+	built, err := compile.Build(parsed.bundleDir, targetDefs)
 	if err != nil {
 		fmt.Fprintf(stderr, "whippletree: build: %v\n", err)
 		return 1
@@ -266,12 +275,12 @@ func runPreflight(args []string, stdout, stderr io.Writer) int {
 // not an error here, it prints the report and lets the caller decide
 // what "nothing happens next" means for its own verb.
 func checkAgainstTarget(bundleDir, targetName, assumeVersion, targetsDirArg string, stdout, stderr io.Writer) (td *target.Def, report *preflight.Report, probed preflight.Version, ok bool) {
-	targets, err := target.LoadDir(targetsDirArg)
+	targetDefs, err := loadTargets(targetsDirArg)
 	if err != nil {
 		fmt.Fprintf(stderr, "whippletree: %v\n", err)
 		return nil, nil, "", false
 	}
-	td, found := targets[targetName]
+	td, found := targetDefs[targetName]
 	if !found {
 		fmt.Fprintf(stderr, "whippletree: unknown target %q\n", targetName)
 		return nil, nil, "", false
@@ -351,8 +360,6 @@ func writeInstallState(bundleDir, targetName, version string, report *preflight.
 }
 
 func parsePreflightArgs(args []string) (bundleDir, targetName, assumeVersion, targetsDirArg string, err error) {
-	targetsDirArg = defaultTargetsDir
-
 	var positional []string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -414,7 +421,7 @@ type installArgs struct {
 }
 
 func parseInstallArgs(args []string) (installArgs, error) {
-	parsed := installArgs{targetsDir: defaultTargetsDir}
+	var parsed installArgs
 
 	var positional []string
 	for i := 0; i < len(args); i++ {

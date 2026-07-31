@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/larstonder/whippletree/internal/contract"
+	"github.com/larstonder/whippletree/targets"
 )
 
 func TestLoadDir_ReturnsBothClass1Targets(t *testing.T) {
@@ -255,6 +256,74 @@ func TestLoadDir_ErrorsOnZeroTargets(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no target definitions found") {
 		t.Errorf("error = %q, want it to say no target definitions were found", err.Error())
+	}
+}
+
+// TestLoadFS_MatchesLoadDir confirms LoadFS(targets.FS) returns the
+// same set of Defs as LoadDir("../../targets") reading straight off
+// disk: same name set, spot-checked fields equal, and RawYAML on each
+// embedded Def byte-equal to the on-disk source it was embedded from.
+func TestLoadFS_MatchesLoadDir(t *testing.T) {
+	fromDir, err := LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("LoadDir: %v", err)
+	}
+
+	fromFS, err := LoadFS(targets.FS)
+	if err != nil {
+		t.Fatalf("LoadFS: %v", err)
+	}
+
+	if len(fromFS) != len(fromDir) {
+		t.Fatalf("LoadFS returned %d defs, LoadDir returned %d: got %v vs %v", len(fromFS), len(fromDir), keys(fromFS), keys(fromDir))
+	}
+	for name := range fromDir {
+		if _, ok := fromFS[name]; !ok {
+			t.Fatalf("LoadFS is missing target %q present in LoadDir", name)
+		}
+	}
+
+	if fromFS["opencode"].Backend != fromDir["opencode"].Backend {
+		t.Errorf("opencode.Backend: LoadFS=%q LoadDir=%q", fromFS["opencode"].Backend, fromDir["opencode"].Backend)
+	}
+	if fromFS["claude-code"].ManifestDir != fromDir["claude-code"].ManifestDir {
+		t.Errorf("claude-code.ManifestDir: LoadFS=%q LoadDir=%q", fromFS["claude-code"].ManifestDir, fromDir["claude-code"].ManifestDir)
+	}
+
+	for name, def := range fromFS {
+		if len(def.RawYAML) == 0 {
+			t.Errorf("LoadFS target %q: RawYAML is empty", name)
+		}
+		want := fromDir[name].RawYAML
+		if string(def.RawYAML) != string(want) {
+			t.Errorf("LoadFS target %q RawYAML does not byte-match LoadDir's RawYAML", name)
+		}
+		wantSourcePath := "embedded:" + name + "/target.yaml"
+		if def.SourcePath != wantSourcePath {
+			t.Errorf("LoadFS target %q SourcePath = %q, want %q", name, def.SourcePath, wantSourcePath)
+		}
+	}
+}
+
+// TestLoadDir_PopulatesRawYAML confirms LoadDir (via Load) fills
+// RawYAML with the exact on-disk bytes, not just SourcePath.
+func TestLoadDir_PopulatesRawYAML(t *testing.T) {
+	defs, err := LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("LoadDir: %v", err)
+	}
+
+	for name, def := range defs {
+		if len(def.RawYAML) == 0 {
+			t.Fatalf("target %q: RawYAML is empty", name)
+		}
+		onDisk, err := os.ReadFile(def.SourcePath)
+		if err != nil {
+			t.Fatalf("read %s: %v", def.SourcePath, err)
+		}
+		if string(def.RawYAML) != string(onDisk) {
+			t.Errorf("target %q: RawYAML does not byte-match %s", name, def.SourcePath)
+		}
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/larstonder/whippletree/internal/compile"
 	"github.com/larstonder/whippletree/internal/target"
+	"github.com/larstonder/whippletree/targets"
 )
 
 // setupBundle copies the kb-shaped fixture into a fresh temp bundle dir
@@ -141,6 +142,40 @@ func TestBuild_EmitsPerTargetVariants(t *testing.T) {
 	} {
 		if _, err := os.Stat(filepath.Join(bundleDir, p)); err != nil {
 			t.Errorf("expected vendored file %s to exist: %v", p, err)
+		}
+	}
+}
+
+// TestBuild_VendoredTargetYAMLMatchesEmbeddedSource confirms that when
+// Build vendors a target's target.yaml into
+// .whippletree/targets/<name>.yaml, it writes exactly the bytes that
+// were embedded into the binary (Def.RawYAML), not a re-read of some
+// on-disk path, by loading targets through target.LoadFS(targets.FS)
+// (no disk-backed SourcePath at all) and comparing the vendored output
+// straight against targets.FS's own bytes.
+func TestBuild_VendoredTargetYAMLMatchesEmbeddedSource(t *testing.T) {
+	bundleDir := setupBundle(t)
+
+	defs, err := target.LoadFS(targets.FS)
+	if err != nil {
+		t.Fatalf("target.LoadFS: %v", err)
+	}
+
+	if _, err := compile.Build(bundleDir, defs); err != nil {
+		t.Fatalf("compile.Build: %v", err)
+	}
+
+	for _, name := range []string{"codex", "claude-code"} {
+		got, err := os.ReadFile(filepath.Join(bundleDir, ".whippletree", "targets", name+".yaml"))
+		if err != nil {
+			t.Fatalf("read vendored %s.yaml: %v", name, err)
+		}
+		want, err := targets.FS.ReadFile(name + "/target.yaml")
+		if err != nil {
+			t.Fatalf("read embedded %s/target.yaml: %v", name, err)
+		}
+		if string(got) != string(want) {
+			t.Errorf("vendored %s.yaml does not byte-match embedded source", name)
 		}
 	}
 }
