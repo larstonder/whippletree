@@ -26,7 +26,7 @@ acme-tool/
 ```
 
 Run `whippletree build .` on top of that and four more things appear (all four kinds
-scaffold soft by default, so this build satisfies everywhere; a hard-required
+scaffold soft by default, so this build succeeds everywhere; a hard-required
 `blocking-gate` can make `build`/`preflight`/`install` refuse on a per-target basis, see
 "Per-target notes" below):
 

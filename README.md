@@ -117,7 +117,7 @@ exists.
 ### `whippletree build`
 
 Compiles a bundle's `plugin.json` contract (`extensions.dev.whippletree.v1`) against the
-three class-1 target definitions (`claude-code`, `codex`, `opencode`), writing per-target
+three built-in target definitions (`claude-code`, `codex`, `opencode`), writing per-target
 manifests, per-target hooks files, and the vendored `.whippletree/` directory the
 dispatcher reads at runtime. Those target definitions are embedded in the `whippletree`
 binary itself, so this needs no `targets/` directory anywhere on disk: the CLI works the

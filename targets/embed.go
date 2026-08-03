@@ -1,4 +1,4 @@
-// Package targets embeds the repo's class-1 target definitions
+// Package targets embeds the repo's built-in target definitions
 // (claude-code, codex, opencode) into the whippletree binary, so the
 // CLI has a set of targets to load even when run from outside the
 // whippletree repo (where a cwd-relative "targets" directory would
