@@ -44,9 +44,9 @@ func readTree(t *testing.T, dir string) map[string]string {
 	return out
 }
 
-// TestRunInit_YesDefaultsToLifecycleOnly covers Step 1 (i): --yes in a
-// temp dir creates exactly the lifecycle-only file set, and the
-// scaffolded plugin.json round-trips through contract.Parse+Validate.
+// TestRunInit_YesDefaultsToLifecycleOnly confirms --yes in a temp dir
+// creates exactly the lifecycle-only file set, and the scaffolded
+// plugin.json round-trips through contract.Parse+Validate.
 func TestRunInit_YesDefaultsToLifecycleOnly(t *testing.T) {
 	dir := t.TempDir()
 
@@ -99,9 +99,9 @@ func TestRunInit_YesDefaultsToLifecycleOnly(t *testing.T) {
 	}
 }
 
-// TestRunInit_KindsVariants covers Step 1 (ii): each single-kind
-// --kinds variant, and the all-four variant, produce a plugin.json
-// that round-trips through contract.Parse+Validate.
+// TestRunInit_KindsVariants confirms each single-kind --kinds variant,
+// and the all-four variant, produce a plugin.json that round-trips
+// through contract.Parse+Validate.
 func TestRunInit_KindsVariants(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -151,11 +151,11 @@ func TestRunInit_KindsVariants(t *testing.T) {
 	}
 }
 
-// TestGuarantee_InitBuildPreflightAllFourKindsDefaultsSoft covers Step 1
-// (iii): the all-four scaffold, with real sibling-dispatcher binaries
-// built, must build with exit 0 and preflight against claude-code with
-// no REFUSE (defaults are all soft, so a tier shortfall against a
-// class-1 target would DEGRADE at worst, never REFUSE).
+// TestGuarantee_InitBuildPreflightAllFourKindsDefaultsSoft confirms the
+// all-four scaffold, with real sibling-dispatcher binaries built, must
+// build with exit 0 and preflight against claude-code with no REFUSE
+// (defaults are all soft, so a tier shortfall against a class-1 target
+// would DEGRADE at worst, never REFUSE).
 //
 // This exercises the real CLI as built binaries (rather than in-process
 // run() calls) because ensureDispatcher's sibling-copy path keys off
@@ -232,10 +232,10 @@ func TestGuarantee_InitBuildPreflightAllFourKindsDefaultsSoft(t *testing.T) {
 	}
 }
 
-// TestRunInit_RefusesToOverwriteExistingFile covers Step 1 (iv):
-// overwrite refusal on a pre-existing README.md must error before
-// writing anything else (e.g. plugin.json, written earlier in the
-// generation order, must also be absent).
+// TestRunInit_RefusesToOverwriteExistingFile confirms overwrite refusal
+// on a pre-existing README.md must error before writing anything else
+// (e.g. plugin.json, written earlier in the generation order, must
+// also be absent).
 func TestRunInit_RefusesToOverwriteExistingFile(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "README.md", "hand-written, do not touch\n", 0o644)
@@ -262,8 +262,8 @@ func TestRunInit_RefusesToOverwriteExistingFile(t *testing.T) {
 	}
 }
 
-// TestRunInit_UnknownFlagErrorsAndCreatesNothing covers Step 1 (v): an
-// unknown flag is a strict parse error, and nothing is created.
+// TestRunInit_UnknownFlagErrorsAndCreatesNothing confirms an unknown
+// flag is a strict parse error, and nothing is created.
 func TestRunInit_UnknownFlagErrorsAndCreatesNothing(t *testing.T) {
 	dir := t.TempDir()
 
@@ -282,8 +282,8 @@ func TestRunInit_UnknownFlagErrorsAndCreatesNothing(t *testing.T) {
 	}
 }
 
-// TestRunInit_BadNameErrors covers Step 1 (vi): a name that doesn't
-// match ^[a-z0-9-]+$ is a clear error.
+// TestRunInit_BadNameErrors confirms a name that doesn't match
+// ^[a-z0-9-]+$ is a clear error.
 func TestRunInit_BadNameErrors(t *testing.T) {
 	dir := t.TempDir()
 
@@ -633,5 +633,55 @@ func TestRunInit_NameDefaultsToDirBasenameAndCreatesIntermediateDirs(t *testing.
 	}
 	if _, err := os.Stat(filepath.Join(dir, "bin")); !os.IsNotExist(err) {
 		t.Errorf("no executable-path kind chosen, expected no bin/ dir, stat err = %v", err)
+	}
+}
+
+// TestRunInit_HardBlockingGateReadmeNotesAllowRefuse confirms the
+// scaffolded README's "Next steps" section warns that `build` will
+// refuse on opencode (no native stop gate) when blocking-gate is
+// hard-required, naming --allow-refuse as the way past it.
+func TestRunInit_HardBlockingGateReadmeNotesAllowRefuse(t *testing.T) {
+	dir := t.TempDir()
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"init", dir, "--name", "acme-tool",
+		"--kinds", "lifecycle-signal,blocking-gate",
+		"--hard", "blocking-gate",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(init) = %d, want 0 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+
+	body, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	if !strings.Contains(string(body), "--allow-refuse") {
+		t.Errorf("README.md = %q, want a note about --allow-refuse when blocking-gate is hard-required", body)
+	}
+}
+
+// TestRunInit_SoftBlockingGateReadmeOmitsAllowRefuseNote confirms the
+// same note is absent when blocking-gate is left soft (the default):
+// build succeeds everywhere, so there's nothing to warn about.
+func TestRunInit_SoftBlockingGateReadmeOmitsAllowRefuseNote(t *testing.T) {
+	dir := t.TempDir()
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{
+		"init", dir, "--name", "acme-tool",
+		"--kinds", "lifecycle-signal,blocking-gate",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(init) = %d, want 0 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
+	}
+
+	body, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	if strings.Contains(string(body), "--allow-refuse") {
+		t.Errorf("README.md = %q, want no --allow-refuse note when blocking-gate is soft", body)
 	}
 }

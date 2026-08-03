@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 
 	"github.com/larstonder/whippletree/internal/contract"
 	"github.com/larstonder/whippletree/internal/target"
@@ -142,7 +143,7 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 
 	stopActive := ""
 	if ev.StopHookActive != nil {
-		stopActive = fmt.Sprintf("%t", *ev.StopHookActive)
+		stopActive = strconv.FormatBool(*ev.StopHookActive)
 	}
 	path := ""
 	if len(ev.Paths) > 0 {

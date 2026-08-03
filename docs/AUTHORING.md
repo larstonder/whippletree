@@ -9,7 +9,7 @@ the [README](../README.md).
 ## Bundle anatomy
 
 `whippletree init` writes only what you're expected to edit. From a fresh
-`whippletree init acme-tool --kinds blocking-gate,lifecycle-signal,observation-signal,executable-path --hard blocking-gate --yes`:
+`whippletree init acme-tool --kinds blocking-gate,lifecycle-signal,observation-signal,executable-path --yes`:
 
 ```
 acme-tool/
@@ -25,7 +25,10 @@ acme-tool/
     └── acme-tool                     ← your tool's own executable, optional (authored)
 ```
 
-Run `whippletree build .` on top of that and four more things appear:
+Run `whippletree build .` on top of that and four more things appear (all four kinds
+scaffold soft by default, so this build satisfies everywhere; a hard-required
+`blocking-gate` can make `build`/`preflight`/`install` refuse on a per-target basis, see
+"Per-target notes" below):
 
 ```
 acme-tool/
@@ -172,7 +175,7 @@ string where the concept doesn't apply to this invocation):
 | `ADAPTER_EVENT` | the logical event name exactly as your contract wrote it (may be an alias, e.g. `file-read`) | never |
 | `ADAPTER_TARGET` | the target name (`claude-code`, `codex`, `opencode`) | never |
 | `ADAPTER_PRIMITIVE` | the resolved primitive (`tool-post` when `ADAPTER_EVENT` is the `file-read` alias) | never |
-| `ADAPTER_STOP_ACTIVE` | `"true"`/`"false"` | the harness has no loop-guard field for this event: all opencode events, `session-start` everywhere |
+| `ADAPTER_STOP_ACTIVE` | `"true"`/`"false"` | every event except `turn-end` on claude-code/codex (the only primitive either target declares a loop-guard field for); always empty on opencode, which has no `turn-end` mapping at all |
 | `ADAPTER_CWD` | the harness-reported working directory | the harness gave no cwd |
 | `ADAPTER_PATH` | the first normalized path | no path applies to this event |
 
@@ -180,7 +183,10 @@ string where the concept doesn't apply to this invocation):
 `paths` array keeps every path the event touched, in order, including
 duplicates the matcher heuristic can produce. Real captured output, a
 `file-read` alias dispatched on codex, `handlers/dump.sh` echoing its own
-environment to stderr and its stdin verbatim:
+environment to stderr and its stdin verbatim. The `[...]` brackets around
+`ADAPTER_STOP_ACTIVE`'s value below are `dump.sh`'s own delimiters (so an empty
+value is visible as `[]` rather than disappearing), not something whippletree
+itself emits:
 
 ```
 $ echo '{"session_id":"s1","transcript_path":"/tmp/r.jsonl","cwd":"/tmp/proj","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"rg --files -g '"'"'hello.txt'"'"' && sed -n '"'"'1,120p'"'"' hello.txt"},"tool_response":"...","tool_use_id":"exec-1"}' \

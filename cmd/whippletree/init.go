@@ -600,6 +600,9 @@ func buildReadme(name string, kinds []string, hardSet map[string]bool) []byte {
 	b.WriteString("whippletree preflight . --target claude-code\n")
 	b.WriteString("```\n\n")
 	b.WriteString("build auto-copies whippletree-hook when it sits next to the whippletree binary; otherwise it prints the go build command to run yourself.\n")
+	if hardSet["blocking-gate"] {
+		b.WriteString("\nblocking-gate is hard-required here, so build will refuse on any target with no\nnative stop gate (opencode); pass --allow-refuse to build anyway.\n")
+	}
 
 	return []byte(b.String())
 }

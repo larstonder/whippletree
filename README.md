@@ -30,7 +30,7 @@ runs under, handler best practices, and per-target notes.
 ### Quickstart
 
 ```
-$ whippletree init --yes
+$ whippletree init my-tool --yes
 whippletree: scaffolded my-tool in .../my-tool
 ```
 
@@ -56,7 +56,7 @@ Plan: 1 satisfy, 0 degrade, 0 refuse.
 (Real output; the `init` line's path is truncated to `.../my-tool`, eliding only the
 scratch directory it ran in.)
 
-Add a blocking gate with `whippletree init --kinds lifecycle-signal,blocking-gate
+Add a blocking gate with `whippletree init gated-tool --kinds lifecycle-signal,blocking-gate
 --hard blocking-gate --yes` and you also get `handlers/blocking-gate.sh`, a plain
 executable like any handler, showing the loop guard every `turn-end` handler needs:
 
@@ -116,9 +116,12 @@ exists.
 
 ### `whippletree build`
 
-Compiles a bundle's `plugin.json` contract (`extensions.dev.whippletree.v1`) against every
-target definition under `targets/`, writing per-target manifests, per-target hooks files,
-and the vendored `.whippletree/` directory the dispatcher reads at runtime.
+Compiles a bundle's `plugin.json` contract (`extensions.dev.whippletree.v1`) against the
+three class-1 target definitions (`claude-code`, `codex`, `opencode`), writing per-target
+manifests, per-target hooks files, and the vendored `.whippletree/` directory the
+dispatcher reads at runtime. Those target definitions are embedded in the `whippletree`
+binary itself, so this needs no `targets/` directory anywhere on disk: the CLI works the
+same from any working directory, not just a checkout of this repo.
 
 The dispatcher binary isn't committed to the repo, so on a fresh clone build it first:
 
@@ -140,10 +143,10 @@ go build -o <bundle>/bin/whippletree-hook ./cmd/whippletree-hook
 ```
 
 Pass `--allow-missing-dispatcher` to downgrade that failure to a warning instead (useful in
-a build step that provisions the binary separately). `--targets-dir <dir>` overrides where
-target definitions are loaded from (default `targets`, resolved against the working
-directory); an empty or wrong directory is a load error. `--allow-refuse` downgrades a
-build-time REFUSE (see below) from a build failure to a warning.
+a build step that provisions the binary separately). `--targets-dir <dir>` overrides the
+embedded defaults with on-disk target definitions loaded from `<dir>` instead; an empty or
+wrong directory is a load error. `--allow-refuse` downgrades a build-time REFUSE (see
+below) from a build failure to a warning.
 
 If any target's contract requirement lands at REFUSE (a hard-required requirement the
 target cannot satisfy at all, or only below its minimum tier), `build` exits 1 and names

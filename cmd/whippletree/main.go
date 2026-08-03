@@ -312,7 +312,10 @@ func checkAgainstTarget(bundleDir, targetName, assumeVersion, targetsDirArg stri
 	}
 
 	// A TTY'd stdin is the signal that this invocation could actually
-	// prompt a human.
+	// prompt a human. Deliberately reads the process's own TTY state
+	// rather than runWith's injected isTTY param: that param's scope is
+	// init's wizard-vs-flags decision, not preflight's interactivity
+	// check.
 	interactive := stdinIsTTY()
 
 	if assumeVersion != "" {
