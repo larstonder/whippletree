@@ -29,6 +29,7 @@ type Def struct {
 	PluginRootVars     []string
 	Probe              ProbeSpec
 	Capabilities       map[string]bool
+	SkillChannel       SkillChannel
 
 	// SourcePath is the filesystem path Load read this Def from, or
 	// "embedded:<name>/target.yaml" for a Def LoadFS produced from the
@@ -64,4 +65,14 @@ type Degradation struct {
 type ProbeSpec struct {
 	Command        []string
 	VersionPattern string
+}
+
+// SkillChannel describes how a target receives a bundle's skills.
+// plugin-dir: skills travel inside the bundle via the plugin install
+// channel, nothing is placed separately. copy-dir: install copies the
+// built skill variant into Dest. An empty Kind means the target has no
+// skill channel and skill requirements land Absent.
+type SkillChannel struct {
+	Kind string
+	Dest string
 }

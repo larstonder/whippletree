@@ -327,6 +327,65 @@ func TestLoadDir_PopulatesRawYAML(t *testing.T) {
 	}
 }
 
+func TestLoadSkillChannel(t *testing.T) {
+	base := `apiVersion: whippletree.dev/v1
+kind: TargetDefinition
+metadata:
+  name: t
+  class: 1
+  schemaVersion: "1.0.0"
+spec:
+  probe:
+    command: ["true"]
+    versionPattern: '(\d+)'
+  events:
+    session-start: { native: X, blocking: false }
+`
+	write := func(t *testing.T, body string) string {
+		t.Helper()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "target.yaml")
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	def, err := Load(write(t, base+"  skillChannel:\n    kind: plugin-dir\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.SkillChannel.Kind != "plugin-dir" || def.SkillChannel.Dest != "" {
+		t.Fatalf("got %+v", def.SkillChannel)
+	}
+
+	def, err = Load(write(t, base+"  skillChannel:\n    kind: copy-dir\n    dest: \"~/.agents/skills\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.SkillChannel.Kind != "copy-dir" || def.SkillChannel.Dest != "~/.agents/skills" {
+		t.Fatalf("got %+v", def.SkillChannel)
+	}
+
+	def, err = Load(write(t, base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.SkillChannel.Kind != "" {
+		t.Fatalf("absent skillChannel should load empty, got %+v", def.SkillChannel)
+	}
+
+	if _, err := Load(write(t, base+"  skillChannel:\n    kind: nfs\n")); err == nil {
+		t.Fatal("want error for unknown skillChannel kind")
+	}
+	if _, err := Load(write(t, base+"  skillChannel:\n    kind: copy-dir\n")); err == nil {
+		t.Fatal("want error for copy-dir without dest")
+	}
+	if _, err := Load(write(t, base+"  skillChannel:\n    kind: plugin-dir\n    dest: \"/x\"\n")); err == nil {
+		t.Fatal("want error for plugin-dir with dest")
+	}
+}
+
 func keys(m map[string]*Def) []string {
 	ks := make([]string, 0, len(m))
 	for k := range m {

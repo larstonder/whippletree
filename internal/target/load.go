@@ -38,6 +38,7 @@ type yamlSpec struct {
 	Strictness   yamlStrictness             `yaml:"strictness"`
 	Env          yamlEnv                    `yaml:"env"`
 	Capabilities map[string]bool            `yaml:"capabilities"`
+	SkillChannel yamlSkillChannel           `yaml:"skillChannel"`
 }
 
 type yamlDiscovery struct {
@@ -69,6 +70,11 @@ type yamlStrictness struct {
 
 type yamlEnv struct {
 	PluginRoot []string `yaml:"pluginRoot"`
+}
+
+type yamlSkillChannel struct {
+	Kind string `yaml:"kind"`
+	Dest string `yaml:"dest"`
 }
 
 // Load reads and strictly decodes a single target.yaml file, returning
@@ -103,6 +109,24 @@ func decodeTarget(raw []byte, sourcePath string) (*Def, error) {
 		return nil, fmt.Errorf("target %q: unknown backend %q", doc.Metadata.Name, backend)
 	}
 
+	sc := doc.Spec.SkillChannel
+	switch sc.Kind {
+	case "":
+		if sc.Dest != "" {
+			return nil, fmt.Errorf("target %q: skillChannel dest without kind", doc.Metadata.Name)
+		}
+	case "plugin-dir":
+		if sc.Dest != "" {
+			return nil, fmt.Errorf("target %q: skillChannel plugin-dir takes no dest", doc.Metadata.Name)
+		}
+	case "copy-dir":
+		if sc.Dest == "" {
+			return nil, fmt.Errorf("target %q: skillChannel copy-dir requires dest", doc.Metadata.Name)
+		}
+	default:
+		return nil, fmt.Errorf("target %q: unknown skillChannel kind %q", doc.Metadata.Name, sc.Kind)
+	}
+
 	def := &Def{
 		Name:               doc.Metadata.Name,
 		Class:              doc.Metadata.Class,
@@ -120,6 +144,7 @@ func decodeTarget(raw []byte, sourcePath string) (*Def, error) {
 			VersionPattern: doc.Spec.Probe.VersionPattern,
 		},
 		Capabilities: doc.Spec.Capabilities,
+		SkillChannel: SkillChannel{Kind: sc.Kind, Dest: sc.Dest},
 		SourcePath:   sourcePath,
 		RawYAML:      raw,
 	}
