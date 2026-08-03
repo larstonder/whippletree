@@ -130,3 +130,77 @@ else
   tail -40 "$run_log" || true
   exit 1
 fi
+
+# Phase 3: skill content. A copy of kb-shaped gains a skill and a hard
+# T3 stop gate falling back to it; install must place the expanded
+# skill and the REFUSE-by-design invariant above must be unaffected
+# (kb-shaped itself never gains a skill).
+cd "$repo_root"
+skillbundle="$sandbox/skillbundle"
+cp -R examples/kb-shaped "$skillbundle"
+mkdir -p "$skillbundle/skills/capture-skill"
+cat > "$skillbundle/skills/capture-skill/SKILL.md" <<'EOF'
+---
+name: capture-skill
+description: Captures knowledge before finishing work.
+---
+Authored capture guidance.
+EOF
+authored_before=$(shasum "$skillbundle/skills/capture-skill/SKILL.md")
+
+python3 - "$skillbundle/plugin.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+with open(path) as f:
+    manifest = json.load(f)
+requires = manifest["extensions"]["dev.whippletree.v1"]["requires"]
+requires.append({"id": "capture-skill", "kind": "skill",
+                 "path": "./skills/capture-skill", "minTier": "T1",
+                 "hardRequired": False})
+gates = [r for r in requires if r.get("id") == "stop-gate"]
+assert len(gates) == 1
+gates[0]["fallbackSkill"] = "capture-skill"
+gates[0]["minTier"] = "T3"
+with open(path, "w") as f:
+    json.dump(manifest, f, indent=2)
+    f.write("\n")
+PY
+
+# Compile the CLI once for a stable binary path (avoids `go run`'s
+# module/build-cache churn across the two invocations below). The
+# probe (docs/skill-discovery-probe.md) settled on outcome (a): the
+# shipped opencode target.yaml's skillChannel dest (".opencode/skills")
+# is project-relative, so install resolves it against --project and no
+# HOME override is needed for placement.
+go build -o "$sandbox/whippletree" ./cmd/whippletree
+go build -o "$skillbundle/bin/whippletree-hook" ./cmd/whippletree-hook
+"$sandbox/whippletree" build "$skillbundle" --targets-dir targets
+
+"$sandbox/whippletree" install "$skillbundle" --target opencode \
+  --project "$sandbox/proj" --assume-version "$version" --targets-dir targets </dev/null
+
+placed="$sandbox/proj/.opencode/skills/kb-shaped-capture-skill/SKILL.md"
+if [ -f "$placed" ]; then
+  echo "PASS: install placed the expanded skill"
+else
+  echo "FAIL: no placed skill at $placed"; exit 1
+fi
+
+if grep -q "Use this skill before writing any message that declares the task complete." "$placed"; then
+  echo "PASS: description carries the trigger clause"
+else
+  echo "FAIL: trigger clause missing"; sed -n '1,6p' "$placed"; exit 1
+fi
+
+if grep -q "$skillbundle/handlers/capture.sh" "$placed" && ! grep -q "__WHIPPLETREE_BUNDLE_ROOT__" "$placed"; then
+  echo "PASS: handler path baked absolutely"
+else
+  echo "FAIL: placeholder not baked"; grep -n "capture.sh\|BUNDLE_ROOT" "$placed" || true; exit 1
+fi
+
+authored_after=$(shasum "$skillbundle/skills/capture-skill/SKILL.md")
+if [ "$authored_before" = "$authored_after" ]; then
+  echo "PASS: authored skill source untouched"
+else
+  echo "FAIL: authored skills/ was modified"; exit 1
+fi

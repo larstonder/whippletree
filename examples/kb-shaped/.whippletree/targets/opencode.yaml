@@ -28,3 +28,8 @@ spec:
     installerPath: true
     stopLoopGuard: false
     matcherAlternation: false
+  # skillChannel is additive to schemaVersion 1.0.0: absent means the
+  # target has no skill channel and skill requirements land Absent.
+  skillChannel:
+    kind: copy-dir
+    dest: ".opencode/skills"
