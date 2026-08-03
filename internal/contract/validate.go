@@ -3,6 +3,7 @@ package contract
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var validKinds = map[string]bool{
@@ -10,6 +11,7 @@ var validKinds = map[string]bool{
 	"lifecycle-signal":   true,
 	"observation-signal": true,
 	"executable-path":    true,
+	"skill":              true,
 }
 
 // Validate checks a Contract against the whippletree structural rules,
@@ -18,6 +20,14 @@ var validKinds = map[string]bool{
 func Validate(c *Contract) error {
 	var errs []error
 	seen := make(map[string]bool, len(c.Requires))
+	skillIDs := make(map[string]bool)
+
+	for i := range c.Requires {
+		req := &c.Requires[i]
+		if req.Kind == "skill" && req.ID != "" {
+			skillIDs[req.ID] = true
+		}
+	}
 
 	for i := range c.Requires {
 		req := &c.Requires[i]
@@ -33,6 +43,15 @@ func Validate(c *Contract) error {
 
 		if !validKinds[req.Kind] {
 			errs = append(errs, fmt.Errorf("requirement %s: unknown kind %q", req.ID, req.Kind))
+			continue
+		}
+
+		if err := validateFallbackSkill(req, skillIDs); err != nil {
+			errs = append(errs, err)
+		}
+
+		if req.Kind == "skill" {
+			errs = append(errs, validateSkillReq(req)...)
 			continue
 		}
 
@@ -59,4 +78,54 @@ func Validate(c *Contract) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+// validateSkillReq checks the skill-kind-specific rules: path of the
+// form ./skills/<dir> (one path element, so the plugin-dir discovery
+// convention skills/<name>/SKILL.md holds), and no hook-only fields.
+func validateSkillReq(req *Requirement) []error {
+	var errs []error
+	if req.Path == "" {
+		errs = append(errs, fmt.Errorf("requirement %s: path is required for skill", req.ID))
+	} else {
+		rest, ok := strings.CutPrefix(req.Path, "./skills/")
+		if !ok || rest == "" || strings.Contains(rest, "/") {
+			errs = append(errs, fmt.Errorf("requirement %s: skill path %q must have the form ./skills/<dir>", req.ID, req.Path))
+		}
+	}
+	if req.Event != "" {
+		errs = append(errs, fmt.Errorf("requirement %s: event must be empty for skill", req.ID))
+	}
+	if req.Handler != "" {
+		errs = append(errs, fmt.Errorf("requirement %s: handler must be empty for skill", req.ID))
+	}
+	if req.LoopGuardRequired {
+		errs = append(errs, fmt.Errorf("requirement %s: loopGuardRequired must be false for skill", req.ID))
+	}
+	return errs
+}
+
+// validateFallbackSkill enforces where a fallbackSkill link may appear
+// (the self-observable-trigger events the class-1 targets natively
+// satisfy) and that it references a skill requirement in this contract.
+func validateFallbackSkill(req *Requirement, skillIDs map[string]bool) error {
+	if req.FallbackSkill == "" {
+		return nil
+	}
+	switch req.Kind {
+	case "blocking-gate":
+		if req.Event != "turn-end" {
+			return fmt.Errorf("requirement %s: fallbackSkill on blocking-gate requires event turn-end", req.ID)
+		}
+	case "lifecycle-signal":
+		if req.Event != "session-start" {
+			return fmt.Errorf("requirement %s: fallbackSkill on lifecycle-signal requires event session-start", req.ID)
+		}
+	default:
+		return fmt.Errorf("requirement %s: fallbackSkill is not allowed on %s", req.ID, req.Kind)
+	}
+	if !skillIDs[req.FallbackSkill] {
+		return fmt.Errorf("requirement %s: fallbackSkill %q does not name a skill requirement in this contract", req.ID, req.FallbackSkill)
+	}
+	return nil
 }

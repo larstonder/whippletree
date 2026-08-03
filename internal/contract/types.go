@@ -38,6 +38,7 @@ type Requirement struct {
 	HardRequired      *bool  `json:"hardRequired"`
 	LoopGuardRequired bool   `json:"loopGuardRequired,omitempty"`
 	Handler           string `json:"handler,omitempty"`
+	FallbackSkill     string `json:"fallbackSkill,omitempty"`
 	Path              string `json:"path,omitempty"`
 	Description       string `json:"description,omitempty"`
 }
