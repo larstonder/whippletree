@@ -15,6 +15,14 @@ const (
 
 func (t Tier) String() string { return [...]string{"", "T1", "T2", "T3", "T4"}[t] }
 
+// T3Fidelity is the one fidelity sentence for instruction-compiled
+// (fallbackSkill) behaviors. The preflight detail line and the
+// generated SKILL.md provenance comment must both use it verbatim: the
+// architecture doc's honesty contract requires the installer's promise
+// and the artifact's own comment to make the same claim in the same
+// words.
+const T3Fidelity = "best-effort, no harness-level enforcement on this target: the model is instructed to run the step and usually will, but can skip it under pressure"
+
 func ParseTier(s string) (Tier, error) {
 	for t := T1; t <= T4; t++ {
 		if t.String() == s {

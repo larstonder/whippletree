@@ -31,11 +31,12 @@ const (
 // Line is one requirement's preflight verdict: what tier it wants, what
 // tier the target actually achieves, and why.
 type Line struct {
-	ReqID   string
-	Want    contract.Tier
-	Got     contract.Tier
-	Verdict string
-	Detail  string
+	ReqID    string
+	Want     contract.Tier
+	Got      contract.Tier
+	Verdict  string
+	Detail   string
+	Fallback bool
 }
 
 // Report is the full preflight result for a contract against a target,
@@ -65,11 +66,12 @@ func Check(c *contract.Contract, td *target.Def, probed Version, interactive boo
 		verdict := Classify(a)
 
 		line := Line{
-			ReqID:   req.ID,
-			Want:    req.MinTier,
-			Got:     a.Tier,
-			Verdict: verdict,
-			Detail:  withLossage(a.Mechanism, a.Lossage),
+			ReqID:    req.ID,
+			Want:     req.MinTier,
+			Got:      a.Tier,
+			Verdict:  verdict,
+			Detail:   withLossage(a.Mechanism, a.Lossage),
+			Fallback: a.Fallback,
 		}
 		if verdict == Refuse {
 			report.Refused = true
@@ -166,6 +168,9 @@ func (r *Report) Render(targetName string, v Version) string {
 			gotStr = "—"
 		}
 		fmt.Fprintf(&b, "  %-*s  want ≥%s  got %s  %-9s %s\n", width, l.ReqID, l.Want, gotStr, l.Verdict, l.Detail)
+		if l.Fallback {
+			fmt.Fprintf(&b, "  %-*s  %s\n", width, "", contract.T3Fidelity)
+		}
 
 		switch l.Verdict {
 		case Satisfy:

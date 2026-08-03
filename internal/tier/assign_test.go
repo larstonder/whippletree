@@ -257,6 +257,57 @@ func TestAssignAbsentReasonsPerBranch(t *testing.T) {
 	}
 }
 
+func TestAssignSkill(t *testing.T) {
+	no := false
+	req := contract.Requirement{ID: "s", Kind: "skill", Path: "./skills/s", MinTier: contract.T1, HardRequired: &no}
+
+	with := &target.Def{SkillChannel: target.SkillChannel{Kind: "copy-dir", Dest: "~/.agents/skills"}}
+	a := tier.Assign(req, with)
+	if a.Absent || a.Tier != contract.T1 {
+		t.Fatalf("skill with channel: got %+v", a)
+	}
+	if !strings.Contains(a.Mechanism, "placed") {
+		t.Fatalf("mechanism must say placed, never enforced: %q", a.Mechanism)
+	}
+
+	without := &target.Def{}
+	a = tier.Assign(req, without)
+	if !a.Absent {
+		t.Fatalf("skill without channel must be absent, got %+v", a)
+	}
+}
+
+func TestAssignFallback(t *testing.T) {
+	no := false
+	gate := contract.Requirement{ID: "g", Kind: "blocking-gate", Event: "turn-end",
+		MinTier: contract.T3, HardRequired: &no, Handler: "./h.sh", FallbackSkill: "s"}
+
+	// A target with no turn-end mapping at all (opencode's shape).
+	td := &target.Def{Events: map[string]target.EventMapping{}}
+	a := tier.Assign(gate, td)
+	if a.Absent || a.Tier != contract.T3 || !a.Fallback {
+		t.Fatalf("absent gate with fallback must land T3 with Fallback set, got %+v", a)
+	}
+	if a.Mechanism != "compiled to instructions" {
+		t.Fatalf("mechanism: %q", a.Mechanism)
+	}
+
+	// Without a fallback link, unchanged: plain absent.
+	plain := gate
+	plain.FallbackSkill = ""
+	if a := tier.Assign(plain, td); !a.Absent || a.Fallback {
+		t.Fatalf("gate without fallback must stay absent, got %+v", a)
+	}
+
+	// A target that maps turn-end natively must NOT fall back.
+	native := &target.Def{Events: map[string]target.EventMapping{
+		"turn-end": {Native: "Stop", Blocking: true, LoopGuardField: "stop_hook_active"},
+	}}
+	if a := tier.Assign(gate, native); a.Fallback || a.Tier != contract.T1 {
+		t.Fatalf("native gate must stay T1 hook, got %+v", a)
+	}
+}
+
 // TestAssignExecutablePathAbsentReportsNoSatisfier covers the
 // executable-path Absent branch: a target with neither a bundle channel
 // nor an installer path has no class-1 mechanism left to fall back to,

@@ -219,10 +219,62 @@ func TestRenderShowsDashForAbsentGotTier(t *testing.T) {
 	}
 }
 
+func TestRenderFallbackDisclosure(t *testing.T) {
+	no := false
+	c := &contract.Contract{Requires: []contract.Requirement{
+		{ID: "s", Kind: "skill", Path: "./skills/s", MinTierRaw: "T1", MinTier: contract.T1, HardRequired: &no},
+		{ID: "g", Kind: "blocking-gate", Event: "turn-end", MinTierRaw: "T3", MinTier: contract.T3,
+			HardRequired: &no, Handler: "./h.sh", FallbackSkill: "s"},
+	}}
+	td := &target.Def{
+		Name:         "t",
+		Events:       map[string]target.EventMapping{},
+		SkillChannel: target.SkillChannel{Kind: "copy-dir", Dest: "~/.agents/skills"},
+	}
+	report, err := preflight.Check(c, td, preflight.Version("1.0.0"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := report.Render("t", "1.0.0")
+	if !strings.Contains(out, "compiled to instructions") {
+		t.Fatalf("fallback line missing mechanism:\n%s", out)
+	}
+	if !strings.Contains(out, contract.T3Fidelity) {
+		t.Fatalf("fallback disclosure must render contract.T3Fidelity verbatim:\n%s", out)
+	}
+	if strings.Contains(out, "REFUSE") {
+		t.Fatalf("hard-free contract must not refuse:\n%s", out)
+	}
+}
+
+func TestHardT3FlipsRefuseToSatisfy(t *testing.T) {
+	yes := true
+	gate := contract.Requirement{ID: "g", Kind: "blocking-gate", Event: "turn-end",
+		MinTier: contract.T3, HardRequired: &yes, Handler: "./h.sh", FallbackSkill: "s"}
+	td := &target.Def{Events: map[string]target.EventMapping{}}
+
+	if v := preflight.Classify(tier.Assign(gate, td)); v != preflight.Satisfy {
+		t.Fatalf("hard minTier T3 with fallback must SATISFY, got %s", v)
+	}
+
+	hardT1 := gate
+	hardT1.MinTier = contract.T1
+	if v := preflight.Classify(tier.Assign(hardT1, td)); v != preflight.Refuse {
+		t.Fatalf("hard minTier T1 must still REFUSE, got %s", v)
+	}
+
+	noFallback := gate
+	noFallback.FallbackSkill = ""
+	if v := preflight.Classify(tier.Assign(noFallback, td)); v != preflight.Refuse {
+		t.Fatalf("hard gate without fallback must still REFUSE, got %s", v)
+	}
+}
+
 // TestClassify exercises preflight.Classify directly, covering all five
 // verdict branches (the tier-comparison direction: contract.Tier is
 // best-to-worst T1..T4, so "achieved at least as good as wanted" is the
 // numeric comparison got <= want, not got >= want).
+
 func TestClassify(t *testing.T) {
 	trueVal, falseVal := true, false
 

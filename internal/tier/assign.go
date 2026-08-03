@@ -19,11 +19,24 @@ type Assignment struct {
 	Mechanism string
 	Lossage   string
 	Absent    bool
+	// Fallback marks a T3 landed via a fallbackSkill expansion rather
+	// than a hook; preflight's disclosure and build's expansion both
+	// key on it, never on the tier value.
+	Fallback bool
 }
 
 // Assign determines how (and whether) target td can satisfy requirement
 // req.
 func Assign(req contract.Requirement, td *target.Def) Assignment {
+	a := assignByKind(req, td)
+	if a.Absent && req.FallbackSkill != "" &&
+		(req.Kind == "blocking-gate" || req.Kind == "lifecycle-signal") {
+		return Assignment{Req: req, Tier: contract.T3, Mechanism: "compiled to instructions", Fallback: true}
+	}
+	return a
+}
+
+func assignByKind(req contract.Requirement, td *target.Def) Assignment {
 	switch req.Kind {
 	case "executable-path":
 		return assignExecutablePath(req, td)
@@ -33,9 +46,21 @@ func Assign(req contract.Requirement, td *target.Def) Assignment {
 		return assignBlockingGate(req, td)
 	case "observation-signal":
 		return assignObservationSignal(req, td)
+	case "skill":
+		return assignSkill(req, td)
 	default:
 		return absent(req, "unknown kind")
 	}
+}
+
+// assignSkill reports placement fidelity only, never behavioral
+// fidelity: a placed skill is words the model may or may not act on,
+// which is why the mechanism says "placed", not "enforced".
+func assignSkill(req contract.Requirement, td *target.Def) Assignment {
+	if td.SkillChannel.Kind == "" {
+		return absent(req, "no skill channel on this target")
+	}
+	return Assignment{Req: req, Tier: contract.T1, Mechanism: "placed via " + td.SkillChannel.Kind + " skill channel"}
 }
 
 func absent(req contract.Requirement, reason string) Assignment {
