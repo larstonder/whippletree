@@ -49,6 +49,40 @@ func writeStandIn(t *testing.T, dir, rel string) {
 	}
 }
 
+// writeFile writes content to dir/rel, creating parent directories as
+// needed. Files under handlers/ are written executable (0o755); every
+// other file gets the ordinary 0o644.
+func writeFile(t *testing.T, dir, rel, content string) {
+	t.Helper()
+	p := filepath.Join(dir, rel)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatalf("mkdir for %s: %v", rel, err)
+	}
+	mode := os.FileMode(0o644)
+	if strings.HasPrefix(rel, "handlers/") {
+		mode = 0o755
+	}
+	if err := os.WriteFile(p, []byte(content), mode); err != nil {
+		t.Fatalf("write %s: %v", rel, err)
+	}
+}
+
+// testTargetDef loads the real shipped target defs from the repo's
+// targets/ dir (relative to internal/compile, where these tests run)
+// and returns the one named name.
+func testTargetDef(t *testing.T, name string) *target.Def {
+	t.Helper()
+	defs, err := target.LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("target.LoadDir: %v", err)
+	}
+	td, ok := defs[name]
+	if !ok {
+		t.Fatalf("no target def named %q", name)
+	}
+	return td
+}
+
 func loadGolden(t *testing.T, name string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("testdata", "golden", name))
@@ -297,5 +331,78 @@ func TestBuild_RejectsHooksAsTargetName(t *testing.T) {
 		t.Fatal("want error for target named \"hooks\", got nil")
 	} else if !strings.Contains(err.Error(), `"hooks"`) {
 		t.Errorf("error = %q, want it to name the reserved target name", err.Error())
+	}
+}
+
+func TestBuildSkillVariants(t *testing.T) {
+	// Bundle: a skill plus a hard T3 gate falling back to it.
+	bundleDir := t.TempDir()
+	writeFile(t, bundleDir, "plugin.json", `{
+  "name": "sk", "version": "0.1.0", "description": "d",
+  "extensions": {"dev.whippletree.v1": {"contractVersion": "1.0.0", "requires": [
+    {"id":"cap","kind":"skill","path":"./skills/cap","minTier":"T1","hardRequired":false},
+    {"id":"gate","kind":"blocking-gate","event":"turn-end","minTier":"T3",
+     "hardRequired":true,"loopGuardRequired":true,"handler":"./handlers/g.sh",
+     "fallbackSkill":"cap"}
+  ]}}}`)
+	writeFile(t, bundleDir, "handlers/g.sh", "#!/bin/sh\nexit 0\n")
+	writeFile(t, bundleDir, "skills/cap/SKILL.md", "---\nname: cap\ndescription: d.\n---\nb\n")
+
+	targets := map[string]*target.Def{
+		"opencode":    testTargetDef(t, "opencode"),
+		"claude-code": testTargetDef(t, "claude-code"),
+	}
+	if _, err := compile.Build(bundleDir, targets); err != nil {
+		t.Fatal(err)
+	}
+
+	variant := filepath.Join(bundleDir, ".whippletree", "skills", "opencode", "cap", "SKILL.md")
+	raw, err := os.ReadFile(variant)
+	if err != nil {
+		t.Fatalf("copy-dir variant missing: %v", err)
+	}
+	if !strings.Contains(string(raw), "Manual step on this harness (turn-end)") {
+		t.Fatalf("variant not expanded:\n%s", raw)
+	}
+
+	if _, err := os.Stat(filepath.Join(bundleDir, ".whippletree", "skills", "claude-code")); !os.IsNotExist(err) {
+		t.Fatal("plugin-dir target must not get a skill variant")
+	}
+
+	authored, _ := os.ReadFile(filepath.Join(bundleDir, "skills", "cap", "SKILL.md"))
+	if strings.Contains(string(authored), "compiled-by") {
+		t.Fatal("authored SKILL.md was modified")
+	}
+}
+
+func TestBuildRejectsExpansionOnPluginDir(t *testing.T) {
+	bundleDir := t.TempDir()
+	writeFile(t, bundleDir, "plugin.json", `{
+  "name": "sk", "version": "0.1.0", "description": "d",
+  "extensions": {"dev.whippletree.v1": {"contractVersion": "1.0.0", "requires": [
+    {"id":"cap","kind":"skill","path":"./skills/cap","minTier":"T1","hardRequired":false},
+    {"id":"gate","kind":"blocking-gate","event":"turn-end","minTier":"T3",
+     "hardRequired":false,"handler":"./handlers/g.sh","fallbackSkill":"cap"}
+  ]}}}`)
+	writeFile(t, bundleDir, "handlers/g.sh", "#!/bin/sh\nexit 0\n")
+	writeFile(t, bundleDir, "skills/cap/SKILL.md", "---\nname: cap\ndescription: d.\n---\nb\n")
+
+	// Synthetic plugin-dir target with no turn-end mapping: the gate
+	// falls back, which plugin-dir cannot carry.
+	td := &target.Def{
+		Name:    "pd",
+		Backend: target.BackendHooksJSON,
+		Events: map[string]target.EventMapping{
+			"session-start": {Native: "X"},
+		},
+		ManifestDir:    ".pd-plugin",
+		PluginRootVars: []string{"PD_ROOT"},
+		SkillChannel:   target.SkillChannel{Kind: "plugin-dir"},
+		RawYAML:        []byte("x"),
+	}
+
+	_, err := compile.Build(bundleDir, map[string]*target.Def{"pd": td})
+	if err == nil || !strings.Contains(err.Error(), "skill expansion is not supported on plugin-dir targets") {
+		t.Fatalf("want plugin-dir expansion error, got %v", err)
 	}
 }

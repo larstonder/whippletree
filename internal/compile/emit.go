@@ -7,9 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/larstonder/whippletree/internal/contract"
+	"github.com/larstonder/whippletree/internal/skillfile"
 	"github.com/larstonder/whippletree/internal/target"
 	"github.com/larstonder/whippletree/internal/tier"
 )
@@ -95,7 +98,11 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 			a := tier.Assign(req, td)
 			assignments = append(assignments, a)
 
-			if a.Absent || !hooksEmittingKinds[req.Kind] {
+			// A Fallback assignment is satisfied by an expanded skill,
+			// never by a hook entry: writeSkillVariants (below) is what
+			// materializes it, or errors loudly on a target that can't
+			// carry one.
+			if a.Absent || a.Fallback || !hooksEmittingKinds[req.Kind] {
 				continue
 			}
 
@@ -110,6 +117,10 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 			}
 		}
 		result.PerTarget[name] = assignments
+
+		if err := writeSkillVariants(bundleDir, name, td, c, assignments); err != nil {
+			return nil, err
+		}
 
 		if err := vendorTargetYAML(bundleDir, name, td); err != nil {
 			return nil, err
@@ -144,6 +155,12 @@ func checkRequirementPaths(bundleDir string, c *contract.Contract) error {
 			if err := statRequirementFile(bundleDir, req.ID, "handler", req.Handler); err != nil {
 				return err
 			}
+		}
+		if req.Kind == "skill" {
+			if err := skillfile.Check(bundleDir, req); err != nil {
+				return err
+			}
+			continue
 		}
 		if req.Kind == "executable-path" && req.Path != "" {
 			if err := statRequirementFile(bundleDir, req.ID, "path", req.Path); err != nil {
@@ -287,6 +304,66 @@ func vendorTargetYAML(bundleDir, name string, td *target.Def) error {
 	}
 	if err := os.WriteFile(filepath.Join(dir, name+".yaml"), td.RawYAML, 0o644); err != nil {
 		return fmt.Errorf("write vendored target %q: %w", name, err)
+	}
+	return nil
+}
+
+// CheckSkillFiles verifies every skill requirement's SKILL.md under
+// bundleDir. Exported so preflight and install (checkAgainstTarget in
+// cmd/whippletree) fail with the same message build does instead of
+// passing a bundle build would reject.
+func CheckSkillFiles(bundleDir string, c *contract.Contract) error {
+	for _, req := range c.Requires {
+		if req.Kind != "skill" {
+			continue
+		}
+		if err := skillfile.Check(bundleDir, req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeSkillVariants generates the per-target skill directory variants
+// under .whippletree/skills/<target>/. copy-dir targets always get a
+// variant (the compiled-by marker is install's ownership signal);
+// plugin-dir and channel-less targets get none, and an expansion
+// triggering there is a hard error rather than a silently unexpanded
+// skill.
+func writeSkillVariants(bundleDir, name string, td *target.Def, c *contract.Contract, assignments []tier.Assignment) error {
+	expsBySkill := make(map[string][]skillfile.Expansion)
+	for _, a := range assignments {
+		if !a.Fallback {
+			continue
+		}
+		primitive, _, err := contract.ResolveEvent(a.Req.Event)
+		if err != nil {
+			return fmt.Errorf("requirement %s: %w", a.Req.ID, err)
+		}
+		expsBySkill[a.Req.FallbackSkill] = append(expsBySkill[a.Req.FallbackSkill], skillfile.Expansion{
+			Event: primitive, ReqID: a.Req.ID, Kind: a.Req.Kind,
+			Handler: a.Req.Handler, Target: name,
+		})
+	}
+
+	if td.SkillChannel.Kind != "copy-dir" {
+		if len(expsBySkill) > 0 {
+			return fmt.Errorf("target %q: skill expansion is not supported on plugin-dir targets", name)
+		}
+		return nil
+	}
+
+	version := skillfile.Version()
+	for _, req := range c.Requires {
+		if req.Kind != "skill" {
+			continue
+		}
+		dirName := path.Base(req.Path)
+		src := filepath.Join(bundleDir, filepath.FromSlash(strings.TrimPrefix(req.Path, "./")))
+		dst := filepath.Join(bundleDir, ".whippletree", "skills", name, dirName)
+		if err := skillfile.ExpandDir(src, dst, expsBySkill[req.ID], version); err != nil {
+			return fmt.Errorf("target %q: skill %s: %w", name, req.ID, err)
+		}
 	}
 	return nil
 }
