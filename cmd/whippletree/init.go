@@ -243,8 +243,10 @@ func runInit(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr i
 	return 0
 }
 
-// wizardKindMenu is the order the wizard numbers kinds in, matching
-// the order --kinds documents them in its own error messages.
+// wizardKindMenu is the order the wizard numbers kinds in. It does not
+// match the order --kinds documents them in its own error messages
+// (that order is kindOrder, with skill first); the two orders are
+// independent and free to diverge.
 var wizardKindMenu = []string{"blocking-gate", "lifecycle-signal", "observation-signal", "executable-path", "skill"}
 
 // runInitWizard prompts on stdout and reads answers from r: the bundle

@@ -89,7 +89,7 @@ func validateSkillReq(req *Requirement) []error {
 		errs = append(errs, fmt.Errorf("requirement %s: path is required for skill", req.ID))
 	} else {
 		rest, ok := strings.CutPrefix(req.Path, "./skills/")
-		if !ok || rest == "" || strings.Contains(rest, "/") {
+		if !ok || rest == "" || rest == "." || rest == ".." || strings.Contains(rest, "/") {
 			errs = append(errs, fmt.Errorf("requirement %s: skill path %q must have the form ./skills/<dir>", req.ID, req.Path))
 		}
 	}

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/larstonder/whippletree/internal/contract"
 )
 
 func expandFixture(t *testing.T, description string, exps []Expansion) (dst string) {
@@ -61,6 +63,9 @@ func TestExpandTurnEndGolden(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dst, "helper.sh")); err != nil {
 		t.Fatalf("supporting file not copied: %v", err)
+	}
+	if !strings.Contains(got, contract.T3Fidelity) {
+		t.Fatal("expanded SKILL.md must pin the same fidelity wording as contract.T3Fidelity")
 	}
 }
 

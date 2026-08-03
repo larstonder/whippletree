@@ -96,6 +96,8 @@ func TestValidateSkillKind(t *testing.T) {
 		{"missing path", Requirement{ID: "s", Kind: "skill", MinTierRaw: "T1", MinTier: T1, HardRequired: &no}, "path is required for skill"},
 		{"path outside skills", Requirement{ID: "s", Kind: "skill", Path: "./content/s", MinTierRaw: "T1", MinTier: T1, HardRequired: &no}, "must have the form ./skills/<dir>"},
 		{"nested path", Requirement{ID: "s", Kind: "skill", Path: "./skills/a/b", MinTierRaw: "T1", MinTier: T1, HardRequired: &no}, "must have the form ./skills/<dir>"},
+		{"dot path", Requirement{ID: "s", Kind: "skill", Path: "./skills/.", MinTierRaw: "T1", MinTier: T1, HardRequired: &no}, "must have the form ./skills/<dir>"},
+		{"dotdot path", Requirement{ID: "s", Kind: "skill", Path: "./skills/..", MinTierRaw: "T1", MinTier: T1, HardRequired: &no}, "must have the form ./skills/<dir>"},
 		{"event set", Requirement{ID: "s", Kind: "skill", Path: "./skills/s", Event: "session-start", MinTierRaw: "T1", MinTier: T1, HardRequired: &no}, "event must be empty for skill"},
 		{"handler set", Requirement{ID: "s", Kind: "skill", Path: "./skills/s", Handler: "./h.sh", MinTierRaw: "T1", MinTier: T1, HardRequired: &no}, "handler must be empty for skill"},
 		{"loop guard set", Requirement{ID: "s", Kind: "skill", Path: "./skills/s", LoopGuardRequired: true, MinTierRaw: "T1", MinTier: T1, HardRequired: &no}, "loopGuardRequired must be false for skill"},

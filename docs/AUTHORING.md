@@ -278,10 +278,11 @@ stderr or a file you control, never expect stdout to go anywhere.
 
 A `skill` requirement never runs against a dispatch event: it's a directory of
 instructions, `path: "./skills/<dir>"`, placed for the model to read rather
-than a handler the dispatcher invokes. The one rule `contract.Validate`
-enforces on it beyond the closed field set: the `SKILL.md` frontmatter's
-`name` must equal `<dir>` exactly, the identity the plugin-dir discovery
-convention keys on (checked at build time by `internal/skillfile.Check`).
+than a handler the dispatcher invokes. Beyond the closed field set
+`contract.Validate` checks, one more rule is enforced by the shared
+filesystem check that build, preflight, and install all run
+(`internal/skillfile.Check`): the `SKILL.md` frontmatter's `name` must equal
+`<dir>` exactly, the identity the plugin-dir discovery convention keys on.
 `whippletree init --kinds skill` scaffolds `skills/<name>/SKILL.md` with the
 bundle's own name already in place, so this is never worked out by hand:
 

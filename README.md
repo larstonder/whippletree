@@ -91,7 +91,7 @@ codex plugin marketplace add ./my-tool
 codex plugin add my-tool@my-tool-mkt
 ```
 
-`examples/kb-shaped/` is the full working reference: all four hook-driven requirement
+`examples/kb-shaped/` is the full working reference: all four original requirement
 kinds, real handlers, both class-1 targets (it predates the `skill` kind, so it has no
 skill of its own). opencode's install step works differently from the marketplace
 commands above; see "opencode" below.
