@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -17,6 +19,7 @@ import (
 	"github.com/larstonder/whippletree/internal/compile"
 	"github.com/larstonder/whippletree/internal/contract"
 	"github.com/larstonder/whippletree/internal/preflight"
+	"github.com/larstonder/whippletree/internal/skillfile"
 	"github.com/larstonder/whippletree/internal/target"
 	"github.com/larstonder/whippletree/targets"
 )
@@ -311,6 +314,11 @@ func checkAgainstTarget(bundleDir, targetName, assumeVersion, targetsDirArg stri
 		return nil, nil, "", false
 	}
 
+	if err := compile.CheckSkillFiles(bundleDir, c); err != nil {
+		fmt.Fprintf(stderr, "whippletree: %v\n", err)
+		return nil, nil, "", false
+	}
+
 	// A TTY'd stdin is the signal that this invocation could actually
 	// prompt a human. Deliberately reads the process's own TTY state
 	// rather than runWith's injected isTTY param: that param's scope is
@@ -526,6 +534,13 @@ func runInstall(args []string, stdout, stderr io.Writer) int {
 		printHooksJSONGuidance(stdout, parsed.targetName, parsed.bundleDir, td)
 	}
 
+	if td.SkillChannel.Kind == "copy-dir" {
+		if err := placeSkills(parsed.bundleDir, parsed.project, parsed.targetName, td, stdout); err != nil {
+			fmt.Fprintf(stderr, "whippletree: %v\n", err)
+			return 1
+		}
+	}
+
 	if err := writeInstallState(parsed.bundleDir, parsed.targetName, string(probed), report); err != nil {
 		fmt.Fprintf(stderr, "whippletree: write install state: %v\n", err)
 		return 1
@@ -613,6 +628,151 @@ func readBundleName(bundleDir string) (string, error) {
 		return "", fmt.Errorf("plugin manifest %s is missing \"name\"", filepath.Join(bundleDir, "plugin.json"))
 	}
 	return m.Name, nil
+}
+
+// skillOwnershipMarker is the frontmatter-line prefix a SKILL.md placed
+// by whippletree always carries (written by skillfile.ExpandDir). The
+// copy-dir overwrite guard keys on it: a destination without it is
+// user-owned and never touched. The ts-plugin generatedByMarker cannot
+// be reused here because a SKILL.md's first line must be the
+// frontmatter fence.
+const skillOwnershipMarker = "compiled-by: whippletree"
+
+// placeSkills copies every built skill variant for targetName into the
+// target's copy-dir destination, baking the bundle-root placeholder
+// (replace-all; zero occurrences is legal for an unexpanded variant).
+func placeSkills(bundleDir, projectDir, targetName string, td *target.Def, stdout io.Writer) error {
+	c, err := readBundleContract(bundleDir)
+	if err != nil {
+		return err
+	}
+	bundleName, err := readBundleName(bundleDir)
+	if err != nil {
+		return err
+	}
+	absBundleDir, err := filepath.Abs(bundleDir)
+	if err != nil {
+		return fmt.Errorf("resolve absolute path for %s: %w", bundleDir, err)
+	}
+	destRoot, err := resolveSkillDest(td.SkillChannel.Dest, projectDir)
+	if err != nil {
+		return err
+	}
+
+	for _, req := range c.Requires {
+		if req.Kind != "skill" {
+			continue
+		}
+		dirName := path.Base(req.Path)
+		src := filepath.Join(bundleDir, ".whippletree", "skills", targetName, dirName)
+		if _, err := os.Stat(filepath.Join(src, "SKILL.md")); err != nil {
+			return fmt.Errorf("built skill variant %s is missing (run `whippletree build` first): %w", src, err)
+		}
+
+		dest := filepath.Join(destRoot, bundleName+"-"+dirName)
+		if err := checkSkillOverwriteAllowed(dest); err != nil {
+			return err
+		}
+		if err := os.RemoveAll(dest); err != nil {
+			return fmt.Errorf("clear previous skill install %s: %w", dest, err)
+		}
+		if err := copySkillTreeBaked(src, dest, absBundleDir); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "placed skill %s at %s\n", req.ID, dest)
+		if strings.HasPrefix(td.SkillChannel.Dest, "~") {
+			fmt.Fprintf(stdout, "note: %s is a global location; every project on this machine sees this skill\n", dest)
+		}
+	}
+	return nil
+}
+
+// resolveSkillDest resolves a skillChannel dest: "~/x" against the
+// user's home, a relative path against the project directory, an
+// absolute path as itself.
+func resolveSkillDest(dest, projectDir string) (string, error) {
+	if strings.HasPrefix(dest, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home for skill dest %q: %w", dest, err)
+		}
+		return filepath.Join(home, dest[2:]), nil
+	}
+	if !filepath.IsAbs(dest) {
+		return filepath.Join(projectDir, dest), nil
+	}
+	return dest, nil
+}
+
+// checkSkillOverwriteAllowed refuses to clobber a destination skill
+// directory whose SKILL.md does not carry the whippletree ownership
+// marker in its frontmatter. A missing destination is always fine.
+func checkSkillOverwriteAllowed(dest string) error {
+	raw, err := os.ReadFile(filepath.Join(dest, "SKILL.md"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("check existing %s: %w", dest, err)
+	}
+	lines := strings.Split(string(raw), "\n")
+	for i, line := range lines {
+		if i == 0 {
+			continue // opening frontmatter fence
+		}
+		if strings.HasPrefix(strings.TrimSpace(line), skillOwnershipMarker) {
+			return nil
+		}
+		if strings.TrimRight(line, " \t") == "---" {
+			break // closing frontmatter fence: marker was not found above
+		}
+	}
+	return fmt.Errorf("%s already exists and was not placed by whippletree; refusing to overwrite it", dest)
+}
+
+// copySkillTreeBaked copies src to dest, replacing every occurrence of
+// the bundle-root placeholder in SKILL.md files with absBundleDir.
+// Supporting files are copied byte-for-byte.
+func copySkillTreeBaked(src, dest, absBundleDir string) error {
+	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, p)
+		if err != nil {
+			return err
+		}
+		out := filepath.Join(dest, rel)
+		if d.IsDir() {
+			return os.MkdirAll(out, 0o755)
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		if filepath.Base(p) == "SKILL.md" {
+			data = []byte(strings.ReplaceAll(string(data), skillfile.Placeholder, absBundleDir))
+		}
+		return os.WriteFile(out, data, info.Mode().Perm())
+	})
+}
+
+// readBundleContract parses and validates the bundle's contract off
+// plugin.json, the same way checkAgainstTarget does.
+func readBundleContract(bundleDir string) (*contract.Contract, error) {
+	raw, err := os.ReadFile(filepath.Join(bundleDir, "plugin.json"))
+	if err != nil {
+		return nil, fmt.Errorf("read plugin manifest: %w", err)
+	}
+	c, err := contract.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 // checkOverwriteAllowed refuses to let install clobber a destination

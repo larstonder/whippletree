@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/larstonder/whippletree/internal/skillfile"
 )
 
 func writeFile(t *testing.T, dir, rel, body string, perm os.FileMode) {
@@ -678,5 +680,177 @@ func TestRunWith_PlumbsWithoutBehaviorChange(t *testing.T) {
 	}
 	if runWithStderr.String() != runStderr.String() {
 		t.Errorf("runWith stderr = %q, want %q (same as run)", runWithStderr.String(), runStderr.String())
+	}
+}
+
+// writeSkillTestTarget writes a minimal copy-dir target def whose dest
+// is destValue, returning the targets dir for --targets-dir.
+func writeSkillTestTarget(t *testing.T, destValue string) string {
+	t.Helper()
+	dir := t.TempDir()
+	td := filepath.Join(dir, "skilltest")
+	if err := os.MkdirAll(td, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	yaml := `apiVersion: whippletree.dev/v1
+kind: TargetDefinition
+metadata:
+  name: skilltest
+  class: 3
+  schemaVersion: "1.0.0"
+spec:
+  backend: ts-plugin
+  probe:
+    command: ["true"]
+    versionPattern: '(\d+)'
+  events:
+    tool-pre: { native: "tool.execute.before", blocking: true }
+  capabilities:
+    installerPath: true
+  skillChannel:
+    kind: copy-dir
+    dest: "` + destValue + `"
+`
+	if err := os.WriteFile(filepath.Join(td, "target.yaml"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// scaffoldSkillBundle writes a bundle with one skill and one hard T3
+// turn-end gate falling back to it, plus its handler and a dispatcher
+// stub, and runs build against targetsDir.
+func scaffoldSkillBundle(t *testing.T, targetsDir string) string {
+	t.Helper()
+	dir := t.TempDir()
+	write := func(rel, body string, perm os.FileMode) {
+		full := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), perm); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("plugin.json", `{
+  "name": "sk", "version": "0.1.0", "description": "d",
+  "extensions": {"dev.whippletree.v1": {"contractVersion": "1.0.0", "requires": [
+    {"id":"cap","kind":"skill","path":"./skills/cap","minTier":"T1","hardRequired":false},
+    {"id":"gate","kind":"blocking-gate","event":"turn-end","minTier":"T3",
+     "hardRequired":true,"loopGuardRequired":true,"handler":"./handlers/g.sh",
+     "fallbackSkill":"cap"}
+  ]}}}`, 0o644)
+	write("handlers/g.sh", "#!/bin/sh\nexit 0\n", 0o755)
+	write("skills/cap/SKILL.md", "---\nname: cap\ndescription: d.\n---\nb\n", 0o644)
+	write("bin/whippletree-hook", "#!/bin/sh\nexit 0\n", 0o755)
+
+	var out, errb bytes.Buffer
+	if code := run([]string{"build", dir, "--targets-dir", targetsDir}, &out, &errb); code != 0 {
+		t.Fatalf("build failed: %s", errb.String())
+	}
+	return dir
+}
+
+func TestInstallPlacesSkillCopyDir(t *testing.T) {
+	destRoot := t.TempDir()
+	targetsDir := writeSkillTestTarget(t, filepath.Join(destRoot, "skills"))
+	bundle := scaffoldSkillBundle(t, targetsDir)
+	projectDir := t.TempDir()
+
+	var out, errb bytes.Buffer
+	code := run([]string{"install", bundle, "--target", "skilltest",
+		"--project", projectDir,
+		"--assume-version", "1", "--targets-dir", targetsDir}, &out, &errb)
+	if code != 0 {
+		t.Fatalf("install failed: %s", errb.String())
+	}
+
+	placed := filepath.Join(destRoot, "skills", "sk-cap", "SKILL.md")
+	raw, err := os.ReadFile(placed)
+	if err != nil {
+		t.Fatalf("skill not placed: %v", err)
+	}
+	if strings.Contains(string(raw), skillfile.Placeholder) {
+		t.Fatal("placeholder not baked")
+	}
+	absBundle, _ := filepath.Abs(bundle)
+	if !strings.Contains(string(raw), absBundle+"/handlers/g.sh") {
+		t.Fatalf("baked handler path missing:\n%s", raw)
+	}
+
+	// Idempotent re-install: our own marker allows replacement.
+	if code := run([]string{"install", bundle, "--target", "skilltest",
+		"--project", projectDir,
+		"--assume-version", "1", "--targets-dir", targetsDir}, &out, &errb); code != 0 {
+		t.Fatalf("re-install refused its own artifact: %s", errb.String())
+	}
+}
+
+func TestInstallRefusesUserOwnedSkillDir(t *testing.T) {
+	destRoot := t.TempDir()
+	targetsDir := writeSkillTestTarget(t, filepath.Join(destRoot, "skills"))
+	bundle := scaffoldSkillBundle(t, targetsDir)
+	projectDir := t.TempDir()
+
+	userDir := filepath.Join(destRoot, "skills", "sk-cap")
+	if err := os.MkdirAll(userDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "SKILL.md"),
+		[]byte("---\nname: sk-cap\ndescription: mine.\n---\nhand-authored\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errb bytes.Buffer
+	code := run([]string{"install", bundle, "--target", "skilltest",
+		"--project", projectDir,
+		"--assume-version", "1", "--targets-dir", targetsDir}, &out, &errb)
+	if code == 0 {
+		t.Fatal("install must refuse a marker-less destination")
+	}
+	if !strings.Contains(errb.String(), "not placed by whippletree") {
+		t.Fatalf("refusal must say why: %s", errb.String())
+	}
+	raw, _ := os.ReadFile(filepath.Join(userDir, "SKILL.md"))
+	if !strings.Contains(string(raw), "hand-authored") {
+		t.Fatal("user-owned file was touched")
+	}
+}
+
+func TestInstallExpandsTildeAgainstHOME(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	targetsDir := writeSkillTestTarget(t, "~/.agents/skills")
+	bundle := scaffoldSkillBundle(t, targetsDir)
+	projectDir := t.TempDir()
+
+	var out, errb bytes.Buffer
+	if code := run([]string{"install", bundle, "--target", "skilltest",
+		"--project", projectDir,
+		"--assume-version", "1", "--targets-dir", targetsDir}, &out, &errb); code != 0 {
+		t.Fatalf("install failed: %s", errb.String())
+	}
+	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "sk-cap", "SKILL.md")); err != nil {
+		t.Fatalf("tilde dest did not land under overridden HOME: %v", err)
+	}
+}
+
+func TestPreflightRejectsBrokenSkillFile(t *testing.T) {
+	targetsDir := writeSkillTestTarget(t, t.TempDir())
+	bundle := scaffoldSkillBundle(t, targetsDir)
+
+	broken := filepath.Join(bundle, "skills", "cap", "SKILL.md")
+	if err := os.WriteFile(broken, []byte("no frontmatter here\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errb bytes.Buffer
+	code := run([]string{"preflight", bundle, "--target", "skilltest",
+		"--assume-version", "1", "--targets-dir", targetsDir}, &out, &errb)
+	if code == 0 {
+		t.Fatal("preflight must reject a SKILL.md without frontmatter")
+	}
+	if !strings.Contains(errb.String(), "frontmatter") {
+		t.Fatalf("error must name the frontmatter problem: %s", errb.String())
 	}
 }
