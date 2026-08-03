@@ -74,6 +74,12 @@ fi
 exit 0
 ```
 
+Add a `skill` kind alongside that `blocking-gate` and it wires `fallbackSkill`
+automatically: on any target with no native stop gate, the skill carries the
+step as instructions instead of refusing to install. See
+[`docs/AUTHORING.md`](docs/AUTHORING.md#skills-and-instruction-fallback) for
+the whole mechanism.
+
 Install into a class-1 harness via its own plugin-marketplace command pointed at the
 bundle (using the authored `marketplace.json` `init` scaffolded above):
 
@@ -85,9 +91,10 @@ codex plugin marketplace add ./my-tool
 codex plugin add my-tool@my-tool-mkt
 ```
 
-`examples/kb-shaped/` is the full working reference: all four requirement kinds, real
-handlers, both class-1 targets. opencode's install step works differently from the
-marketplace commands above; see "opencode" below.
+`examples/kb-shaped/` is the full working reference: all four hook-driven requirement
+kinds, real handlers, both class-1 targets (it predates the `skill` kind, so it has no
+skill of its own). opencode's install step works differently from the marketplace
+commands above; see "opencode" below.
 
 ## Commands
 
@@ -104,11 +111,13 @@ non-interactively:
 
 - `--name <s>`: bundle name, must match `^[a-z0-9-]+$` (defaults to `<dir>`'s basename).
 - `--kinds <csv>`: which requirement kinds to scaffold, closed set
-  `blocking-gate,lifecycle-signal,observation-signal,executable-path`
-  (defaults to `lifecycle-signal` alone).
+  `skill,blocking-gate,lifecycle-signal,observation-signal,executable-path`
+  (defaults to `lifecycle-signal` alone). Scaffolding `skill` alongside
+  `blocking-gate` wires `fallbackSkill` and bumps the gate to `minTier: T3`
+  automatically; see [`docs/AUTHORING.md`](docs/AUTHORING.md#skills-and-instruction-fallback).
 - `--hard <csv>`: which of the chosen kinds to mark `hardRequired: true`; must be a
   subset of `--kinds`. Only affects `blocking-gate` and `executable-path`;
-  `lifecycle-signal` and `observation-signal` are always soft.
+  `lifecycle-signal`, `observation-signal`, and `skill` are always soft.
 - `--yes`: skip the wizard even on a TTY and use the flag defaults above.
 
 `init` refuses to run, and writes nothing at all, if any file it would create already

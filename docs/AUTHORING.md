@@ -81,7 +81,7 @@ Each entry in `requires` is one requirement:
 
 ### `kind`
 
-One of four, closed set:
+One of five, closed set:
 
 | kind | fires on | needs |
 |---|---|---|
@@ -89,9 +89,13 @@ One of four, closed set:
 | `lifecycle-signal` | a session/subagent/compact boundary | `handler`, `event` |
 | `observation-signal` | a tool-class alias, e.g. a file read | `handler`, `event` |
 | `executable-path` | nothing: it's a static check that a binary is reachable | `path`, no `event` |
+| `skill` | nothing: it's a directory of instructions placed for the model to read | `path`, no `event`, no `handler` |
 
 The first three run a handler against a real dispatch event; `executable-path`
-never invokes anything, it's a build/preflight-time presence check.
+never invokes anything, it's a build/preflight-time presence check. `skill` is
+the odd one out among the static kinds: it doesn't check for a binary, it
+places content, its own `SKILL.md` plus whatever else lives in its directory.
+See "Skills and instruction fallback" below for the full picture.
 
 ### `event`
 
@@ -154,7 +158,18 @@ from calling the hook again after it already blocked once.
 
 `handler`: path to your script or binary, relative to the bundle root, for
 `blocking-gate`/`lifecycle-signal`/`observation-signal`. `path`: same, for
-`executable-path`, which has no handler to run, only a file to check for.
+`executable-path` and `skill`, neither of which has a handler to run: one
+checks for a file, the other places a directory.
+
+### `fallbackSkill`
+
+Only legal on `blocking-gate` at event `turn-end` or `lifecycle-signal` at
+event `session-start`, the two events a `skill`'s own trigger clause can
+describe in one imperative sentence a model reliably acts on. Names the `id`
+of a `skill` requirement in the same contract; that skill's compiled variant
+carries the step as instructions on any target where the gate or signal would
+otherwise land Absent. See "Skills and instruction fallback" below for the
+full mechanism.
 
 ## Env vars and stdin
 
@@ -175,7 +190,7 @@ string where the concept doesn't apply to this invocation):
 | `ADAPTER_EVENT` | the logical event name exactly as your contract wrote it (may be an alias, e.g. `file-read`) | never |
 | `ADAPTER_TARGET` | the target name (`claude-code`, `codex`, `opencode`) | never |
 | `ADAPTER_PRIMITIVE` | the resolved primitive (`tool-post` when `ADAPTER_EVENT` is the `file-read` alias) | never |
-| `ADAPTER_STOP_ACTIVE` | `"true"`/`"false"` | every event except `turn-end` on claude-code/codex (the only primitive either target declares a loop-guard field for); always empty on opencode, which has no `turn-end` mapping at all |
+| `ADAPTER_STOP_ACTIVE` | `"true"`/`"false"` | every event except `turn-end` on claude-code/codex (the only primitive either target declares a loop-guard field for); empty on opencode's hook path; a T3 fallback skill instructs the model to set it explicitly when running the handler manually |
 | `ADAPTER_CWD` | the harness-reported working directory | the harness gave no cwd |
 | `ADAPTER_PATH` | the first normalized path | no path applies to this event |
 
@@ -258,6 +273,168 @@ stderr or a file you control, never expect stdout to go anywhere.
 
   No bundle build, no installed harness, no `whippletree-hook` required: this
   is the fastest loop while writing a handler's actual logic.
+
+## Skills and instruction fallback
+
+A `skill` requirement never runs against a dispatch event: it's a directory of
+instructions, `path: "./skills/<dir>"`, placed for the model to read rather
+than a handler the dispatcher invokes. The one rule `contract.Validate`
+enforces on it beyond the closed field set: the `SKILL.md` frontmatter's
+`name` must equal `<dir>` exactly, the identity the plugin-dir discovery
+convention keys on (checked at build time by `internal/skillfile.Check`).
+`whippletree init --kinds skill` scaffolds `skills/<name>/SKILL.md` with the
+bundle's own name already in place, so this is never worked out by hand:
+
+```
+$ whippletree init acme-tool --kinds skill,blocking-gate --hard blocking-gate --yes
+$ cat acme-tool/skills/acme-tool/SKILL.md
+---
+name: acme-tool
+description: Replace this with one sentence saying when the agent should use this skill.
+---
+Replace this body with the knowledge or workflow the skill teaches.
+```
+
+That same scaffold shows the other half of the feature: pairing a `skill`
+with a `blocking-gate` wires `fallbackSkill` and bumps the gate's `minTier` to
+`T3` automatically, and the generated `plugin.json` and `README.md` agree on
+it (both come from the one `scaffoldRequirements` helper, so they can't
+drift):
+
+```json
+{
+  "id": "blocking-gate", "kind": "blocking-gate", "event": "turn-end",
+  "minTier": "T3", "hardRequired": true, "loopGuardRequired": true,
+  "handler": "./handlers/blocking-gate.sh", "fallbackSkill": "skill"
+}
+```
+
+```
+| kind | id | event | minTier | hardRequired |
+|---|---|---|---|---|
+| skill | skill | (none) | T1 | false |
+| blocking-gate | blocking-gate | turn-end | T3 | true |
+```
+
+### `fallbackSkill`'s two legal pairs
+
+`fallbackSkill` is only legal in two (kind, event) combinations, enforced by
+`contract.Validate`: `blocking-gate` at `turn-end`, or `lifecycle-signal` at
+`session-start`. Both are events a skill's one-sentence trigger clause can
+describe unambiguously; the other seven primitives have no such natural,
+single-sentence framing a model reliably acts on from a standing skill
+listing alone, so `fallbackSkill` is refused there.
+
+### Absent-only: the fallback never overrides a working native gate
+
+The expansion only ever fires where the requirement would otherwise land
+Absent, never on a target that already has a native (if lesser) mechanism.
+`internal/tier.Assign` checks this directly: a T3 fallback only replaces an
+Absent assignment, so a `blocking-gate` that degrades to some non-Absent tier
+on a target keeps that degradation untouched, it never gets silently
+upgraded (or downgraded) to the instruction path just because a skill happens
+to be wired.
+
+### The trigger clause
+
+Whichever event a skill falls back for, its description gains exactly one
+clause, appended once per fallback-eligible requirement it covers:
+
+| event | clause appended to the skill's `description` |
+|---|---|
+| `turn-end` | Use this skill before writing any message that declares the task complete. |
+| `session-start` | Use this skill at the start of a session, before other work. |
+
+This is the only thing that changes about the skill's standing, always-loaded
+listing; the model sees a slightly longer one-line description, not a whole
+new mechanism, until the trigger condition is actually reached.
+
+### The two-run protocol
+
+Beneath the trigger clause, the compiled variant gains a body section: a
+literal command to run and an explicit protocol for the double-fire case a
+real `turn-end` hook would otherwise absorb via `ADAPTER_STOP_ACTIVE`. Real
+captured output, `.whippletree/skills/opencode/acme-tool/SKILL.md` after
+`whippletree build .` on the scaffold above:
+
+```
+---
+name: acme-tool
+description: Replace this with one sentence saying when the agent should use this skill. Use this skill before writing any message that declares the task complete.
+compiled-by: whippletree v0.0.0-20260803130917-1305256b94e4+dirty
+---
+Replace this body with the knowledge or workflow the skill teaches.
+
+<!-- compiled-tier: T3
+     source-requirement: blocking-gate (blocking-gate, turn-end)
+     fidelity: best-effort, no harness-level enforcement on this target: the model is instructed to run the step and usually will, but can skip it under pressure
+     compiled-by: whippletree v0.0.0-20260803130917-1305256b94e4+dirty, do not hand-edit (edit the bundle contract instead) -->
+## Manual step on this harness (turn-end)
+
+This harness has no enforced turn-end hook. Before writing any message that
+declares the task complete, run:
+
+    echo '{}' | ADAPTER_EVENT=turn-end ADAPTER_PRIMITIVE=turn-end \
+      ADAPTER_TARGET=opencode ADAPTER_CWD="$PWD" ADAPTER_STOP_ACTIVE=false ADAPTER_PATH= \
+      __WHIPPLETREE_BUNDLE_ROOT__/handlers/blocking-gate.sh
+
+If it exits 2, read its stderr and do what it says. Then run the same command
+once more with ADAPTER_STOP_ACTIVE=true and continue; a second exit 2 means the
+step still failed and you should tell the user rather than silently finish.
+```
+
+`__WHIPPLETREE_BUNDLE_ROOT__` is a placeholder in the built variant; `whippletree
+install` resolves it (replace-all) to the bundle's absolute path when it
+places the skill, exactly the way `placeTSPlugin` resolves its own HOOK
+placeholder for the ts-plugin backend. The two-run shape mirrors what a real
+`turn-end` hook does automatically: run once with `ADAPTER_STOP_ACTIVE=false`,
+and if that blocks (exit 2), run again with `ADAPTER_STOP_ACTIVE=true` so the
+handler's own loop guard can let it through the second time, the same
+contract every `blocking-gate` handler already has to honor (see "Handler
+best practices" above).
+
+### The stdin-`{}` tolerance requirement
+
+The compiled instructions pipe a bare `echo '{}'` on stdin, not the full
+normalized event JSON the dispatcher would build from a real harness payload
+(no `transcriptPath`, no `paths`, no `raw`). A model running the command by
+hand has no way to reconstruct that shape, and shouldn't have to: a handler
+reachable via `fallbackSkill` must treat every field beyond the env vars as
+optional and tolerate an empty object on stdin without erroring. This is
+already true of the scaffolded `blocking-gate.sh` stub (it never reads stdin
+at all), and it's the bar any hand-written handler wired to a `fallbackSkill`
+needs to clear too: don't assume the JSON the dispatcher normally supplies is
+there.
+
+### Placement fidelity versus behavioral fidelity
+
+`preflight` is explicit that a `skill` requirement and a T3 fallback promise
+two different, weaker things than a native hook does. A plain `skill`
+requirement (`assignSkill` in `internal/tier`) reports *placement* fidelity
+only: T1 means the file landed at the right path, nothing about whether the
+model reads or acts on it. A T3 fallback goes further and reports on
+*behavior*, but with the weakest honesty disclosure `preflight` ever prints,
+`contract.T3Fidelity` verbatim, rendered directly beneath the fallback's own
+line so it can't be missed. Real captured output, the same scaffold, probed
+against opencode:
+
+```
+$ whippletree preflight . --target opencode --assume-version 1.18.10
+whippletree preflight · target opencode (probed 1.18.10)
+
+  skill          want ≥T1  got T1  SATISFY   placed via copy-dir skill channel
+  blocking-gate  want ≥T3  got T3  SATISFY   compiled to instructions
+                 best-effort, no harness-level enforcement on this target: the model is instructed to run the step and usually will, but can skip it under pressure
+
+Plan: 2 satisfy, 0 degrade, 0 refuse.
+```
+
+The `skill` line's own T1 is real, the file did land, but says nothing about
+whether the model ever opens `SKILL.md`. The `blocking-gate` line's T3 is the
+honest ceiling for an instruction-carried gate: it's SATISFY against its own
+`minTier: T3`, never mistaken for the T1 a native `Stop` hook earns on
+claude-code or codex, and the disclosure line underneath says exactly why in
+the same words the generated `SKILL.md`'s own provenance comment uses.
 
 ## Per-target notes
 

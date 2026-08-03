@@ -19,12 +19,15 @@ import (
 var validNamePattern = regexp.MustCompile(`^[a-z0-9-]+$`)
 
 // kindOrder is the canonical, deterministic order requirements are
-// emitted in regardless of the order --kinds names them.
-var kindOrder = []string{"lifecycle-signal", "observation-signal", "blocking-gate", "executable-path"}
+// emitted in regardless of the order --kinds names them. skill comes
+// first so its requirement precedes the gate that references it in the
+// generated plugin.json; the JSON order is cosmetic but reads causally.
+var kindOrder = []string{"skill", "lifecycle-signal", "observation-signal", "blocking-gate", "executable-path"}
 
 // validKinds is the closed set of requirement kinds init knows how to
 // scaffold.
 var validKinds = map[string]bool{
+	"skill":              true,
 	"blocking-gate":      true,
 	"lifecycle-signal":   true,
 	"observation-signal": true,
@@ -124,7 +127,7 @@ func normalizeKinds(raw []string) ([]string, error) {
 	chosen := make(map[string]bool, len(raw))
 	for _, k := range raw {
 		if !validKinds[k] {
-			return nil, fmt.Errorf("unknown kind %q; must be one of blocking-gate, lifecycle-signal, observation-signal, executable-path", k)
+			return nil, fmt.Errorf("unknown kind %q; must be one of skill, blocking-gate, lifecycle-signal, observation-signal, executable-path", k)
 		}
 		chosen[k] = true
 	}
@@ -152,7 +155,7 @@ func normalizeHard(raw []string, kinds []string) (map[string]bool, error) {
 	hardSet := make(map[string]bool, len(raw))
 	for _, k := range raw {
 		if !validKinds[k] {
-			return nil, fmt.Errorf("unknown kind %q in --hard; must be one of blocking-gate, lifecycle-signal, observation-signal, executable-path", k)
+			return nil, fmt.Errorf("unknown kind %q in --hard; must be one of skill, blocking-gate, lifecycle-signal, observation-signal, executable-path", k)
 		}
 		if !chosenKinds[k] {
 			return nil, fmt.Errorf("--hard names kind %q, which is not among the chosen --kinds", k)
@@ -242,7 +245,7 @@ func runInit(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr i
 
 // wizardKindMenu is the order the wizard numbers kinds in, matching
 // the order --kinds documents them in its own error messages.
-var wizardKindMenu = []string{"blocking-gate", "lifecycle-signal", "observation-signal", "executable-path"}
+var wizardKindMenu = []string{"blocking-gate", "lifecycle-signal", "observation-signal", "executable-path", "skill"}
 
 // runInitWizard prompts on stdout and reads answers from r: the bundle
 // name, the kinds to include, and, for each chosen blocking-gate or
@@ -403,6 +406,11 @@ type scaffoldContract struct {
 func scaffoldRequirement(kind, name string, hard bool) contract.Requirement {
 	no, yes := false, true
 	switch kind {
+	case "skill":
+		return contract.Requirement{
+			ID: "skill", Kind: kind, Path: "./skills/" + name,
+			MinTierRaw: "T1", HardRequired: &no,
+		}
 	case "lifecycle-signal":
 		return contract.Requirement{
 			ID: "lifecycle-signal", Kind: kind, Event: "session-start",
@@ -480,14 +488,55 @@ func binScript(name string) string {
 	return fmt.Sprintf("#!/bin/sh\necho \"replace bin/%s with your real executable\" >&2\nexit 1\n", name)
 }
 
-// buildPluginJSON renders the scaffolded plugin.json for name, one
-// requirement per kind in kinds, with hardRequired driven by hardSet
-// for the kinds that honor it.
-func buildPluginJSON(name string, kinds []string, hardSet map[string]bool) ([]byte, error) {
+// skillStub is the authored SKILL.md scaffolded for the skill kind: its
+// frontmatter name matches the bundle name per the dir==frontmatter-name
+// rule (the skill's own directory is named after the bundle, same as
+// its --kinds/plugin.json id, never independently chosen).
+func skillStub(name string) string {
+	return fmt.Sprintf(`---
+name: %s
+description: Replace this with one sentence saying when the agent should use this skill.
+---
+Replace this body with the knowledge or workflow the skill teaches.
+`, name)
+}
+
+// scaffoldRequirements builds the full requirement list for kinds, in
+// kinds' own order, then applies the one piece of cross-requirement
+// wiring a scaffold ever does: when a skill kind is present alongside a
+// blocking-gate, the gate gets fallbackSkill wired to it and its
+// minTier bumped to T3 (an instruction fallback is only worth minTier
+// T3, never T1, since it's best-effort with no harness enforcement).
+// buildPluginJSON and buildReadme both call this so the manifest and
+// the README's defaults table can never drift apart.
+func scaffoldRequirements(name string, kinds []string, hardSet map[string]bool) []contract.Requirement {
 	reqs := make([]contract.Requirement, 0, len(kinds))
 	for _, k := range kinds {
 		reqs = append(reqs, scaffoldRequirement(k, name, hardSet[k]))
 	}
+
+	hasSkill := false
+	for _, r := range reqs {
+		if r.Kind == "skill" {
+			hasSkill = true
+		}
+	}
+	if hasSkill {
+		for i := range reqs {
+			if reqs[i].Kind == "blocking-gate" {
+				reqs[i].FallbackSkill = "skill"
+				reqs[i].MinTierRaw = "T3"
+			}
+		}
+	}
+	return reqs
+}
+
+// buildPluginJSON renders the scaffolded plugin.json for name, one
+// requirement per kind in kinds, with hardRequired driven by hardSet
+// for the kinds that honor it.
+func buildPluginJSON(name string, kinds []string, hardSet map[string]bool) ([]byte, error) {
+	reqs := scaffoldRequirements(name, kinds, hardSet)
 
 	manifest := scaffoldManifest{
 		Name:        name,
@@ -555,6 +604,9 @@ func generatedFileList(kinds []string) []string {
 		"plugin.json",
 		filepath.Join(".claude-plugin", "marketplace.json"),
 	}
+	if hasKind["skill"] {
+		files = append(files, filepath.Join("skills", "<name>", "SKILL.md"))
+	}
 	if hasKind["lifecycle-signal"] {
 		files = append(files, filepath.Join("handlers", "lifecycle-signal.sh"))
 	}
@@ -582,16 +634,20 @@ func buildReadme(name string, kinds []string, hardSet map[string]bool) []byte {
 		fmt.Fprintf(&b, "- %s\n", strings.ReplaceAll(f, "<name>", name))
 	}
 
+	hasKind := make(map[string]bool, len(kinds))
+	for _, k := range kinds {
+		hasKind[k] = true
+	}
+
 	b.WriteString("\nDefaults (edit plugin.json to change these):\n\n")
 	b.WriteString("| kind | id | event | minTier | hardRequired |\n")
 	b.WriteString("|---|---|---|---|---|\n")
-	for _, k := range kinds {
-		req := scaffoldRequirement(k, name, hardSet[k])
+	for _, req := range scaffoldRequirements(name, kinds, hardSet) {
 		event := req.Event
 		if event == "" {
 			event = "(none)"
 		}
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %t |\n", k, req.ID, event, req.MinTierRaw, *req.HardRequired)
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %t |\n", req.Kind, req.ID, event, req.MinTierRaw, *req.HardRequired)
 	}
 
 	b.WriteString("\nNext steps:\n\n")
@@ -601,7 +657,11 @@ func buildReadme(name string, kinds []string, hardSet map[string]bool) []byte {
 	b.WriteString("```\n\n")
 	b.WriteString("build auto-copies whippletree-hook when it sits next to the whippletree binary; otherwise it prints the go build command to run yourself.\n")
 	if hardSet["blocking-gate"] {
-		b.WriteString("\nblocking-gate is hard-required here, so build will refuse on any target with no\nnative stop gate (opencode); pass --allow-refuse to build anyway.\n")
+		if hasKind["skill"] {
+			b.WriteString("\nblocking-gate is hard-required with minTier T3 and an instruction fallback: on\ntargets with no native stop gate (opencode) the skill carries the step as\ninstructions instead of refusing to install.\n")
+		} else {
+			b.WriteString("\nblocking-gate is hard-required here, so build will refuse on any target with no\nnative stop gate (opencode); pass --allow-refuse to build anyway.\n")
+		}
 	}
 
 	return []byte(b.String())
@@ -629,6 +689,9 @@ func scaffoldFiles(name string, kinds []string, hardSet map[string]bool) ([]scaf
 		{filepath.Join(".claude-plugin", "marketplace.json"), mktBody, 0o644},
 	}
 
+	if hasKind["skill"] {
+		files = append(files, scaffoldFile{filepath.Join("skills", name, "SKILL.md"), []byte(skillStub(name)), 0o644})
+	}
 	if hasKind["lifecycle-signal"] {
 		files = append(files, scaffoldFile{filepath.Join("handlers", "lifecycle-signal.sh"), []byte(lifecycleSignalScript), 0o755})
 	}

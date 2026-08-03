@@ -11,7 +11,12 @@ three are not the whole surface. `internal/compile/tsplugin.go` also bakes openc
 hook object shape and its `spawnSync` call convention into the emitted shim, and
 `cmd/whippletree/main.go` knows where an opencode plugin has to land
 (`<project>/.opencode/plugin/`) as well as the guidance strings printed for targets that
-install by hand instead. Count time spent in any of those against the budget: the
+install by hand instead. The `skill` kind adds one more piece of opencode-specific
+knowledge to the same surface: `targets/opencode/target.yaml`'s `skillChannel.dest`
+(`.opencode/skills`) and `cmd/whippletree/main.go`'s `placeSkills`/`resolveSkillDest` are
+both placement decisions established by empirical probe (`docs/skill-discovery-probe.md`),
+not documented opencode API, so they carry the same upstream-drift risk as the rest of
+this list. Count time spent in any of those against the budget: the
 measurement is only honest if the denominator covers everywhere opencode knowledge
 lives. Every
 entry below is a data point toward proving or disproving that, logged as it happens
@@ -51,3 +56,4 @@ under test.
 | 2026-07-31 | codex | 0.144.5 | Bring-up baseline, cross-reference only. Not the falsifying target, but its e2e still passes live against this version as of the same bring-up. | (bring-up, not counted) | 925a42b |
 | 2026-07-31 | opencode | 1.18.10 | Nothing broken yet, risk logged: opencode ships roughly 20 tagged releases every 30 days upstream, several days with 2 or more releases in one day. At that cadence there are many chances per month for a behavior this target relies on to shift before the next check happens. | 15 | 4aa005c |
 | 2026-07-31 | opencode | 1.18.10 | Nothing broken yet, risk logged: the `bash` tool id is explicitly slated for rename with opencode 2.0 (a source comment says so verbatim, and a `2.0` branch already exists upstream). When that lands it will break `targets/opencode/target.yaml`'s `toolClassMap` `shell: bash` mapping outright, not just degrade it. | 15 | 4aa005c |
+| 2026-08-03 | opencode | 1.18.10 | Nothing broken yet, risk logged: the `skill` kind's opencode `skillChannel` (copy-dir to `.opencode/skills`) is placement behavior established empirically, not from an opencode API contract, see `docs/skill-discovery-probe.md`. Discovery paths (project `.opencode/skills`, home-relative `~`-expansion) are observed today against 1.18.10; revisit if opencode 2.0 changes where it scans for skills. | 15 | da51862 |

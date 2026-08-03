@@ -417,7 +417,7 @@ func TestRunInitWizard_InvalidKindThenValidSucceeds(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("runWith(init wizard) = %d, want 0 (stdout=%s stderr=%s)", code, stdout.String(), stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "1 and 4") {
+	if !strings.Contains(stdout.String(), "1 and 5") {
 		t.Errorf("stdout = %q, want it to reprompt naming the valid range", stdout.String())
 	}
 
@@ -683,5 +683,98 @@ func TestRunInit_SoftBlockingGateReadmeOmitsAllowRefuseNote(t *testing.T) {
 	}
 	if strings.Contains(string(body), "--allow-refuse") {
 		t.Errorf("README.md = %q, want no --allow-refuse note when blocking-gate is soft", body)
+	}
+}
+
+func TestInitSkillKind(t *testing.T) {
+	dir := t.TempDir()
+	var out, errb bytes.Buffer
+	code := run([]string{"init", filepath.Join(dir, "my-tool"), "--kinds", "skill", "--yes"}, &out, &errb)
+	if code != 0 {
+		t.Fatalf("init failed: %s", errb.String())
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "my-tool", "skills", "my-tool", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("SKILL.md not scaffolded: %v", err)
+	}
+	if !strings.Contains(string(raw), "name: my-tool") {
+		t.Fatalf("frontmatter name must equal bundle name:\n%s", raw)
+	}
+
+	manifest, _ := os.ReadFile(filepath.Join(dir, "my-tool", "plugin.json"))
+	if !strings.Contains(string(manifest), `"kind": "skill"`) {
+		t.Fatalf("plugin.json missing skill requirement:\n%s", manifest)
+	}
+}
+
+func TestInitSkillPlusGateWiresFallback(t *testing.T) {
+	dir := t.TempDir()
+	var out, errb bytes.Buffer
+	code := run([]string{"init", filepath.Join(dir, "b"), "--kinds", "skill,blocking-gate",
+		"--hard", "blocking-gate", "--yes"}, &out, &errb)
+	if code != 0 {
+		t.Fatalf("init failed: %s", errb.String())
+	}
+
+	manifest, _ := os.ReadFile(filepath.Join(dir, "b", "plugin.json"))
+	if !strings.Contains(string(manifest), `"fallbackSkill": "skill"`) {
+		t.Fatalf("gate must reference the skill:\n%s", manifest)
+	}
+	if !strings.Contains(string(manifest), `"minTier": "T3"`) {
+		t.Fatalf("gate minTier must be T3 when a skill is present:\n%s", manifest)
+	}
+
+	readme, _ := os.ReadFile(filepath.Join(dir, "b", "README.md"))
+	if strings.Contains(string(readme), "--allow-refuse") {
+		t.Fatalf("fallback-wired hard gate must not carry the refusal warning:\n%s", readme)
+	}
+	if !strings.Contains(string(readme), "instruction fallback") {
+		t.Fatalf("README must explain the T3 fallback:\n%s", readme)
+	}
+}
+
+func TestInitGateWithoutSkillKeepsT1(t *testing.T) {
+	dir := t.TempDir()
+	var out, errb bytes.Buffer
+	if code := run([]string{"init", filepath.Join(dir, "b"), "--kinds", "blocking-gate",
+		"--hard", "blocking-gate", "--yes"}, &out, &errb); code != 0 {
+		t.Fatalf("init failed: %s", errb.String())
+	}
+	manifest, _ := os.ReadFile(filepath.Join(dir, "b", "plugin.json"))
+	if !strings.Contains(string(manifest), `"minTier": "T1"`) {
+		t.Fatalf("lone gate keeps T1:\n%s", manifest)
+	}
+	readme, _ := os.ReadFile(filepath.Join(dir, "b", "README.md"))
+	if !strings.Contains(string(readme), "--allow-refuse") {
+		t.Fatalf("lone hard gate keeps the refusal warning:\n%s", readme)
+	}
+}
+
+func TestInitScaffoldWithSkillBuilds(t *testing.T) {
+	dir := t.TempDir()
+	bundle := filepath.Join(dir, "b")
+	var out, errb bytes.Buffer
+	if code := run([]string{"init", bundle, "--kinds", "skill,blocking-gate",
+		"--hard", "blocking-gate", "--yes"}, &out, &errb); code != 0 {
+		t.Fatalf("init failed: %s", errb.String())
+	}
+
+	// Provision a dispatcher stub so build's ensureDispatcher passes,
+	// then build against the embedded target defs. With minTier T3 and
+	// the fallback wired, the hard gate must NOT refuse on opencode, so
+	// no --allow-refuse is passed.
+	hook := filepath.Join(bundle, "bin", "whippletree-hook")
+	if err := os.MkdirAll(filepath.Dir(hook), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	out.Reset()
+	errb.Reset()
+	if code := run([]string{"build", bundle}, &out, &errb); code != 0 {
+		t.Fatalf("scaffold with skill must build refusal-free: %s", errb.String())
 	}
 }
