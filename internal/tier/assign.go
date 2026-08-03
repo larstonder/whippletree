@@ -29,7 +29,7 @@ type Assignment struct {
 // req.
 func Assign(req contract.Requirement, td *target.Def) Assignment {
 	a := assignByKind(req, td)
-	if a.Absent && req.FallbackSkill != "" &&
+	if a.Absent && req.FallbackSkill != "" && td.SkillChannel.Kind != "" &&
 		(req.Kind == "blocking-gate" || req.Kind == "lifecycle-signal") {
 		return Assignment{Req: req, Tier: contract.T3, Mechanism: "compiled to instructions", Fallback: true}
 	}

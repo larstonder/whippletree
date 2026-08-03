@@ -251,7 +251,10 @@ func TestHardT3FlipsRefuseToSatisfy(t *testing.T) {
 	yes := true
 	gate := contract.Requirement{ID: "g", Kind: "blocking-gate", Event: "turn-end",
 		MinTier: contract.T3, HardRequired: &yes, Handler: "./h.sh", FallbackSkill: "s"}
-	td := &target.Def{Events: map[string]target.EventMapping{}}
+	td := &target.Def{
+		Events:       map[string]target.EventMapping{},
+		SkillChannel: target.SkillChannel{Kind: "copy-dir", Dest: "~/.agents/skills"},
+	}
 
 	if v := preflight.Classify(tier.Assign(gate, td)); v != preflight.Satisfy {
 		t.Fatalf("hard minTier T3 with fallback must SATISFY, got %s", v)
@@ -274,7 +277,6 @@ func TestHardT3FlipsRefuseToSatisfy(t *testing.T) {
 // verdict branches (the tier-comparison direction: contract.Tier is
 // best-to-worst T1..T4, so "achieved at least as good as wanted" is the
 // numeric comparison got <= want, not got >= want).
-
 func TestClassify(t *testing.T) {
 	trueVal, falseVal := true, false
 

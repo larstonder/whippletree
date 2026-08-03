@@ -817,6 +817,44 @@ func TestInstallRefusesUserOwnedSkillDir(t *testing.T) {
 	}
 }
 
+// TestInstallRefusesSkillDirMissingSkillMD covers the half-authored/
+// name-collision case: a destination directory exists but has no
+// SKILL.md at all (not merely one missing the marker). This must be
+// refused exactly like a marker-less SKILL.md would, and must not be
+// cleared: a naive IsNotExist-on-SKILL.md check would misread this as
+// "destination absent" and let placeSkills RemoveAll the directory.
+func TestInstallRefusesSkillDirMissingSkillMD(t *testing.T) {
+	destRoot := t.TempDir()
+	targetsDir := writeSkillTestTarget(t, filepath.Join(destRoot, "skills"))
+	bundle := scaffoldSkillBundle(t, targetsDir)
+	projectDir := t.TempDir()
+
+	userDir := filepath.Join(destRoot, "skills", "sk-cap")
+	if err := os.MkdirAll(userDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "notes.txt"), []byte("wip\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errb bytes.Buffer
+	code := run([]string{"install", bundle, "--target", "skilltest",
+		"--project", projectDir,
+		"--assume-version", "1", "--targets-dir", targetsDir}, &out, &errb)
+	if code == 0 {
+		t.Fatal("install must refuse a destination dir that exists but has no SKILL.md")
+	}
+	if !strings.Contains(errb.String(), "not placed by whippletree") {
+		t.Fatalf("refusal must say why: %s", errb.String())
+	}
+	if _, err := os.Stat(filepath.Join(userDir, "notes.txt")); err != nil {
+		t.Fatalf("user-owned directory contents were touched: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(userDir, "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("SKILL.md must not have been created, stat err = %v", err)
+	}
+}
+
 func TestInstallExpandsTildeAgainstHOME(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -832,6 +870,48 @@ func TestInstallExpandsTildeAgainstHOME(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "sk-cap", "SKILL.md")); err != nil {
 		t.Fatalf("tilde dest did not land under overridden HOME: %v", err)
+	}
+}
+
+// TestBuildSessionStartSkillExpansionEndToEnd drives the session-start
+// instruction-fallback path end to end at the build level: a
+// lifecycle-signal requirement on session-start, against the
+// writeSkillTestTarget synthetic target (which maps only tool-pre, no
+// session-start), falls back to its paired skill, and the built
+// variant must carry the session-start manual-step section with
+// ADAPTER_STOP_ACTIVE left empty (only the turn-end manual step toggles
+// it).
+func TestBuildSessionStartSkillExpansionEndToEnd(t *testing.T) {
+	targetsDir := writeSkillTestTarget(t, t.TempDir())
+
+	dir := t.TempDir()
+	writeFile(t, dir, "plugin.json", `{
+  "name": "sk2", "version": "0.1.0", "description": "d",
+  "extensions": {"dev.whippletree.v1": {"contractVersion": "1.0.0", "requires": [
+    {"id":"cap","kind":"skill","path":"./skills/cap","minTier":"T1","hardRequired":false},
+    {"id":"pull","kind":"lifecycle-signal","event":"session-start","minTier":"T3",
+     "hardRequired":false,"handler":"./handlers/pull.sh","fallbackSkill":"cap"}
+  ]}}}`, 0o644)
+	writeFile(t, dir, "handlers/pull.sh", "#!/bin/sh\nexit 0\n", 0o755)
+	writeFile(t, dir, "skills/cap/SKILL.md", "---\nname: cap\ndescription: d.\n---\nb\n", 0o644)
+	writeFile(t, dir, "bin/whippletree-hook", "#!/bin/sh\nexit 0\n", 0o755)
+
+	var out, errb bytes.Buffer
+	if code := run([]string{"build", dir, "--targets-dir", targetsDir}, &out, &errb); code != 0 {
+		t.Fatalf("build failed: %s", errb.String())
+	}
+
+	variant := filepath.Join(dir, ".whippletree", "skills", "skilltest", "cap", "SKILL.md")
+	raw, err := os.ReadFile(variant)
+	if err != nil {
+		t.Fatalf("built skill variant missing: %v", err)
+	}
+	got := string(raw)
+	if !strings.Contains(got, "Manual step on this harness (session-start)") {
+		t.Fatalf("variant missing session-start manual step:\n%s", got)
+	}
+	if strings.Contains(got, "ADAPTER_STOP_ACTIVE=false") || strings.Contains(got, "ADAPTER_STOP_ACTIVE=true") {
+		t.Fatalf("session-start command must leave ADAPTER_STOP_ACTIVE empty:\n%s", got)
 	}
 }
 

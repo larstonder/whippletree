@@ -282,8 +282,12 @@ func TestAssignFallback(t *testing.T) {
 	gate := contract.Requirement{ID: "g", Kind: "blocking-gate", Event: "turn-end",
 		MinTier: contract.T3, HardRequired: &no, Handler: "./h.sh", FallbackSkill: "s"}
 
-	// A target with no turn-end mapping at all (opencode's shape).
-	td := &target.Def{Events: map[string]target.EventMapping{}}
+	// A target with no turn-end mapping at all (opencode's shape), but
+	// with a skill channel to actually carry the fallback.
+	td := &target.Def{
+		Events:       map[string]target.EventMapping{},
+		SkillChannel: target.SkillChannel{Kind: "copy-dir", Dest: "~/.agents/skills"},
+	}
 	a := tier.Assign(gate, td)
 	if a.Absent || a.Tier != contract.T3 || !a.Fallback {
 		t.Fatalf("absent gate with fallback must land T3 with Fallback set, got %+v", a)
@@ -297,6 +301,14 @@ func TestAssignFallback(t *testing.T) {
 	plain.FallbackSkill = ""
 	if a := tier.Assign(plain, td); !a.Absent || a.Fallback {
 		t.Fatalf("gate without fallback must stay absent, got %+v", a)
+	}
+
+	// A target with no turn-end mapping AND no skill channel at all has
+	// nothing to carry the fallback with either: it must stay plain
+	// Absent, never claim T3 while placing nothing.
+	channelLess := &target.Def{Events: map[string]target.EventMapping{}}
+	if a := tier.Assign(gate, channelLess); !a.Absent || a.Fallback {
+		t.Fatalf("gate on a channel-less target must stay absent, not fall back, got %+v", a)
 	}
 
 	// A target that maps turn-end natively must NOT fall back.

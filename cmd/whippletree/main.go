@@ -707,11 +707,23 @@ func resolveSkillDest(dest, projectDir string) (string, error) {
 // checkSkillOverwriteAllowed refuses to clobber a destination skill
 // directory whose SKILL.md does not carry the whippletree ownership
 // marker in its frontmatter. A missing destination is always fine.
+// Missing destination means dest itself does not exist: a dest
+// directory that exists without a SKILL.md (a half-authored skill, or
+// a name collision) is user-owned territory and must not be cleared by
+// placeSkills's RemoveAll, so it is stat'd and refused explicitly
+// rather than being read as "absent" via SKILL.md's own ENOENT.
 func checkSkillOverwriteAllowed(dest string) error {
+	if _, err := os.Stat(dest); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("check existing %s: %w", dest, err)
+	}
+
 	raw, err := os.ReadFile(filepath.Join(dest, "SKILL.md"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return fmt.Errorf("%s already exists and was not placed by whippletree; refusing to overwrite it", dest)
 		}
 		return fmt.Errorf("check existing %s: %w", dest, err)
 	}
@@ -761,8 +773,10 @@ func copySkillTreeBaked(src, dest, absBundleDir string) error {
 	})
 }
 
-// readBundleContract parses and validates the bundle's contract off
-// plugin.json, the same way checkAgainstTarget does.
+// readBundleContract parses the bundle's contract off plugin.json.
+// It does not validate it: checkAgainstTarget already ran
+// contract.Validate before placeSkills (this function's only caller)
+// runs, so there is no need to repeat that check here.
 func readBundleContract(bundleDir string) (*contract.Contract, error) {
 	raw, err := os.ReadFile(filepath.Join(bundleDir, "plugin.json"))
 	if err != nil {
