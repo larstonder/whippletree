@@ -1,0 +1,13 @@
+{
+  "name": "whippletree-authoring-mkt",
+  "owner": {
+    "name": "whippletree"
+  },
+  "plugins": [
+    {
+      "name": "whippletree-authoring",
+      "source": "./",
+      "description": "Teaches an agent how to build and ship whippletree bundles"
+    }
+  ]
+}

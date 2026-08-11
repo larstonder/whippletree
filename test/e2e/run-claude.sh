@@ -106,7 +106,7 @@ go build -o "$pt/bin/whippletree-hook" ./cmd/whippletree-hook
 go run ./cmd/whippletree build "$pt" --allow-missing-dispatcher
 
 pt_out=$(echo '{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp","hook_event_name":"SessionStart","source":"startup"}' \
-  | "$pt/bin/whippletree-hook" run session-start --target claude-code)
+  | CLAUDE_PLUGIN_ROOT="$pt" "$pt/bin/whippletree-hook" run session-start --target claude-code)
 
 if printf '%s\n' "$pt_out" | grep -q "CTX-PASSTHROUGH-OK"; then
   echo "PASS: handler stdout is forwarded through the dispatcher"
