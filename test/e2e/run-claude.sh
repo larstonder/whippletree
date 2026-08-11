@@ -89,3 +89,45 @@ if printf '%s\n' "$pf_out" | grep -q "capture-skill" &&
 else
   echo "FAIL: skill line wrong on claude-code"; printf '%s\n' "$pf_out"; exit 1
 fi
+
+# Passthrough phase: a handler's stdout must come out of the dispatcher's
+# stdout (on claude-code, SessionStart stdout is context injection).
+# whippletree-hook resolves its bundle root from its own executable's
+# location (dirname(dirname(argv0))), not the caller's cwd, so the
+# binary must actually live at <bundleRoot>/bin/whippletree-hook and be
+# invoked directly; running it via `go run` would resolve against a
+# throwaway build-cache path instead of $pt.
+cd "$repo_root"
+pt="$sandbox/pt"
+go run ./cmd/whippletree init "$pt" --kinds lifecycle-signal --yes
+printf '%s\n' '#!/usr/bin/env bash' 'echo "CTX-PASSTHROUGH-OK"' > "$pt/handlers/lifecycle-signal.sh"
+chmod +x "$pt/handlers/lifecycle-signal.sh"
+go build -o "$pt/bin/whippletree-hook" ./cmd/whippletree-hook
+go run ./cmd/whippletree build "$pt" --allow-missing-dispatcher
+
+pt_out=$(echo '{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp","hook_event_name":"SessionStart","source":"startup"}' \
+  | "$pt/bin/whippletree-hook" run session-start --target claude-code)
+
+if printf '%s\n' "$pt_out" | grep -q "CTX-PASSTHROUGH-OK"; then
+  echo "PASS: handler stdout is forwarded through the dispatcher"
+else
+  echo "FAIL: dispatcher swallowed handler stdout"
+  printf '%s\n' "$pt_out"
+  exit 1
+fi
+
+# Authoring-bundle phase: the repo's own authoring bundle builds and
+# lands its skill at T1 SATISFY on all three targets.
+cd "$repo_root"
+go run ./cmd/whippletree build bundles/authoring --allow-missing-dispatcher
+for tgt_v in "claude-code 2.1.220" "codex 0.144.5" "opencode 1.18.10"; do
+  set -- $tgt_v
+  ab_out=$(go run ./cmd/whippletree preflight bundles/authoring --target "$1" --assume-version "$2" </dev/null)
+  if printf '%s\n' "$ab_out" | grep "authoring" | grep -q "SATISFY"; then
+    echo "PASS: authoring skill T1 SATISFY on $1"
+  else
+    echo "FAIL: authoring bundle preflight on $1"
+    printf '%s\n' "$ab_out"
+    exit 1
+  fi
+done
