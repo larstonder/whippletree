@@ -31,6 +31,10 @@ line before it does anything else. That line is the grep-able evidence trail beh
 run's output for that line rather than trusting memory for which version was actually
 under test.
 
+## Maintenance surface
+
+- bundles/authoring/: the authoring skill bundle; its references/AUTHORING.md must track docs/AUTHORING.md (go test ./bundles/ guards this).
+
 ## Entry format
 
 | date | harness | upstream version | what broke | minutes spent | commit |

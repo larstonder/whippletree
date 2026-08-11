@@ -1,0 +1,5 @@
+/hooks/
+/.claude-plugin/plugin.json
+/.codex-plugin/
+/.whippletree/
+/bin/whippletree-hook

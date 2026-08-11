@@ -1,0 +1,11 @@
+{
+  "name": "whippletree-authoring",
+  "version": "0.1.0",
+  "description": "Teaches an agent how to build and ship whippletree bundles",
+  "extensions": { "dev.whippletree.v1": {
+    "contractVersion": "1.0.0",
+    "requires": [
+      {"id": "authoring", "kind": "skill", "path": "./skills/whippletree-authoring",
+       "minTier": "T1", "hardRequired": false}
+    ]}}
+}
