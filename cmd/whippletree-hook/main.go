@@ -40,7 +40,7 @@ func run(args []string, stdin io.Reader, stderr io.Writer) int {
 		return 1
 	}
 
-	return dispatch.Run(bundleRoot, event, targetName, in, stderr)
+	return dispatch.Run(bundleRoot, event, targetName, in, os.Stdout, stderr)
 }
 
 // parseRunArgs parses `run <event> --target <name>`. <event> and

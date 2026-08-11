@@ -232,10 +232,18 @@ ADAPTER_EVENT=turn-end ADAPTER_PRIMITIVE=turn-end ADAPTER_TARGET=codex ADAPTER_S
 needing a harness-specific field the normalizer doesn't surface can still
 reach it.
 
-Note on the dispatcher's own plumbing: it only forwards a handler's **stderr**
-back to the harness (for the block-reason exit-code-2 dialect below); a
-handler's stdout is not read at all. Write your own logging/diagnostics to
-stderr or a file you control, never expect stdout to go anywhere.
+Note on the dispatcher's own plumbing: a handler's **stderr** is forwarded
+to the harness and carries the block reason for the exit-code-2 dialect. A
+handler's **stdout** is forwarded verbatim to the dispatcher's own stdout,
+in handler order, regardless of exit code; what it means is up to the
+harness. On claude-code, a SessionStart handler's stdout becomes
+additional context the agent reads, which is how a tool can prompt the
+agent at session start. On codex the bytes are forwarded to its hook
+runner, with no specific effect probed or promised. On opencode the shim
+spawns the dispatcher and forwarded stdout goes wherever that spawn's
+output goes; no context-injection effect exists there today. Keep
+diagnostics on stderr or in files you control: stdout is the payload
+channel, not the logging channel.
 
 ## Handler best practices
 

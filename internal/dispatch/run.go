@@ -31,7 +31,11 @@ import (
 // When no requirement matches logicalEvent, Run returns 0 without ever
 // loading the target definition or calling Normalize: the cheap no-op
 // path for events the bundle doesn't care about.
-func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stderr io.Writer) int {
+//
+// Each handler's stdout is forwarded verbatim to stdout after the
+// handler exits, in invocation order and regardless of exit code; what
+// stdout means is the harness's decision (see docs/AUTHORING.md).
+func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stdout, stderr io.Writer) int {
 	c, err := loadVendoredContract(bundleRoot)
 	if err != nil {
 		fmt.Fprintf(stderr, "whippletree-hook: %v\n", err)
@@ -66,9 +70,16 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stderr io.Wr
 	}
 
 	for _, req := range matching {
-		exitCode, handlerStderr, ran := runHandler(bundleRoot, req.Handler, logicalEvent, targetName, ev, payload, stderr)
+		exitCode, handlerStdout, handlerStderr, ran := runHandler(bundleRoot, req.Handler, logicalEvent, targetName, ev, payload, stderr)
 		if !ran {
 			continue
+		}
+
+		// The handler's stdout is the payload channel: forward it
+		// verbatim on every exit path and let the harness assign it
+		// meaning (on claude-code, SessionStart stdout becomes context).
+		if len(handlerStdout) > 0 {
+			stdout.Write(handlerStdout)
 		}
 
 		// Handler diagnostics are useful whether or not it blocked, so
@@ -124,21 +135,22 @@ func loadVendoredTarget(bundleRoot, targetName string) (*target.Def, error) {
 // (ev.Paths[0] when present, else empty). ran is false when the
 // handler file is missing or not executable; runHandler has already
 // written a clear, fail-open message to stderr in that case, and the
-// caller should just continue. When ran is true, exitCode and
-// handlerStderr reflect the handler's own exit status and captured
-// stderr, for the caller to interpret (exit 2 is the block dialect;
-// anything else is fail-open logging the caller performs itself).
-func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev *Event, payload []byte, stderr io.Writer) (exitCode int, handlerStderr []byte, ran bool) {
+// caller should just continue. When ran is true, exitCode,
+// handlerStdout, and handlerStderr reflect the handler's own exit
+// status and captured stdout/stderr, for the caller to interpret (exit
+// 2 is the block dialect; anything else is fail-open logging the
+// caller performs itself).
+func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev *Event, payload []byte, stderr io.Writer) (exitCode int, handlerStdout, handlerStderr []byte, ran bool) {
 	handlerPath := filepath.Join(bundleRoot, handlerRelPath)
 
 	info, err := os.Stat(handlerPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "whippletree-hook: handler %s: missing (%v) (ignored)\n", handlerRelPath, err)
-		return 0, nil, false
+		return 0, nil, nil, false
 	}
 	if info.IsDir() || info.Mode()&0o111 == 0 {
 		fmt.Fprintf(stderr, "whippletree-hook: handler %s: not executable (ignored)\n", handlerRelPath)
-		return 0, nil, false
+		return 0, nil, nil, false
 	}
 
 	stopActive := ""
@@ -152,7 +164,8 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 
 	cmd := exec.Command(handlerPath)
 	cmd.Stdin = bytes.NewReader(payload)
-	var captured bytes.Buffer
+	var stdoutBuf, captured bytes.Buffer
+	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &captured
 	cmd.Env = append(os.Environ(),
 		"ADAPTER_EVENT="+logicalEvent,
@@ -165,14 +178,14 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 
 	runErr := cmd.Run()
 	if runErr == nil {
-		return 0, captured.Bytes(), true
+		return 0, stdoutBuf.Bytes(), captured.Bytes(), true
 	}
 
 	var exitErr *exec.ExitError
 	if errors.As(runErr, &exitErr) {
-		return exitErr.ExitCode(), captured.Bytes(), true
+		return exitErr.ExitCode(), stdoutBuf.Bytes(), captured.Bytes(), true
 	}
 
 	fmt.Fprintf(stderr, "whippletree-hook: handler %s: %v (ignored)\n", handlerRelPath, runErr)
-	return 0, nil, false
+	return 0, nil, nil, false
 }

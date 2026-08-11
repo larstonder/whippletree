@@ -75,8 +75,8 @@ func TestRunExecutesMatchingHandlers(t *testing.T) {
 
 	stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
 
-	var stderr bytes.Buffer
-	code := dispatch.Run(bundle, "session-start", "codex", stdin, &stderr)
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(bundle, "session-start", "codex", stdin, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
 	}
@@ -99,8 +99,8 @@ func TestRunBlockPropagatesExit2AndStderr(t *testing.T) {
 		t.Fatalf("read codex-stop fixture: %v", err)
 	}
 
-	var stderr bytes.Buffer
-	code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stderr)
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stdout, &stderr)
 	if code != 2 {
 		t.Fatalf("Run = %d, want 2 (stderr: %s)", code, stderr.String())
 	}
@@ -118,8 +118,8 @@ func TestRunUnknownExitFailsOpen(t *testing.T) {
 		t.Fatalf("read codex-stop fixture: %v", err)
 	}
 
-	var stderr bytes.Buffer
-	code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stderr)
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("Run = %d, want 0 (fail-open)", code)
 	}
@@ -138,13 +138,128 @@ func TestRunForwardsStderrOnCleanExit(t *testing.T) {
 
 	stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
 
-	var stderr bytes.Buffer
-	code := dispatch.Run(bundle, "session-start", "codex", stdin, &stderr)
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(bundle, "session-start", "codex", stdin, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "note: informational") {
 		t.Errorf("stderr = %q, want it to contain the handler's stderr output even on a clean exit", stderr.String())
+	}
+}
+
+// TestRunForwardsHandlerStdout: a handler's stdout is forwarded
+// verbatim to the dispatcher's own stdout.
+func TestRunForwardsHandlerStdout(t *testing.T) {
+	script := "#!/bin/sh\necho \"CTX-LINE-1\"\nexit 0\n"
+	bundle := newBundle(t, map[string]string{"pull.sh": script})
+
+	stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
+
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(bundle, "session-start", "codex", stdin, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if got, want := stdout.String(), "CTX-LINE-1\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+}
+
+// TestRunForwardsStdoutOnBlock: stdout is forwarded even when the
+// handler blocks (exit 2), the same as stderr already is.
+func TestRunForwardsStdoutOnBlock(t *testing.T) {
+	script := "#!/bin/sh\necho \"CTX-ON-BLOCK\"\necho \"reason\" >&2\nexit 2\n"
+	bundle := newBundle(t, map[string]string{"capture.sh": script})
+
+	stdin, err := os.ReadFile("testdata/codex-stop.json")
+	if err != nil {
+		t.Fatalf("read codex-stop fixture: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("Run = %d, want 2 (stderr: %s)", code, stderr.String())
+	}
+	if got, want := stdout.String(), "CTX-ON-BLOCK\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if !strings.Contains(stderr.String(), "reason") {
+		t.Errorf("stderr = %q, want to contain %q", stderr.String(), "reason")
+	}
+}
+
+// TestRunForwardsStdoutInHandlerOrder: two requirements bound to the
+// same event forward their handlers' stdout in invocation (contract)
+// order. kb-example.json's fixture has exactly one requirement per
+// event, so this test vendors its own two-requirement contract rather
+// than going through newBundle.
+func TestRunForwardsStdoutInHandlerOrder(t *testing.T) {
+	dir := t.TempDir()
+
+	vendorDir := filepath.Join(dir, ".whippletree")
+	if err := os.MkdirAll(vendorDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	contractJSON := `{"contractVersion":"1.0.0","requires":[
+		{"id":"first","kind":"lifecycle-signal","event":"session-start","minTier":"T2","hardRequired":false,"handler":"./handlers/first.sh"},
+		{"id":"second","kind":"lifecycle-signal","event":"session-start","minTier":"T2","hardRequired":false,"handler":"./handlers/second.sh"}
+	]}`
+	if err := os.WriteFile(filepath.Join(vendorDir, "contract.json"), []byte(contractJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	targetsDir := filepath.Join(vendorDir, "targets")
+	if err := os.MkdirAll(targetsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	targetSrc, err := os.ReadFile("../../targets/codex/target.yaml")
+	if err != nil {
+		t.Fatalf("read codex target.yaml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(targetsDir, "codex.yaml"), targetSrc, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	handlersDir := filepath.Join(dir, "handlers")
+	if err := os.MkdirAll(handlersDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(handlersDir, "first.sh"), []byte("#!/bin/sh\necho \"FIRST\"\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(handlersDir, "second.sh"), []byte("#!/bin/sh\necho \"SECOND\"\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
+
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(dir, "session-start", "codex", stdin, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if got, want := stdout.String(), "FIRST\nSECOND\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+}
+
+// TestRunEmptyStdoutWritesNothing: a silent handler must not cause any
+// bytes, not even a blank line, to land on the dispatcher's stdout.
+func TestRunEmptyStdoutWritesNothing(t *testing.T) {
+	script := "#!/bin/sh\nexit 0\n"
+	bundle := newBundle(t, map[string]string{"pull.sh": script})
+
+	stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
+
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(bundle, "session-start", "codex", stdin, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+	if got := stdout.String(); got != "" {
+		t.Errorf("stdout = %q, want empty", got)
 	}
 }
 
@@ -155,8 +270,8 @@ func TestRunNoMatchingRequirementIsNoop(t *testing.T) {
 	// requirement matches "session-end" — it must never run.
 	bundle := newBundle(t, map[string]string{"pull.sh": script})
 
-	var stderr bytes.Buffer
-	code := dispatch.Run(bundle, "session-end", "codex", []byte(`{}`), &stderr)
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(bundle, "session-end", "codex", []byte(`{}`), &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
 	}
@@ -207,8 +322,8 @@ func TestRunProjectsADAPTERVarsFromNormalizedEvent(t *testing.T) {
 		bundle := newBundle(t, map[string]string{"capture.sh": envDumpScript(marker)})
 		stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/r.jsonl","cwd":"/tmp/proj","hook_event_name":"Stop","stop_hook_active":true}`)
 
-		var stderr bytes.Buffer
-		code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stderr)
+		var stdout, stderr bytes.Buffer
+		code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stdout, &stderr)
 		if code != 0 {
 			t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
 		}
@@ -227,8 +342,8 @@ func TestRunProjectsADAPTERVarsFromNormalizedEvent(t *testing.T) {
 		bundle := newBundle(t, map[string]string{"pull.sh": envDumpScript(marker)})
 		stdin := []byte(`{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
 
-		var stderr bytes.Buffer
-		code := dispatch.Run(bundle, "session-start", "codex", stdin, &stderr)
+		var stdout, stderr bytes.Buffer
+		code := dispatch.Run(bundle, "session-start", "codex", stdin, &stdout, &stderr)
 		if code != 0 {
 			t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
 		}
@@ -253,8 +368,8 @@ func TestRunProjectsADAPTERVarsFromNormalizedEvent(t *testing.T) {
 			t.Fatalf("read codex-posttooluse-shell fixture: %v", err)
 		}
 
-		var stderr bytes.Buffer
-		code := dispatch.Run(bundle, "file-read", "codex", stdin, &stderr)
+		var stdout, stderr bytes.Buffer
+		code := dispatch.Run(bundle, "file-read", "codex", stdin, &stdout, &stderr)
 		if code != 0 {
 			t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
 		}
@@ -279,8 +394,8 @@ func TestRunProjectsADAPTERVarsFromNormalizedEvent(t *testing.T) {
 			t.Fatalf("read codex-stop fixture: %v", err)
 		}
 
-		var stderr bytes.Buffer
-		code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stderr)
+		var stdout, stderr bytes.Buffer
+		code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stdout, &stderr)
 		if code != 0 {
 			t.Fatalf("Run = %d, want 0 (stderr: %s)", code, stderr.String())
 		}
