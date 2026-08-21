@@ -16,71 +16,76 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e:
     name: e2e (${{ matrix.harness }})
     runs-on: ubuntu-latest
-    # A harness that has moved on is a finding, not a broken build: the
-    # point of running this nightly is to learn that before a user does.
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         include:
           - harness: claude
-            install: npm install -g @anthropic-ai/claude-code
+            package: "@anthropic-ai/claude-code"
             script: test/e2e/run-claude.sh
+            timeout: 20
           - harness: codex
-            install: npm install -g @openai/codex
+            package: "@openai/codex"
             script: test/e2e/run-codex.sh
+            timeout: 20
+          # opencode's first run in a fresh config dir installs a
+          # node_modules tree and can exceed five minutes before the
+          # script's own 900s watchdog even starts counting.
           - harness: opencode
-            install: npm install -g opencode-ai
+            package: opencode-ai
             script: test/e2e/run-opencode.sh
+            timeout: 40
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version: stable
-          cache: true
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
 
       - name: install ${{ matrix.harness }}
-        run: ${{ matrix.install }}
-
-      - name: record the probed version
-        run: |
-          go build -o /tmp/whippletree ./cmd/whippletree
-          /tmp/whippletree version
+        env:
+          PKG: ${{ matrix.package }}
+        run: npm install -g "$PKG"
 
       - name: run
-        run: bash ${{ matrix.script }}
-        timeout-minutes: 20
+        env:
+          SCRIPT: ${{ matrix.script }}
+        run: bash "$SCRIPT"
+        timeout-minutes: ${{ matrix.timeout }}
 
   # Nightly runs are only worth having if a drift shows up somewhere a
   # person looks. Any harness whose e2e failed lands here.
   report:
     needs: e2e
-    if: always() && github.event_name == 'schedule'
+    if: always() && needs.e2e.result != 'success' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       issues: write
     steps:
       - name: open or update a drift issue
-        if: needs.e2e.result != 'success'
         env:
           GH_TOKEN: ${{ github.token }}
+          # gh resolves the repo from git remotes, and this job has no
+          # checkout. GITHUB_REPOSITORY is not a fallback; GH_REPO is.
+          GH_REPO: ${{ github.repository }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           title="e2e drift: a harness no longer matches its target definition"
-          existing=$(gh issue list --state open --search "$title" --json number --jq '.[0].number')
-          body="Nightly e2e failed. A harness has likely changed under a target definition; check whether metadata.testedVersions still holds.
-
-          Run: $RUN"
+          body=$(printf 'Nightly e2e failed. A harness has likely changed under a target definition; check whether metadata.testedVersions still holds.\n\nRun: %s\n' "$RUN")
+          existing=$(gh issue list --state open --label e2e-drift --json number --jq '.[0].number')
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
           else
-            gh issue create --title "$title" --body "$body"
+            gh label create e2e-drift --description "Nightly e2e detected harness drift" --color B60205 --force >/dev/null 2>&1 || true
+            gh issue create --title "$title" --label e2e-drift --body "$body"
           fi
