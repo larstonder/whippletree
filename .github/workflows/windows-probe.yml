@@ -139,7 +139,7 @@ jobs:
             Row 'cmd /c'                  { cmd /c "`"$noext`"" }
             Row 'Start-Process'           { Start-Process -FilePath $noext -NoNewWindow -Wait -ErrorAction Stop -RedirectStandardOutput probe/sp.txt -RedirectStandardError probe/spe.txt; Get-Content probe/sp.txt, probe/spe.txt -ErrorAction SilentlyContinue }
             Row 'sh -c, forward slashes'  { bash -c "'$fwd'" }
-            Row 'Go exec.Command'         { go run ./probe/gospawn }
+            Row 'Go exec.Command'         { Push-Location probe; try { go run ./gospawn } finally { Pop-Location } }
             Row 'Node spawnSync, argv'    { node probe/nodespawn.js }
           }
 
@@ -219,8 +219,13 @@ jobs:
       - name: the command whippletree emits today
         shell: pwsh
         run: |
+          # Windows ships whippletree-hook.exe, but ensureDispatcher stats the
+          # extensionless name, so build cannot provision its own dispatcher
+          # here. Recorded rather than worked around: it is the finding.
           go build -o examples/kb-shaped/bin/whippletree-hook.exe ./cmd/whippletree-hook
           go run ./cmd/whippletree build examples/kb-shaped --targets-dir targets --allow-refuse
+          if ($LASTEXITCODE -ne 0) { Write-Host "  ^ build could not provision the dispatcher on Windows" }
+          $global:LASTEXITCODE = 0
           Write-Host 'hooks-json backend, first command:'
           (Get-Content examples/kb-shaped/hooks/claude-code.json -Raw |
             ConvertFrom-Json).hooks.SessionStart.hooks[0].command | Write-Host
