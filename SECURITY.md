@@ -15,7 +15,7 @@ Pre-1.0. Only the latest release gets fixes.
 
 ## What is in scope
 
-whippletree compiles a bundle's declared contract into a harness's native hook
+Whippletree compiles a bundle's declared contract into a harness's native hook
 configuration, and `whippletree-hook` executes that bundle's handlers at
 runtime. The interesting boundary is a bundle you did not author.
 
@@ -29,7 +29,7 @@ In scope:
   the bundle or the declared skill destination.
 - A handler that can hang the harness indefinitely. Handler execution is bounded
   and fail-open by design.
-- Anything that causes whippletree to report `SATISFY` for a requirement the
+- Anything that causes Whippletree to report `SATISFY` for a requirement the
   target does not actually satisfy. The verdicts are the product; a false one is
   a real defect even though nothing crashes.
 

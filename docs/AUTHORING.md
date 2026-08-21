@@ -1,4 +1,4 @@
-# Authoring a whippletree bundle
+# Authoring a Whippletree bundle
 
 This is the complete reference for writing a bundle: what's yours to write versus
 what `whippletree build` generates, every field the contract accepts, the wire
@@ -200,7 +200,7 @@ duplicates the matcher heuristic can produce. Real captured output, a
 `file-read` alias dispatched on codex, `handlers/dump.sh` echoing its own
 environment to stderr and its stdin verbatim. The `[...]` brackets around
 `ADAPTER_STOP_ACTIVE`'s value below are `dump.sh`'s own delimiters (so an empty
-value is visible as `[]` rather than disappearing), not something whippletree
+value is visible as `[]` rather than disappearing), not something Whippletree
 itself emits:
 
 ```
@@ -459,7 +459,7 @@ the same words the generated `SKILL.md`'s own provenance comment uses.
 - **Codex rejects unknown fields in its own manifest.** Codex's plugin loader
   is strict about the hooks-json shape it accepts
   (`targets/codex/target.yaml`'s `strictness.unknownFieldsFatal: true`); this
-  is Codex's own parsing behavior, not something whippletree enforces. It
+  is Codex's own parsing behavior, not something Whippletree enforces. It
   means `whippletree build`'s codex output must stick to exactly the fields
   Codex recognizes, and it's also why hand-editing a compiled
   `.codex-plugin/plugin.json` to add a stray field will break the install on
