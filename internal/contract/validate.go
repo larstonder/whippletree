@@ -138,10 +138,7 @@ func validateFallbackSkill(req *Requirement, skillIDs map[string]bool) error {
 	return nil
 }
 
-// validateContractVersion enforces the SupportedContractVersion
-// compatibility rule. Until now this field was written by init, carried
-// through every artifact, and never read by anything: a contract could
-// claim any version at all and whippletree would compile it regardless.
+// validateContractVersion enforces the SupportedContractVersion rule.
 func validateContractVersion(raw string) error {
 	if raw == "" {
 		return fmt.Errorf("contractVersion is required")

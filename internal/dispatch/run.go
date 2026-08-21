@@ -19,35 +19,20 @@ import (
 	"github.com/larstonder/whippletree/internal/target"
 )
 
-// HandlerTimeout bounds a single handler run. A handler that outlives it
-// is killed and treated as fail-open, matching every other non-blocking
-// failure in this dialect: a wedged handler must never wedge the harness.
-//
-// 30s is deliberately the same default GitHub Copilot CLI uses for its
-// own hook timeoutSec, and Copilot likewise fails open on expiry, so the
-// two agree by construction rather than by coincidence.
+// HandlerTimeout bounds a single handler run; outliving it is fail-open,
+// because a wedged handler must never wedge the harness. 30s matches
+// Copilot CLI's own hook timeoutSec default, which also fails open.
 const HandlerTimeout = 30 * time.Second
 
-// Run loads bundleRoot's vendored contract and target definition, selects
-// the requirements whose Event field equals logicalEvent (matched
-// verbatim, alias or primitive, exactly as the contract author wrote
-// it), and executes each matching requirement's handler in process
-// order against the normalized event JSON on stdin.
+// Run executes every handler whose requirement Event matches
+// logicalEvent verbatim, in contract order, against the normalized event
+// JSON on stdin.
 //
-// This is the exit-2 refusal dialect: a handler exiting 2 is a hard
-// block. Its stderr is copied through to stderr and its exit code (2)
-// is returned immediately, without running any later handler ("first
-// block wins"). Any other non-zero exit, or a missing/non-executable
-// handler file, is logged to stderr and ignored (fail-open); Run keeps
-// going.
-//
-// When no requirement matches logicalEvent, Run returns 0 without ever
-// loading the target definition or calling Normalize: the cheap no-op
-// path for events the bundle doesn't care about.
-//
-// Each handler's stdout is forwarded verbatim to stdout after the
-// handler exits, in invocation order and regardless of exit code; what
-// stdout means is the harness's decision (see docs/AUTHORING.md).
+// This is the exit-2 refusal dialect: exit 2 is a hard block and returns
+// immediately without running later handlers ("first block wins"), while
+// any other non-zero exit, or a missing or non-executable handler, is
+// logged and ignored. Handler stdout is forwarded verbatim on every exit
+// path; what it means is the harness's decision. See docs/AUTHORING.md.
 func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stdout, stderr io.Writer) int {
 	c, err := loadVendoredContract(bundleRoot)
 	if err != nil {
@@ -97,9 +82,7 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stdout, stde
 			}
 		}
 
-		// Handler diagnostics are useful whether or not it blocked, so
-		// forward stderr on every exit path. A failure here has nowhere
-		// left to be reported to, so it is dropped rather than logged.
+		// A failure here has nowhere left to be reported to.
 		if len(handlerStderr) > 0 {
 			_, _ = stderr.Write(handlerStderr)
 		}
@@ -115,9 +98,8 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stdout, stde
 	return 0
 }
 
-// loadVendoredContract reads and parses bundleRoot's vendored
-// .whippletree/contract.json (already the parsed, normalized form
-// compile.Build wrote; no re-validation needed here).
+// loadVendoredContract reads bundleRoot's vendored contract.json. It is
+// not re-validated here; see resolveHandlerPath for why that matters.
 func loadVendoredContract(bundleRoot string) (*contract.Contract, error) {
 	path := filepath.Join(bundleRoot, ".whippletree", "contract.json")
 	raw, err := os.ReadFile(path)
@@ -140,22 +122,10 @@ func loadVendoredTarget(bundleRoot, targetName string) (*target.Def, error) {
 	return td, nil
 }
 
-// runHandler executes handlerRelPath (resolved relative to bundleRoot)
-// with payload on stdin and the handler env vars added to the parent
-// environment: ADAPTER_EVENT (logicalEvent, verbatim as the contract
-// author wrote it) and ADAPTER_TARGET, plus a projection of ev's
-// normalized fields, always set (empty string means not applicable to
-// this event): ADAPTER_PRIMITIVE (ev.Event, never empty),
-// ADAPTER_STOP_ACTIVE ("true"/"false" when ev.StopHookActive is
-// non-nil, else empty), ADAPTER_CWD (ev.CWD), and ADAPTER_PATH
-// (ev.Paths[0] when present, else empty). ran is false when the
-// handler file is missing or not executable; runHandler has already
-// written a clear, fail-open message to stderr in that case, and the
-// caller should just continue. When ran is true, exitCode,
-// handlerStdout, and handlerStderr reflect the handler's own exit
-// status and captured stdout/stderr, for the caller to interpret (exit
-// 2 is the block dialect; anything else is fail-open logging the
-// caller performs itself).
+// runHandler runs one handler with payload on stdin and the ADAPTER_*
+// env vars set (the table is in docs/AUTHORING.md). ran is false when
+// the handler could not be run at all, in which case it has already
+// explained itself on stderr and the caller should continue.
 func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev *Event, payload []byte, stderr io.Writer) (exitCode int, handlerStdout, handlerStderr []byte, ran bool) {
 	handlerPath, err := resolveHandlerPath(bundleRoot, handlerRelPath)
 	if err != nil {
@@ -204,9 +174,8 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 		return 0, stdoutBuf.Bytes(), captured.Bytes(), true
 	}
 
-	// A timeout is fail-open, and deliberately not reported as an exit
-	// code: the handler was killed, so whatever it exited with says
-	// nothing about whether it meant to block.
+	// Not reported as an exit code: the handler was killed, so what it
+	// exited with says nothing about whether it meant to block.
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		fmt.Fprintf(stderr, "whippletree-hook: handler %s: timed out after %s (ignored)\n", handlerRelPath, HandlerTimeout)
 		return 0, stdoutBuf.Bytes(), captured.Bytes(), false
@@ -221,18 +190,14 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 	return 0, nil, nil, false
 }
 
-// resolveHandlerPath turns a bundle-relative handler path into an
-// absolute one, refusing anything that would address a file outside
-// bundleRoot.
+// resolveHandlerPath resolves a bundle-relative handler to an absolute
+// path, refusing anything outside bundleRoot.
 //
-// This repeats the check contract.Validate already performs at build
-// time, on purpose. The dispatcher's input is the vendored
-// .whippletree/contract.json, which loadVendoredContract reads with a
-// plain json.Unmarshal and does not re-validate; in a bundle published
-// by a third party that file is untrusted, and a handler of
-// "../../../../bin/sh" would otherwise resolve and execute. Symlinks are
-// resolved before the containment test so a link inside the bundle
-// cannot be used to step outside it either.
+// This repeats contract.Validate's build-time check on purpose: the
+// vendored contract.json is read here without re-validation, so in a
+// third-party bundle it is untrusted and a handler of
+// "../../../../bin/sh" would otherwise execute. Symlinks are resolved
+// first so a link inside the bundle cannot step outside it either.
 func resolveHandlerPath(bundleRoot, handlerRelPath string) (string, error) {
 	if err := contract.ValidateBundleRelPath(handlerRelPath); err != nil {
 		return "", err
@@ -259,14 +224,11 @@ func resolveHandlerPath(bundleRoot, handlerRelPath string) (string, error) {
 	return full, nil
 }
 
-// isExecutable reports whether info describes a file this process can
-// try to execute.
+// isExecutable reports whether info is worth handing to exec.
 //
-// Windows needs its own answer: Go's os.Stat there synthesizes a mode
-// from the read-only attribute and never sets an execute bit, so a POSIX
-// mode test rejects every handler and no handler ever runs. Windows
-// decides executability by extension and by the loader instead, so defer
-// to exec and let a genuine failure surface through the fail-open path.
+// Go's os.Stat on Windows synthesizes a mode from the read-only
+// attribute and never sets an execute bit, so a POSIX mode test there
+// rejects every handler. Defer to the loader instead.
 func isExecutable(info os.FileInfo) bool {
 	if runtime.GOOS == "windows" {
 		return true

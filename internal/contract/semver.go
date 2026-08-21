@@ -6,20 +6,15 @@ import (
 	"strings"
 )
 
-// Semver is a major.minor.patch triple.
-//
-// It lives here rather than in a package of its own because the
-// contract's own version is the primary thing whippletree compares;
-// preflight reuses it for harness version ranges so there is one
-// parser, not two that disagree at the edges.
+// Semver is a major.minor.patch triple. preflight reuses it for harness
+// version ranges so there is one parser, not two that disagree.
 type Semver struct {
 	Major, Minor, Patch int
 }
 
-// ParseSemver parses "X.Y" or "X.Y.Z", tolerating a leading "v".
-// Anything after the patch (a prerelease or build suffix) is ignored
-// rather than rejected: harness version strings are not reliably
-// semver, and every comparison whippletree makes is coarse.
+// ParseSemver parses "X.Y" or "X.Y.Z", tolerating a leading "v" and
+// ignoring any prerelease or build suffix: harness version strings are
+// not reliably semver, and every comparison here is coarse.
 func ParseSemver(s string) (Semver, error) {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "v")

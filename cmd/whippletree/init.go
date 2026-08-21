@@ -53,10 +53,8 @@ func (a initArgs) hasScaffoldFlag() bool {
 	return a.yes || a.nameGiven || a.kindsGiven || a.hardGiven
 }
 
-// parseInitArgs is a strict parser: unlike build/preflight/install, any
-// unrecognized "--" flag is an error rather than being folded into the
-// positional arguments. Only the space-separated "--flag value" form is
-// accepted (no "--flag=value").
+// parseInitArgs accepts only the space-separated "--flag value" form,
+// not "--flag=value".
 func parseInitArgs(args []string) (initArgs, error) {
 	var parsed initArgs
 
@@ -249,16 +247,11 @@ func runInit(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr i
 // independent and free to diverge.
 var wizardKindMenu = []string{"blocking-gate", "lifecycle-signal", "observation-signal", "executable-path", "skill"}
 
-// runInitWizard prompts on stdout and reads answers from r: the bundle
-// name, the kinds to include, and, for each chosen blocking-gate or
-// executable-path kind, whether it is hard-required. An empty line
-// takes the printed default; the stream ending before a question is
-// answered (e.g. Ctrl-D on a real terminal) is treated as cancelling
-// the wizard and returns an error rather than silently falling back to
-// defaults. An invalid kind selection or hard-required answer
-// re-prompts once with the valid range, then returns an error. It
-// writes nothing to disk: the caller passes the collected name, kinds,
-// and hardSet to the same generator the flag path uses.
+// runInitWizard collects a name, kinds, and hard-required choices, then
+// hands them to the same generator the flag path uses. An empty line
+// takes the default; the stream ending early (Ctrl-D) cancels with an
+// error rather than silently accepting defaults. Bad answers re-prompt
+// once. Writes nothing to disk.
 func runInitWizard(r io.Reader, stdout io.Writer, defaultName string) (name string, kinds []string, hardSet map[string]bool, err error) {
 	scanner := bufio.NewScanner(r)
 	readLine := func() (string, bool) {

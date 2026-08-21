@@ -7,26 +7,17 @@ import (
 	"strings"
 )
 
-// ValidateBundleRelPath checks that p is a safe bundle-relative path: a
-// path that, joined onto a bundle root, cannot address anything outside
-// that root.
+// ValidateBundleRelPath checks that p, joined onto a bundle root, cannot
+// address anything outside it.
 //
-// This is the string-level half of the containment rule. The rule is
-// enforced twice, deliberately: here at build time, and again in
-// internal/dispatch at run time. Build-time validation alone is not
-// enough, because the dispatcher reads the *vendored*
-// .whippletree/contract.json, which in a bundle whippletree did not
-// compile is attacker-controlled input that never passed through
-// Validate.
-//
-// Rejected: empty, absolute (POSIX or Windows), volume-qualified,
-// backslash-separated (contract paths are always slash-separated, and
-// accepting "\" would let a Windows-shaped escape through the POSIX
-// checks), and anything that still climbs out of the root once cleaned.
+// internal/dispatch repeats this check at run time. That is not
+// redundant: the dispatcher reads the vendored contract.json, which in a
+// bundle whippletree did not compile never passed through Validate.
 func ValidateBundleRelPath(p string) error {
 	if p == "" {
 		return fmt.Errorf("path is empty")
 	}
+	// A backslash would carry a Windows-shaped escape past the POSIX checks.
 	if strings.ContainsRune(p, '\\') {
 		return fmt.Errorf("path %q must use forward slashes", p)
 	}
