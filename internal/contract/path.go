@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+// driveLetter matches a Windows volume prefix such as "C:" or "c:/".
+var driveLetter = regexp.MustCompile(`^[A-Za-z]:`)
 
 // ValidateBundleRelPath checks that p, joined onto a bundle root, cannot
 // address anything outside it.
@@ -26,6 +30,13 @@ func ValidateBundleRelPath(p string) error {
 	}
 	if strings.HasPrefix(p, "/") || filepath.IsAbs(p) {
 		return fmt.Errorf("path %q must be relative to the bundle root", p)
+	}
+	// filepath.IsAbs and filepath.VolumeName follow host semantics, so on
+	// Unix they do not recognise "C:/..." as absolute. A bundle is built on
+	// one platform and run on another, so the check has to be portable
+	// rather than trusting the machine doing the validating.
+	if driveLetter.MatchString(p) {
+		return fmt.Errorf("path %q must not name a volume", p)
 	}
 	if filepath.VolumeName(p) != "" {
 		return fmt.Errorf("path %q must not name a volume", p)

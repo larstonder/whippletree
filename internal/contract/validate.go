@@ -71,6 +71,9 @@ func Validate(c *Contract) error {
 			if req.Event != "" {
 				errs = append(errs, fmt.Errorf("requirement %s: event must be empty for executable-path", req.ID))
 			}
+			if req.HandlerWindows != "" {
+				errs = append(errs, fmt.Errorf("requirement %s: handlerWindows must be empty for executable-path", req.ID))
+			}
 			continue
 		}
 
@@ -85,6 +88,11 @@ func Validate(c *Contract) error {
 			errs = append(errs, fmt.Errorf("requirement %s: handler is required", req.ID))
 		} else if err := ValidateBundleRelPath(req.Handler); err != nil {
 			errs = append(errs, fmt.Errorf("requirement %s: %w", req.ID, err))
+		}
+		if req.HandlerWindows != "" {
+			if err := ValidateBundleRelPath(req.HandlerWindows); err != nil {
+				errs = append(errs, fmt.Errorf("requirement %s: handlerWindows: %w", req.ID, err))
+			}
 		}
 	}
 
@@ -109,6 +117,9 @@ func validateSkillReq(req *Requirement) []error {
 	}
 	if req.Handler != "" {
 		errs = append(errs, fmt.Errorf("requirement %s: handler must be empty for skill", req.ID))
+	}
+	if req.HandlerWindows != "" {
+		errs = append(errs, fmt.Errorf("requirement %s: handlerWindows must be empty for skill", req.ID))
 	}
 	if req.LoopGuardRequired {
 		errs = append(errs, fmt.Errorf("requirement %s: loopGuardRequired must be false for skill", req.ID))

@@ -466,6 +466,38 @@ the same words the generated `SKILL.md`'s own provenance comment uses.
   Codex specifically, even though the same manifest shape is tolerated fine
   on Claude Code (`unknownFieldsFatal: false` there).
 
+## Windows handlers
+
+`handler` is a path to something the dispatcher executes. On Windows a
+`#!/usr/bin/env bash` script is not executable at all, because Windows has no
+shebang support, so a requirement may declare a second handler for it:
+
+```json
+{
+  "id": "capture-gate",
+  "kind": "blocking-gate",
+  "event": "turn-end",
+  "minTier": "T1",
+  "hardRequired": true,
+  "handler": "./handlers/capture.sh",
+  "handlerWindows": "./handlers/capture.ps1"
+}
+```
+
+Both are validated at build time and both must exist. Which one runs is decided
+at dispatch, not at build, because a bundle is compiled once and may be
+installed on a different platform than it was built on.
+
+A requirement with no `handlerWindows` is **not carried on Windows**: the
+dispatcher says so and moves on, rather than trying to exec a shell script and
+failing with a loader error that looks like a broken install. Omitting it is
+therefore a decision, not an oversight, and contracts that never mention it
+behave exactly as they did before.
+
+`handlerWindows` is additive in `contractVersion` 1.1.0. A contract that uses it
+should declare 1.1.0 so an older whippletree refuses it rather than silently
+ignoring the field; a contract that does not can stay on 1.0.0.
+
 ## Conventions this adds
 
 Three additions this implementation makes relative to `harness-adapter.architecture.md`:

@@ -26,6 +26,10 @@ func TestValidateRejects(t *testing.T) {
 		{"handler escapes the bundle", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"../../../../bin/sh"}`, "escapes the bundle root"},
 		{"handler is absolute", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"/bin/sh"}`, "must be relative"},
 		{"executable-path escapes the bundle", `{"id":"a","kind":"executable-path","path":"../../../../etc/passwd","minTier":"T1","hardRequired":true}`, "escapes the bundle root"},
+		{"handlerWindows escapes the bundle", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"./h.sh","handlerWindows":"../../../../windows/system32/cmd.exe"}`, "handlerWindows: path \"../../../../windows/system32/cmd.exe\" escapes the bundle root"},
+		{"handlerWindows is absolute", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"./h.sh","handlerWindows":"C:/windows/system32/cmd.exe"}`, "handlerWindows"},
+		{"handlerWindows on a skill", `{"id":"s","kind":"skill","path":"./skills/s","minTier":"T1","hardRequired":false,"handlerWindows":"./h.ps1"}`, "handlerWindows must be empty for skill"},
+		{"handlerWindows on executable-path", `{"id":"x","kind":"executable-path","path":"./bin/x","minTier":"T1","hardRequired":true,"handlerWindows":"./h.ps1"}`, "handlerWindows must be empty for executable-path"},
 		{"duplicate id", "", "duplicate"}, // built directly below
 	}
 

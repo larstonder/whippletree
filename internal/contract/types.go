@@ -8,10 +8,10 @@ import "fmt"
 const Namespace = "dev.whippletree.v1"
 
 // SupportedContractVersion is the highest contractVersion this build
-// understands. Validate requires an exact major match and a minor/patch
+// understands. 1.1.0 added the optional handlerWindows field. Validate requires an exact major match and a minor/patch
 // at or below it, so a contract can never rely on a field this build
 // would silently ignore.
-const SupportedContractVersion = "1.0.0"
+const SupportedContractVersion = "1.1.0"
 
 type Tier int
 
@@ -55,7 +55,14 @@ type Requirement struct {
 	HardRequired      *bool  `json:"hardRequired"`
 	LoopGuardRequired bool   `json:"loopGuardRequired,omitempty"`
 	Handler           string `json:"handler,omitempty"`
-	FallbackSkill     string `json:"fallbackSkill,omitempty"`
-	Path              string `json:"path,omitempty"`
-	Description       string `json:"description,omitempty"`
+
+	// HandlerWindows is the handler to run on Windows, where the shebang
+	// that makes Handler executable does not exist. Optional and additive:
+	// a contract that omits it behaves exactly as before, and a
+	// requirement without one is simply not carried on Windows rather
+	// than failing at exec with a loader error.
+	HandlerWindows string `json:"handlerWindows,omitempty"`
+	FallbackSkill  string `json:"fallbackSkill,omitempty"`
+	Path           string `json:"path,omitempty"`
+	Description    string `json:"description,omitempty"`
 }

@@ -75,7 +75,13 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stdout, stde
 	}
 
 	for _, req := range matching {
-		exitCode, handlerStdout, handlerStderr, ran := runHandler(bundleRoot, req.Handler, logicalEvent, targetName, ev, payload, stderr)
+		handler := req.HandlerFor(runtime.GOOS)
+		if handler == "" {
+			fmt.Fprintf(stderr, "whippletree-hook: requirement %s declares no handler for %s (ignored)\n", req.ID, runtime.GOOS)
+			continue
+		}
+
+		exitCode, handlerStdout, handlerStderr, ran := runHandler(bundleRoot, handler, logicalEvent, targetName, ev, payload, stderr)
 		if !ran {
 			continue
 		}
@@ -85,7 +91,7 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stdout, stde
 		// meaning (on claude-code, SessionStart stdout becomes context).
 		if len(handlerStdout) > 0 {
 			if _, err := stdout.Write(handlerStdout); err != nil {
-				fmt.Fprintf(stderr, "whippletree-hook: handler %s: forward stdout: %v (ignored)\n", req.Handler, err)
+				fmt.Fprintf(stderr, "whippletree-hook: handler %s: forward stdout: %v (ignored)\n", handler, err)
 			}
 		}
 
@@ -98,7 +104,7 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stdout, stde
 		case exitCode == 2:
 			return 2
 		case exitCode != 0:
-			fmt.Fprintf(stderr, "whippletree-hook: handler %s exited %d (ignored)\n", req.Handler, exitCode)
+			fmt.Fprintf(stderr, "whippletree-hook: handler %s exited %d (ignored)\n", handler, exitCode)
 		}
 	}
 

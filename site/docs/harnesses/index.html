@@ -107,6 +107,17 @@
       <code>install</code> writes a TypeScript shim into <code>.opencode/plugin/</code> and
       copies skills into <code>.opencode/skills</code> rather than shipping them in the bundle.</p>
 
+    <h2>Windows</h2>
+    <p>Windows is a property of the machine, not a fourth target: all three
+      harnesses run there. What does not work is a handler written as a shell
+      script, because Windows has no shebang support. A requirement can declare
+      <code>handlerWindows</code> alongside <code>handler</code>, and the dispatcher
+      picks per platform at run time. A requirement without one is simply not
+      carried on Windows, and says so.</p>
+    <p>Running a bundle on Windows is not finished: <code>build</code> still cannot
+      provision the dispatcher binary there, tracked as
+      <a href="https://github.com/larstonder/whippletree/issues/1">issue 1</a>.</p>
+
     <h2>How these claims are checked</h2>
     <p>Every row above comes from a target definition in the repository, and each one records
       the harness versions it was probed against. Those definitions are established by running

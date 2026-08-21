@@ -140,6 +140,11 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 // time, as a silently-ignored missing-handler warning.
 func checkRequirementPaths(bundleDir string, c *contract.Contract) error {
 	for _, req := range c.Requires {
+		if req.HandlerWindows != "" {
+			if err := statRequirementFile(bundleDir, req.ID, "handlerWindows", req.HandlerWindows); err != nil {
+				return err
+			}
+		}
 		if req.Handler != "" {
 			if err := statRequirementFile(bundleDir, req.ID, "handler", req.Handler); err != nil {
 				return err
