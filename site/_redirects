@@ -1,1 +1,7 @@
-/*  /index.html  200
+# No catch-all. A /* -> /index.html 200 rule makes every wrong URL look like the
+# homepage, so nobody ever learns they are lost.
+#
+# The Go vanity import still resolves without one: the go tool probes the full
+# package path first and walks up to shorter prefixes when that fails, and the
+# root serves the go-import meta tag. 404.html carries it too, so even the
+# failing probe answers correctly.
