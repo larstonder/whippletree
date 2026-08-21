@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whippletree</title>
+<meta name="description" content="Declare an agent tool's lifecycle requirements once. Whippletree compiles them onto every AI coding harness at the best fidelity each can verify.">
+
+<!-- Go vanity import path: `go install whippletree.dev/cmd/whippletree@latest` -->
+<meta name="go-import" content="whippletree.dev git https://github.com/larstonder/whippletree">
+<meta name="go-source" content="whippletree.dev https://github.com/larstonder/whippletree https://github.com/larstonder/whippletree/tree/main{/dir} https://github.com/larstonder/whippletree/blob/main{/dir}/{file}#L{line}">
+<link rel="icon" href="/brand/logo_black.svg" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/brand/logo_white.svg" media="(prefers-color-scheme: dark)">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* Monochrome by client mandate: white / black in light, dark grey / white in dark.
+   No accent colour anywhere. Hierarchy is carried by weight and spacing. */
+:root{
+  --bg:#FFFFFF; --fg:#111111; --dim:#6E6E6E; --rule:#E6E6E6; --well:#F7F7F7;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#1C1C1C; --fg:#FFFFFF; --dim:#9A9A9A; --rule:#333333; --well:#242424; }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--fg);
+  font:400 17px/1.6 Figtree,ui-sans-serif,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 32px}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--fg);outline-offset:4px;border-radius:2px}
+picture,img{display:block}
+
+/* one radius system: sharp. nothing on this page is rounded. */
+
+/* nav: one line, 66px */
+.top{border-bottom:1px solid var(--rule)}
+.top .wrap{display:flex;align-items:center;gap:26px;height:66px}
+.lockup img{height:19px;width:auto}
+.top nav{margin-left:auto;display:flex;gap:26px;font-size:14.5px}
+.top nav a{color:var(--dim);text-decoration:none}
+.top nav a:hover{color:var(--fg)}
+
+/* hero: left-aligned asymmetric split, mark as the right-hand counterweight */
+.hero .wrap{
+  display:grid;grid-template-columns:minmax(0,1fr) 232px;gap:64px;
+  align-items:center;padding-top:96px;padding-bottom:96px;
+}
+h1{font-weight:800;font-size:clamp(40px,6.4vw,62px);line-height:1.02;letter-spacing:-.035em;margin:0}
+.lede{margin:26px 0 0;max-width:40ch;font-size:19px;color:var(--dim)}
+.cmd{
+  margin-top:34px;display:flex;align-items:center;gap:11px;
+  border:1px solid var(--rule);background:var(--well);padding:14px 18px;
+  font-family:"IBM Plex Mono",monospace;font-size:14px;overflow-x:auto;max-width:34rem;
+}
+.cmd i{color:var(--dim);font-style:normal;user-select:none;flex:none}
+.go{margin:20px 0 0;font-size:15px}
+.go a{text-decoration:none;border-bottom:1px solid var(--rule);padding-bottom:2px;transition:border-color .2s}
+.go a:hover{border-bottom-color:var(--fg)}
+.go span{color:var(--dim);margin:0 12px}
+.hero figure{margin:0}
+.hero figure img{width:100%;height:auto;opacity:.14}
+
+/* verdict block */
+section{border-top:1px solid var(--rule);padding:72px 0}
+h2{font-weight:800;font-size:27px;letter-spacing:-.028em;margin:0}
+.sub{color:var(--dim);margin:14px 0 0;max-width:58ch}
+pre{
+  margin:32px 0 0;background:var(--well);border:1px solid var(--rule);padding:24px;
+  overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:13px;line-height:1.8;
+  color:var(--dim);
+}
+pre b{color:var(--fg);font-weight:500}
+pre em{font-style:normal;color:var(--fg);font-weight:500}
+
+/* tiers: 2x2 grid, a different layout family to the block above */
+.tiers{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:34px;background:var(--rule);border:1px solid var(--rule)}
+.tier{background:var(--bg);padding:26px 24px}
+.tier h3{margin:0;font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:500;letter-spacing:.1em;color:var(--dim)}
+.tier p{margin:11px 0 0;font-size:16px;color:var(--dim);line-height:1.55}
+.tier p b{color:var(--fg);font-weight:600;display:block;margin-bottom:3px;font-family:Figtree,sans-serif;font-size:17px;letter-spacing:-.01em}
+.tier.spent p b{color:var(--dim)}
+
+footer{border-top:1px solid var(--rule);padding:32px 0 56px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;font-size:14px;color:var(--dim)}
+footer a{text-decoration:none}
+footer a:hover{color:var(--fg)}
+footer .end{margin-left:auto}
+
+@media (max-width:820px){
+  .hero .wrap{grid-template-columns:1fr;gap:44px;padding-top:64px;padding-bottom:64px}
+  .hero figure{max-width:150px}
+  .tiers{grid-template-columns:1fr}
+  .wrap{padding-left:24px;padding-right:24px}
+  footer .end{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="lockup" href="/" aria-label="Whippletree">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="/brand/wordmark_white.svg">
+        <img src="/brand/wordmark_black.svg" alt="Whippletree" width="107" height="18">
+      </picture>
+    </a>
+    <nav>
+      <a href="https://github.com/larstonder/whippletree#readme">Docs</a>
+      <a href="https://github.com/larstonder/whippletree/blob/main/docs/AUTHORING.md">Authoring</a>
+      <a href="https://github.com/larstonder/whippletree">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div>
+      <h1>One pull,<br>every harness.</h1>
+      <p class="lede">Declare your tool's lifecycle once. Whippletree compiles it onto every
+        harness at the best fidelity each can verify.</p>
+
+      <div class="cmd"><i>$</i> go install whippletree.dev/cmd/whippletree@latest</div>
+
+      <p class="go">
+        <a href="https://github.com/larstonder/whippletree#readme">Read the docs</a>
+        <span>/</span>
+        <a href="https://github.com/larstonder/whippletree/blob/main/docs/AUTHORING.md">Author a bundle</a>
+      </p>
+    </div>
+
+    <figure>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="/brand/logo_white.svg">
+        <img src="/brand/logo_black.svg" alt="" width="184" height="171">
+      </picture>
+    </figure>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <h2>It tells you what it cannot do</h2>
+    <p class="sub">Whippletree probes the installed harness and reports the tier every
+      requirement actually reaches, before anything is written to disk.</p>
+<pre><b>$ whippletree preflight ./my-tool --target codex</b>
+whippletree preflight · target codex (probed 0.146.0)
+
+  stop-gate             want ≥T1  got T1  <em>SATISFY</em>   native Stop + stop_hook_active
+  session-start-signal  want ≥T2  got T1  <em>SATISFY</em>   native SessionStart
+  file-read-signal      want ≥T4  got T2  <em>SATISFY</em>   matcher Bash|Edit|Write|apply_patch;
+                                                  misses reads in pipelines and heredocs
+  bin-reachable         want ≥T1  got T1  <em>SATISFY</em>   bundle channel
+
+Plan: 4 satisfy, 0 degrade, 0 refuse.</pre>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Four tiers, named honestly</h2>
+    <p class="sub">A requirement lands where the harness can carry it. Hard requirements that
+      fall short refuse to install rather than degrade quietly.</p>
+    <div class="tiers">
+      <div class="tier">
+        <h3>T1</h3>
+        <p><b>Native</b>The harness has a real hook for it, enforced by the harness itself.</p>
+      </div>
+      <div class="tier">
+        <h3>T2</h3>
+        <p><b>Degraded</b>Approximated through a coarser mechanism, with the lossage stated in full.</p>
+      </div>
+      <div class="tier">
+        <h3>T3</h3>
+        <p><b>Compiled to instructions</b>Best effort. The model is told to run the step and usually will, but can skip it under pressure.</p>
+      </div>
+      <div class="tier spent">
+        <h3>T4</h3>
+        <p><b>Observer</b>Reserved. Not implemented.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Apache-2.0</span>
+    <a href="https://github.com/larstonder/whippletree/blob/main/TRADEMARK.md">Trademark</a>
+    <a href="https://github.com/larstonder/whippletree/blob/main/SECURITY.md">Security</a>
+    <a href="https://github.com/larstonder/whippletree/blob/main/CONTRIBUTING.md">Contributing</a>
+    <span class="end">Whippletree is a trademark of Lars Tønder.</span>
+  </div>
+</footer>
+
+</body>
+</html>
