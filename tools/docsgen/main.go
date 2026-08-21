@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 // Command docsgen renders the repository's markdown documents into the static
 // pages served at whippletree.dev/docs.
 //
