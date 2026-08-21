@@ -24,6 +24,9 @@ import (
 // Copilot CLI's own hook timeoutSec default, which also fails open.
 const HandlerTimeout = 30 * time.Second
 
+// handlerTimeout is the value actually used, so tests can shorten it.
+var handlerTimeout = HandlerTimeout
+
 // Run executes every handler whose requirement Event matches
 // logicalEvent verbatim, in contract order, against the normalized event
 // JSON on stdin.
@@ -152,10 +155,15 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 		path = ev.Paths[0]
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), HandlerTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), handlerTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, handlerPath)
+	// CommandContext kills only the handler itself. Any grandchild it
+	// spawned inherits the stdout pipe, and Run waits for that pipe to
+	// close, so without WaitDelay a handler running `sleep 600 &` would
+	// hang the harness for ten minutes despite the timeout firing.
+	cmd.WaitDelay = time.Second
 	cmd.Stdin = bytes.NewReader(payload)
 	var stdoutBuf, captured bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -177,7 +185,7 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 	// Not reported as an exit code: the handler was killed, so what it
 	// exited with says nothing about whether it meant to block.
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		fmt.Fprintf(stderr, "whippletree-hook: handler %s: timed out after %s (ignored)\n", handlerRelPath, HandlerTimeout)
+		fmt.Fprintf(stderr, "whippletree-hook: handler %s: timed out after %s (ignored)\n", handlerRelPath, handlerTimeout)
 		return 0, stdoutBuf.Bytes(), captured.Bytes(), false
 	}
 

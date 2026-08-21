@@ -1,0 +1,88 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # whippletree does not support running bundles on Windows yet (see
+  # README and issue #1), but it must keep compiling and vetting cleanly
+  # there, because the exec-bit bug that made every handler silently skip
+  # was only ever going to be caught by a machine that ran it.
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./... -race -cover
+
+  minimum-go:
+    name: go.mod minimum
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go build ./...
+      - run: go test ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed:"; echo "$unformatted"
+            gofmt -d .
+            exit 1
+          fi
+
+      - name: vet for windows
+        run: GOOS=windows go vet ./...
+
+  # examples/kb-shaped's compiled artifacts are committed as fixtures, so
+  # a build that no longer reproduces them byte-for-byte is a silent
+  # change to what every user's bundle looks like.
+  artifacts-reproduce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - run: go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
+      - run: go run ./cmd/whippletree build examples/kb-shaped --targets-dir targets --allow-refuse
+      - name: committed artifacts unchanged
+        run: |
+          if ! git diff --exit-code -- examples/kb-shaped; then
+            echo "::error::whippletree build no longer reproduces the committed artifacts"
+            exit 1
+          fi
