@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/larstonder/whippletree/internal/contract"
+
 	"github.com/larstonder/whippletree/internal/skillfile"
 )
 
@@ -1007,5 +1009,56 @@ func TestResolveSkillDest(t *testing.T) {
 				t.Errorf("resolveSkillDest(%q) = %q, want %q", tc.dest, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestVersionReportsTargetCorpus: `whippletree version` must name every
+// compiled-in target with its schema version and the harness range it
+// was actually probed against. That corpus is the substantive half of
+// the output; the build stamp alone would not be worth a subcommand.
+func TestVersionReportsTargetCorpus(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"version"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("version = %d, want 0 (stderr: %s)", code, stderr.String())
+	}
+
+	out := stdout.String()
+	for _, want := range []string{
+		"whippletree ",
+		"contract: " + contract.SupportedContractVersion,
+		"targets (3):",
+		"claude-code", "codex", "opencode",
+		">=2.1.0", ">=0.144.0", ">=1.18.10",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("version output missing %q\n---\n%s", want, out)
+		}
+	}
+}
+
+func TestVersionRejectsUnknownArgs(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"version", "--nope"}, &stdout, &stderr); code != 1 {
+		t.Fatalf("version --nope = %d, want 1", code)
+	}
+}
+
+func TestHelpAndUnknownSubcommand(t *testing.T) {
+	for _, arg := range []string{"help", "--help", "-h"} {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{arg}, &stdout, &stderr); code != 0 {
+			t.Errorf("%s = %d, want 0", arg, code)
+		}
+		if !strings.Contains(stdout.String(), "usage: whippletree") {
+			t.Errorf("%s did not print usage on stdout", arg)
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"definitely-not-a-verb"}, &stdout, &stderr); code != 1 {
+		t.Errorf("unknown subcommand = %d, want 1", code)
+	}
+	if !strings.Contains(stderr.String(), "usage: whippletree") {
+		t.Error("an unknown subcommand should print usage, not just an error")
 	}
 }

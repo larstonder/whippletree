@@ -181,6 +181,45 @@ Plan: 4 satisfy, 0 degrade, 0 refuse.
 Exit code is 1 if any requirement REFUSEs; otherwise `.whippletree/install-state.json` is
 written recording the harness, probed version, and the achieved tier per requirement.
 
+Each target definition declares the harness versions it was actually probed against
+(`metadata.testedVersions`). When the probed version falls outside that range, preflight
+says so and stops claiming the verdicts were verified:
+
+```
+whippletree preflight · target codex (probed 0.100.0)
+
+  ! probed 0.100.0 is below the tested range >=0.144.0
+  ! the verdicts below were not verified against this version
+
+  stop-gate             want ≥T1  got T1  SATISFY   native Stop + stop_hook_active
+```
+
+This is a warning, never a refusal. A harness shipping a new version must not break every
+install that day, and whippletree cannot know whether the change matters; what it can do is
+stop asserting a confidence it has not earned.
+
+### `whippletree version`
+
+Prints build provenance and, more usefully, the target definitions compiled into this
+binary:
+
+```
+$ whippletree version
+whippletree v0.1.0
+  commit:  7742da4
+  built:   2026-08-21
+  go:      go1.26.5 darwin/arm64
+  contract: 1.0.0
+
+targets (3):
+  claude-code  schema 1.0.0    tested >=2.1.0
+  codex        schema 1.0.0    tested >=0.144.0
+  opencode     schema 1.0.0    tested >=1.18.10
+```
+
+A whippletree binary carries a probe corpus, and "which harness versions was this tested
+against" is a question about the binary in your hand rather than about the repository.
+
 ### `whippletree install <bundleDir> --target <name>`
 
 Runs the same check `preflight` does, then, on anything short of a REFUSE, performs the
