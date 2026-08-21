@@ -24,6 +24,12 @@ import (
 )
 
 // page is one markdown source and where it lands under site/docs.
+//
+// Deliberately short. Probe findings, MAINTENANCE and the opencode design notes
+// are research and upkeep records: they are the evidence a target definition
+// rests on, dated and full of sandbox detail, and they belong beside the code
+// rather than on a page a user lands on. What a reader needs from them is
+// summarised on the hand-written harnesses page.
 type page struct {
 	src   string // repo-relative markdown
 	out   string // path segment under site/docs, "" for the index
@@ -32,14 +38,7 @@ type page struct {
 
 var pages = []page{
 	{"docs/AUTHORING.md", "authoring", "Authoring a bundle"},
-	{"docs/opencode.md", "opencode", "opencode"},
-	{"docs/CONFORMANCE.md", "conformance", "Conformance"},
-	{"MAINTENANCE.md", "maintenance", "Maintenance"},
 	{"CONTRIBUTING.md", "contributing", "Contributing"},
-	{"docs/opencode-probe-findings.md", "probes/opencode", "opencode probe"},
-	{"docs/skill-discovery-probe.md", "probes/skills", "Skill discovery probe"},
-	{"docs/stop-hook-probe.md", "probes/stop-hook", "Stop hook probe"},
-	{"docs/opencode-research.md", "probes/opencode-research", "opencode research"},
 }
 
 const shell = `<!doctype html>
