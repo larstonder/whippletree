@@ -41,11 +41,8 @@ type yamlSpec struct {
 	SkillChannel yamlSkillChannel           `yaml:"skillChannel"`
 }
 
-// yamlDiscovery: only ManifestDir is consumed. HooksKey and
-// MergeSemantics are parsed so strict decoding accepts the files that
-// declare them, and are kept in the schema as documented research about
-// each harness, but nothing reads them: the "hooks" key is fixed by the
-// emitters, and merge semantics are the harness's behavior, not ours.
+// Only ManifestDir is consumed. HooksKey and MergeSemantics are kept as
+// documented harness research; the "hooks" key is fixed by the emitters.
 type yamlDiscovery struct {
 	ManifestDir    string `yaml:"manifestDir"`
 	HooksKey       string `yaml:"hooksKey"`
@@ -69,9 +66,8 @@ type yamlDegradation struct {
 	Lossage string `yaml:"lossage"`
 }
 
-// yamlStrictness records whether the *harness's* own config parser
-// rejects unknown fields. Parsed and kept as documentation; whippletree
-// only ever emits fields it knows, so nothing acts on it.
+// Records whether the harness's own parser rejects unknown fields.
+// Documentation only: whippletree emits nothing it does not know.
 type yamlStrictness struct {
 	UnknownFieldsFatal bool `yaml:"unknownFieldsFatal"`
 }

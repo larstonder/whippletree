@@ -24,13 +24,9 @@ import (
 	"github.com/larstonder/whippletree/targets"
 )
 
-// loadTargets resolves the target definitions every verb (build,
-// preflight, install) compiles or checks against. An explicit
-// --targets-dir always wins, loaded straight off disk exactly as
-// before; with no flag, it falls back to the target definitions
-// embedded into this binary at build time (targets.FS), which is what
-// lets the CLI work from any working directory, not just the
-// whippletree repo root.
+// loadTargets prefers an explicit --targets-dir, falling back to the
+// definitions embedded at build time so the CLI works from any
+// directory, not just a whippletree checkout.
 func loadTargets(targetsDirArg string) (map[string]*target.Def, error) {
 	if targetsDirArg != "" {
 		return target.LoadDir(targetsDirArg)
@@ -47,10 +43,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return runWith(args, os.Stdin, stdinIsTTY, stdout, stderr)
 }
 
-// runWith is the dispatcher containing the real logic; it accepts injected
-// stdin and TTY-ness for testing and future interactive verbs. Existing
-// verbs read the global stdin/TTY state (preflight calls stdinIsTTY
-// directly), so this plumbing creates no behavior change.
+// runWith takes injected stdin and TTY-ness so verbs are testable.
 func runWith(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr io.Writer) int {
 	if len(args) < 1 {
 		fmt.Fprint(stderr, usageText)
@@ -103,10 +96,9 @@ func parseBuildArgs(args []string) (buildArgs, error) {
 			parsed.targetsDir = args[i+1]
 			i++
 		default:
-			// Strict, matching parseInitArgs: an unrecognized flag is an
-			// error, never a positional. Folding it in silently let
-			// "whippletree build --allow-refuse" treat the flag itself as
-			// the bundle directory.
+			// An unrecognized flag is an error, never a positional:
+			// folding it in let "whippletree build --allow-refuse" use
+			// the flag itself as the bundle directory.
 			if strings.HasPrefix(args[i], "-") {
 				return buildArgs{}, fmt.Errorf("unknown flag %q", args[i])
 			}
@@ -195,13 +187,10 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// ensureDispatcher makes sure <bundleDir>/bin/whippletree-hook exists,
-// since every hooks-file command this build just wrote invokes it and
-// compile.Build never provisions it itself. If it's missing, it tries
-// copying the whippletree-hook binary sitting alongside whippletree's
-// own executable (the layout a packaged release ships). If that's not
-// available either, allowMissing turns the gap into a warning;
-// otherwise it's a build error naming the exact command to run.
+// ensureDispatcher provisions <bundleDir>/bin/whippletree-hook, which
+// every hooks-file command invokes but compile.Build never writes. It
+// falls back to the binary beside whippletree's own executable, then to
+// a warning or an error naming the command to run.
 func ensureDispatcher(bundleDir string, allowMissing bool, stderr io.Writer) error {
 	binPath := filepath.Join(bundleDir, "bin", "whippletree-hook")
 	if _, err := os.Stat(binPath); err == nil {
@@ -287,19 +276,12 @@ func runPreflight(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// checkAgainstTarget loads targetName from targetsDirArg, parses and
-// validates bundleDir's plugin.json contract, resolves a probed (or
-// assumed) version, and runs preflight.Check, printing the rendered
-// report to stdout exactly as the preflight verb does. Both preflight
-// and install share this one code path so a REFUSE, a probe failure,
-// or any other error is reported identically by both.
+// checkAgainstTarget is the one code path preflight and install share,
+// so a REFUSE or a probe failure reads identically from both.
 //
-// ok is false whenever a hard error occurred (already written to
-// stderr with an appropriate message); the caller's exit code is 1 in
-// that case. When ok is true, the caller must still check
-// report.Refused before treating the run as successful: a REFUSE is
-// not an error here, it prints the report and lets the caller decide
-// what "nothing happens next" means for its own verb.
+// ok is false only on a hard error, already reported to stderr. When ok
+// is true the caller must still check report.Refused: a REFUSE is not an
+// error, and what "nothing happens next" means is the verb's decision.
 func checkAgainstTarget(bundleDir, targetName, assumeVersion, targetsDirArg string, stdout, stderr io.Writer) (td *target.Def, report *preflight.Report, probed preflight.Version, ok bool) {
 	targetDefs, err := loadTargets(targetsDirArg)
 	if err != nil {
@@ -416,9 +398,7 @@ func parsePreflightArgs(args []string) (bundleDir, targetName, assumeVersion, ta
 			targetsDirArg = args[i+1]
 			i++
 		default:
-			// Strict, matching parseInitArgs: an unrecognized flag is an
-			// error, never a positional. Folding it in silently meant a
-			// mistyped flag was dropped, or became the bundle directory.
+			// An unrecognized flag is an error, never a positional.
 			if strings.HasPrefix(args[i], "-") {
 				return "", "", "", "", fmt.Errorf("unknown flag %q", args[i])
 			}
@@ -491,9 +471,7 @@ func parseInstallArgs(args []string) (installArgs, error) {
 			parsed.targetsDir = args[i+1]
 			i++
 		default:
-			// Strict, matching parseInitArgs: an unrecognized flag is an
-			// error, never a positional. Folding it in silently meant a
-			// mistyped flag was dropped, or became the bundle directory.
+			// An unrecognized flag is an error, never a positional.
 			if strings.HasPrefix(args[i], "-") {
 				return installArgs{}, fmt.Errorf("unknown flag %q", args[i])
 			}
@@ -713,15 +691,9 @@ func placeSkills(bundleDir, projectDir, targetName string, td *target.Def, stdou
 }
 
 // resolveSkillDest resolves a skillChannel dest: "~" or "~/x" against
-// the user's home, a relative path against the project directory, an
-// absolute path as itself.
-//
-// A bare "~" is home, not a directory literally named "~". The
-// distinction matters because the caller warns about a global location
-// on a "~" prefix: if the two disagreed, a bare-"~" dest would be
-// announced as global while actually being written inside the project.
-// "~user" is refused rather than guessed, since os.UserHomeDir only
-// knows about the current user.
+// home, relative against projectDir, absolute as itself. A bare "~" must
+// stay home to match the caller's global-location warning, or a dest
+// would be announced as global while landing inside the project.
 func resolveSkillDest(dest, projectDir string) (string, error) {
 	if dest == "~" || strings.HasPrefix(dest, "~/") {
 		home, err := os.UserHomeDir()

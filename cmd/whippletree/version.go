@@ -10,27 +10,17 @@ import (
 	"github.com/larstonder/whippletree/internal/contract"
 )
 
-// Build metadata, set via -ldflags at release time:
-//
-//	-X main.version=v0.1.0 -X main.commit=abc1234 -X main.buildDate=2026-08-21
-//
-// When they are unset (a `go build` or `go run` from a checkout), the
-// values fall back to whatever the Go build info records, so a
-// `go install`ed binary still reports its module version rather than
-// claiming to be a dev build.
+// Build metadata set via -ldflags at release time, e.g.
+// -X main.version=v0.1.0. Unset, these fall back to Go build info.
 var (
 	version   = ""
 	commit    = ""
 	buildDate = ""
 )
 
-// runVersion prints build provenance and, more usefully, the target
-// definitions compiled into this binary.
-//
-// The target block is the point: a whippletree binary carries a probe
-// corpus, and "which harness versions was this actually tested against"
-// is a question about the binary in your hand, not about the repo. It
-// is also the claim a stale fork cannot honestly reproduce.
+// runVersion prints build provenance and the target definitions compiled
+// into this binary. The target block is the point: which harness
+// versions a binary was tested against is a question about that binary.
 func runVersion(args []string, stdout, stderr io.Writer) int {
 	parsed, err := parseVersionArgs(args)
 	if err != nil {
@@ -104,9 +94,7 @@ func parseVersionArgs(args []string) (versionArgs, error) {
 	return parsed, nil
 }
 
-// buildInfo resolves the version, commit and build date, preferring
-// ldflags-injected values and falling back to the Go build info a
-// module-aware build embeds automatically.
+// buildInfo prefers ldflags-injected values, falling back to Go build info.
 func buildInfo() (v, c, d string) {
 	v, c, d = version, commit, buildDate
 
@@ -124,9 +112,8 @@ func buildInfo() (v, c, d string) {
 			v = "(devel)"
 		}
 	}
-	// Only annotate dirtiness when the revision itself came from build
-	// info. A release binary carries an ldflags commit and should not
-	// have a "(dirty)" bolted onto it from an unrelated source.
+	// Only annotate dirtiness when the revision came from build info; a
+	// release binary's ldflags commit should not inherit it.
 	fromBuildInfo := c == ""
 	var modified bool
 	for _, s := range info.Settings {

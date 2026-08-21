@@ -7,25 +7,18 @@ import (
 	"github.com/larstonder/whippletree/internal/contract"
 )
 
-// Constraint is a parsed metadata.testedVersions range: the window of
-// harness versions a target definition has actually been probed
-// against.
-//
-// The grammar is deliberately tiny, covering what target definitions
-// really write and nothing more: one or two space-separated clauses,
-// each an operator followed by a dotted version. ">=1.18.10" and
-// ">=2.1.0 <3.0.0" both parse; anything richer is an error rather than
-// a silent misreading, because a constraint that is quietly ignored is
-// worse than one that fails loudly.
+// Constraint is a parsed metadata.testedVersions range, e.g. ">=1.18.10"
+// or ">=2.1.0 <3.0.0". The grammar is deliberately tiny and anything
+// richer is an error: a constraint that is quietly ignored is worse than
+// one that fails loudly.
 type Constraint struct {
 	Raw string
 	min *contract.Semver // inclusive lower bound, nil if unbounded
 	max *contract.Semver // exclusive upper bound, nil if unbounded
 }
 
-// ParseConstraint parses a testedVersions string. An empty string
-// yields a zero Constraint that admits everything, so a target
-// definition that declares no range is simply unchecked.
+// ParseConstraint parses a testedVersions string. Empty admits
+// everything, so a target declaring no range is simply unchecked.
 func ParseConstraint(s string) (Constraint, error) {
 	c := Constraint{Raw: s}
 	s = strings.TrimSpace(s)
@@ -54,11 +47,9 @@ func ParseConstraint(s string) (Constraint, error) {
 	return c, nil
 }
 
-// Check reports whether v falls inside the constraint. The returned
-// string is a human-readable reason when it does not, and empty when it
-// does. An unparseable or empty v is treated as inside: preflight
-// already reports an unprobed target as "unknown", and this should not
-// invent a second failure mode for it.
+// Check reports whether v falls inside the constraint, with a reason
+// when it does not. An unparseable or empty v counts as inside;
+// preflight already reports an unprobed target as "unknown".
 func (c Constraint) Check(v Version) (ok bool, reason string) {
 	if string(v) == "" || (c.min == nil && c.max == nil) {
 		return true, ""
