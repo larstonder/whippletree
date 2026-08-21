@@ -1,0 +1,34 @@
+name: site
+
+# whippletree.dev is a Cloudflare Pages direct-upload project. Deploying
+# from here rather than a Cloudflare git connection keeps the deploy
+# config in the repo and avoids granting Cloudflare's GitHub App access
+# to the whole repository.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The page is one hand-written HTML file plus the brand SVGs. There
+      # is nothing to build, so the directory ships as-is.
+      - uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=whippletree --branch=main
