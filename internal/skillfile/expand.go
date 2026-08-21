@@ -115,7 +115,7 @@ func bodySection(e Expansion, version string) string {
 	comment := fmt.Sprintf(`<!-- compiled-tier: T3
      source-requirement: %s (%s, %s)
      fidelity: %s
-     compiled-by: whippletree %s, do not hand-edit (edit the bundle contract instead) -->
+     compiled-by: whippletree %s (https://whippletree.dev), do not hand-edit (edit the bundle contract instead) -->
 `, e.ReqID, e.Kind, e.Event, contract.T3Fidelity, version)
 
 	if e.Event == "turn-end" {
