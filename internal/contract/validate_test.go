@@ -26,6 +26,10 @@ func TestValidateRejects(t *testing.T) {
 		{"handler escapes the bundle", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"../../../../bin/sh"}`, "escapes the bundle root"},
 		{"handler is absolute", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"/bin/sh"}`, "must be relative"},
 		{"executable-path escapes the bundle", `{"id":"a","kind":"executable-path","path":"../../../../etc/passwd","minTier":"T1","hardRequired":true}`, "escapes the bundle root"},
+		{"handlerWindows escapes the bundle", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"./h.sh","handlerWindows":"../../../../windows/system32/cmd.exe"}`, "handlerWindows: path \"../../../../windows/system32/cmd.exe\" escapes the bundle root"},
+		{"handlerWindows is absolute", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"./h.sh","handlerWindows":"C:/windows/system32/cmd.exe"}`, "handlerWindows"},
+		{"handlerWindows on a skill", `{"id":"s","kind":"skill","path":"./skills/s","minTier":"T1","hardRequired":false,"handlerWindows":"./h.ps1"}`, "handlerWindows must be empty for skill"},
+		{"handlerWindows on executable-path", `{"id":"x","kind":"executable-path","path":"./bin/x","minTier":"T1","hardRequired":true,"handlerWindows":"./h.ps1"}`, "handlerWindows must be empty for executable-path"},
 		{"duplicate id", "", "duplicate"}, // built directly below
 	}
 
@@ -199,6 +203,34 @@ func TestValidateContractVersion(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Errorf("error = %q, want it to mention %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestHandlerWindowsRequiresItsContractVersion(t *testing.T) {
+	req := func(hw string) Requirement {
+		return Requirement{ID: "a", Kind: "lifecycle-signal", Event: "session-start",
+			MinTierRaw: "T2", MinTier: T2, HardRequired: boolPtr(false),
+			Handler: "./h.sh", HandlerWindows: hw}
+	}
+
+	cases := []struct{ name, version, handlerWindows, wantErr string }{
+		{"declared 1.1.0", "1.1.0", "./h.cmd", ""},
+		{"unused on 1.0.0", "1.0.0", "", ""},
+		{"used on 1.0.0", "1.0.0", "./h.cmd", "handlerWindows requires contractVersion 1.1.0 or later"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Validate(&Contract{ContractVersion: tc.version, Requires: []Requirement{req(tc.handlerWindows)}})
+			switch {
+			case tc.wantErr == "" && err != nil:
+				t.Fatalf("unexpected error: %v", err)
+			case tc.wantErr != "" && err == nil:
+				t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+			case tc.wantErr != "" && !strings.Contains(err.Error(), tc.wantErr):
+				t.Fatalf("error %q does not contain %q", err, tc.wantErr)
 			}
 		})
 	}

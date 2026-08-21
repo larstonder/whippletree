@@ -192,29 +192,41 @@ target on its own ts-plugin backend (see "opencode" above). Out of scope:
 - the T4 (observer) tier
 - the conformance kit
 - uninstall and upgrade flows
-- Windows (see below)
+- running a bundle on Windows, partly (see below)
 
 This implementation is a slice of a larger architecture (a four-tier fidelity ladder
 across harness classes); the remaining tiers and targets land in later slices.
 
 ## Windows
 
-**Whippletree does not support Windows yet.** Authoring a bundle works, but running one
-does not, and the gap is in the bundle format rather than in any single bug:
+**Partly, and the boundary is precise.** Authoring, building and installing a bundle
+work. Whether a bundle *runs* depends on what its handlers are written in.
 
-- Every handler `init` scaffolds is a `#!/usr/bin/env bash` script. Windows has no shebang
-  support, so the handler cannot be executed no matter how it is invoked.
-- The command compiled into each hooks file is `"${PLUGIN_ROOT}/bin/whippletree-hook" run
-  ...`: POSIX shell variable syntax, forward slashes, and a binary name with no `.exe`.
+A requirement may declare `handlerWindows` alongside `handler`, and the dispatcher picks
+per platform at dispatch rather than at build, so one compiled bundle stays valid
+everywhere. The command baked into each hooks file names the dispatcher without a
+`.exe`, which resolves correctly on Windows across every spawn path a harness plausibly
+uses — measured, in [`docs/windows-probe-findings.md`](docs/windows-probe-findings.md),
+along with the reason shipping both filenames is the arrangement to avoid.
 
-Closing this means giving a requirement a per-platform handler, the way GitHub Copilot
-CLI's own hooks file splits `bash` and `powershell`. That is a change to the contract
-surface, so it is deliberately being decided before `dev.whippletree.v1` is frozen at
-v1.0 rather than patched in now.
+Handlers are limited to what the loader launches from a bare path: `.exe`, `.com`,
+`.bat`, `.cmd`. The dispatcher execs the handler directly, with no interpreter, so
+`.ps1` is not among them — wrap it in a `.cmd`. That is refused at build time rather
+than left to fail open at dispatch, because a spawn failure fails open and a
+hard-required gate would otherwise stop enforcing silently.
 
-The dispatcher itself is Windows-clean: it no longer applies a POSIX mode check that
-Windows can never satisfy, so a bundle whose handlers are real executables will run. Tests
-that depend on shell-script handlers skip on Windows rather than reporting a false pass.
+What is still missing:
+
+- `whippletree init` scaffolds only `#!/usr/bin/env bash` handlers and never sets
+  `handlerWindows`, so a scaffolded bundle carries nothing on Windows until you add one.
+- `preflight` is platform-blind by construction: it reports what a *harness* can carry,
+  and a harness is not a machine. A requirement with no `handlerWindows` still reports
+  SATISFY, then gets skipped at dispatch.
+- The T3 instruction fallback compiles a POSIX shell snippet, so it reads wrongly there.
+
+Tests that depend on shell-script handlers skip on Windows rather than reporting a false
+pass. Tracked as issues [#1](https://github.com/larstonder/whippletree/issues/1) and
+[#17](https://github.com/larstonder/whippletree/issues/17).
 
 ## Licence and the name
 

@@ -107,6 +107,30 @@
       <code>install</code> writes a TypeScript shim into <code>.opencode/plugin/</code> and
       copies skills into <code>.opencode/skills</code> rather than shipping them in the bundle.</p>
 
+    <h2>Windows</h2>
+    <p>Windows is a property of the machine, not a fourth target: all three
+      harnesses run there. What does not work is a handler written as a shell
+      script, because Windows has no shebang support. A requirement can declare
+      <code>handlerWindows</code> alongside <code>handler</code>, and the dispatcher
+      picks per platform at run time. A requirement without one is simply not
+      carried on Windows, and says so.</p>
+    <p>The handler has to be something Windows launches from a bare path, since the
+      dispatcher execs it with no interpreter: <code>.exe</code>, <code>.com</code>,
+      <code>.bat</code> or <code>.cmd</code>. <b><code>.ps1</code> is not one of them</b>
+      &mdash; it is absent from the default <code>PATHEXT</code> &mdash; so wrap it in a
+      <code>.cmd</code>. Anything else is refused at build time rather than left to fail
+      open at dispatch.</p>
+
+    <div class="note"><b>Preflight does not model the platform.</b> It reports what a
+      harness can carry, and a harness is not a machine. A requirement with no
+      <code>handlerWindows</code> still reports SATISFY, then gets skipped at dispatch on
+      Windows. That is the one verdict on this page that is narrower than it looks.</div>
+
+    <p>Running a bundle on Windows is not finished: <code>init</code> scaffolds only
+      shell handlers, and the T3 instruction fallback is written as a POSIX shell
+      snippet. Tracked as
+      <a href="https://github.com/larstonder/whippletree/issues/1">issue 1</a>.</p>
+
     <h2>How these claims are checked</h2>
     <p>Every row above comes from a target definition in the repository, and each one records
       the harness versions it was probed against. Those definitions are established by running

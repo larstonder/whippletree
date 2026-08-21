@@ -26,6 +26,7 @@ func Validate(c *Contract) error {
 		errs = append(errs, err)
 	}
 
+	usesHandlerWindows := false
 	seen := make(map[string]bool, len(c.Requires))
 	skillIDs := make(map[string]bool)
 
@@ -71,6 +72,9 @@ func Validate(c *Contract) error {
 			if req.Event != "" {
 				errs = append(errs, fmt.Errorf("requirement %s: event must be empty for executable-path", req.ID))
 			}
+			if req.HandlerWindows != "" {
+				errs = append(errs, fmt.Errorf("requirement %s: handlerWindows must be empty for executable-path", req.ID))
+			}
 			continue
 		}
 
@@ -85,6 +89,23 @@ func Validate(c *Contract) error {
 			errs = append(errs, fmt.Errorf("requirement %s: handler is required", req.ID))
 		} else if err := ValidateBundleRelPath(req.Handler); err != nil {
 			errs = append(errs, fmt.Errorf("requirement %s: %w", req.ID, err))
+		}
+		if req.HandlerWindows != "" {
+			usesHandlerWindows = true
+			if err := ValidateBundleRelPath(req.HandlerWindows); err != nil {
+				errs = append(errs, fmt.Errorf("requirement %s: handlerWindows: %w", req.ID, err))
+			} else if err := ValidateWindowsHandler(req.HandlerWindows); err != nil {
+				errs = append(errs, fmt.Errorf("requirement %s: %w", req.ID, err))
+			}
+		}
+	}
+
+	// A contract that uses handlerWindows has to say so, or an older
+	// whippletree parses it, drops the field it does not know, and runs the
+	// POSIX handler's absence as though the author had chosen it.
+	if usesHandlerWindows {
+		if err := requireContractVersion(c.ContractVersion, handlerWindowsSince, "handlerWindows"); err != nil {
+			errs = append(errs, err)
 		}
 	}
 
@@ -109,6 +130,9 @@ func validateSkillReq(req *Requirement) []error {
 	}
 	if req.Handler != "" {
 		errs = append(errs, fmt.Errorf("requirement %s: handler must be empty for skill", req.ID))
+	}
+	if req.HandlerWindows != "" {
+		errs = append(errs, fmt.Errorf("requirement %s: handlerWindows must be empty for skill", req.ID))
 	}
 	if req.LoopGuardRequired {
 		errs = append(errs, fmt.Errorf("requirement %s: loopGuardRequired must be false for skill", req.ID))
@@ -160,6 +184,26 @@ func validateContractVersion(raw string) error {
 	}
 	if supported.Less(got) {
 		return fmt.Errorf("contractVersion %s is newer than this whippletree supports (%s); upgrade whippletree", raw, SupportedContractVersion)
+	}
+	return nil
+}
+
+// handlerWindowsSince is the contract version that introduced handlerWindows.
+const handlerWindowsSince = "1.1.0"
+
+// requireContractVersion rejects a contract that uses a field newer than the
+// version it declares.
+func requireContractVersion(raw, since, field string) error {
+	got, err := ParseSemver(raw)
+	if err != nil {
+		return nil // already reported by validateContractVersion
+	}
+	min, err := ParseSemver(since)
+	if err != nil {
+		return fmt.Errorf("contractVersion: internal: %w", err)
+	}
+	if got.Less(min) {
+		return fmt.Errorf("%s requires contractVersion %s or later, but this contract declares %s", field, since, raw)
 	}
 	return nil
 }

@@ -49,3 +49,20 @@ func TestValidateBundleRelPathRejects(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateBundleRelPathRejectsWindowsAbsoluteOnAnyHost: filepath.IsAbs and
+// filepath.VolumeName follow host semantics, so on Unix they do not see
+// "C:/..." as absolute. A bundle is validated on one platform and dispatched on
+// another, so the check must not depend on which machine ran it.
+func TestValidateBundleRelPathRejectsWindowsAbsoluteOnAnyHost(t *testing.T) {
+	for _, p := range []string{
+		`C:/windows/system32/cmd.exe`,
+		`c:/windows/system32/cmd.exe`,
+		`D:/payload.ps1`,
+		`C:handlers/gate.ps1`,
+	} {
+		if err := ValidateBundleRelPath(p); err == nil {
+			t.Errorf("ValidateBundleRelPath(%q) = nil, want an error on every host", p)
+		}
+	}
+}

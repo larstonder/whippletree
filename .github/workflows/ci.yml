@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # whippletree does not support running bundles on Windows yet (see
-  # README and issue #1), but it must keep compiling and vetting cleanly
+  # whippletree cannot yet build or run a bundle on Windows (see README and
+  # issue #1), but it must keep compiling and vetting cleanly
   # there, because the exec-bit bug that made every handler silently skip
   # was only ever going to be caught by a machine that ran it.
   test:

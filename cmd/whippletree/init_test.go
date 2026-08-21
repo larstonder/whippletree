@@ -166,14 +166,6 @@ func TestRunInit_KindsVariants(t *testing.T) {
 // os.Executable(), which under `go test` resolves to the test binary,
 // not a "whippletree" binary with a "whippletree-hook" sibling.
 func TestGuarantee_InitBuildPreflightAllFourKindsDefaultsSoft(t *testing.T) {
-	// build cannot provision bin/whippletree-hook on Windows: naming it
-	// with the .exe the loader needs would contradict the bin/whippletree-hook
-	// path emit.go bakes into every hooks file. Which name wins is part
-	// of the per-platform handler question in issue #1.
-	if runtime.GOOS == "windows" {
-		t.Skip("dispatcher provisioning on Windows is unresolved; see issue #1")
-	}
-
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -235,7 +227,7 @@ func TestGuarantee_InitBuildPreflightAllFourKindsDefaultsSoft(t *testing.T) {
 		t.Fatalf("build exit = %d, want 0 (stdout=%s stderr=%s)", code, buildStdout, buildStderr)
 	}
 
-	if _, err := os.Stat(filepath.Join(bundleDir, "bin", "whippletree-hook")); err != nil {
+	if _, err := os.Stat(filepath.Join(bundleDir, "bin", dispatcherName())); err != nil {
 		t.Errorf("expected build to have copied the dispatcher from the sibling binary: %v", err)
 	}
 
@@ -780,7 +772,7 @@ func TestInitScaffoldWithSkillBuilds(t *testing.T) {
 	// then build against the embedded target defs. With minTier T3 and
 	// the fallback wired, the hard gate must NOT refuse on opencode, so
 	// no --allow-refuse is passed.
-	hook := filepath.Join(bundle, "bin", "whippletree-hook")
+	hook := filepath.Join(bundle, "bin", dispatcherName())
 	if err := os.MkdirAll(filepath.Dir(hook), 0o755); err != nil {
 		t.Fatal(err)
 	}
