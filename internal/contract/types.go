@@ -4,6 +4,24 @@ import "fmt"
 
 const Namespace = "dev.whippletree.v1"
 
+// SupportedContractVersion is the highest contractVersion this build of
+// whippletree understands.
+//
+// The compatibility rule, enforced by Validate:
+//
+//   - Major must match exactly. A major bump means the meaning of
+//     existing fields changed, so an older binary cannot be trusted to
+//     read a newer contract, nor the reverse.
+//   - Minor and patch may be anything at or below this value. Minor
+//     bumps are additive, so a 1.0.0 contract is readable by a 1.2.0
+//     binary; a 1.2.0 contract is refused by a 1.0.0 binary, because it
+//     may rely on a field this build would silently ignore.
+//
+// Silently ignoring a field a contract depends on is the failure mode
+// worth preventing: whippletree's whole claim is that it either
+// delivers what was declared or says plainly that it cannot.
+const SupportedContractVersion = "1.0.0"
+
 type Tier int
 
 const (

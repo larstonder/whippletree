@@ -53,7 +53,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 // directly), so this plumbing creates no behavior change.
 func runWith(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr io.Writer) int {
 	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: whippletree <init|build|preflight|install> ...")
+		fmt.Fprint(stderr, usageText)
 		return 1
 	}
 
@@ -66,8 +66,14 @@ func runWith(args []string, stdin io.Reader, isTTY func() bool, stdout, stderr i
 		return runPreflight(args[1:], stdout, stderr)
 	case "install":
 		return runInstall(args[1:], stdout, stderr)
+	case "version", "--version", "-v":
+		return runVersion(args[1:], stdout, stderr)
+	case "help", "--help", "-h":
+		fmt.Fprint(stdout, usageText)
+		return 0
 	default:
 		fmt.Fprintf(stderr, "whippletree: unknown subcommand %q\n", args[0])
+		fmt.Fprint(stderr, usageText)
 		return 1
 	}
 }

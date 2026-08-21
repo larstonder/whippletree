@@ -19,6 +19,10 @@ var validKinds = map[string]bool{
 // the first one.
 func Validate(c *Contract) error {
 	var errs []error
+	if err := validateContractVersion(c.ContractVersion); err != nil {
+		errs = append(errs, err)
+	}
+
 	seen := make(map[string]bool, len(c.Requires))
 	skillIDs := make(map[string]bool)
 
@@ -130,6 +134,32 @@ func validateFallbackSkill(req *Requirement, skillIDs map[string]bool) error {
 	}
 	if !skillIDs[req.FallbackSkill] {
 		return fmt.Errorf("requirement %s: fallbackSkill %q does not name a skill requirement in this contract", req.ID, req.FallbackSkill)
+	}
+	return nil
+}
+
+// validateContractVersion enforces the SupportedContractVersion
+// compatibility rule. Until now this field was written by init, carried
+// through every artifact, and never read by anything: a contract could
+// claim any version at all and whippletree would compile it regardless.
+func validateContractVersion(raw string) error {
+	if raw == "" {
+		return fmt.Errorf("contractVersion is required")
+	}
+	got, err := ParseSemver(raw)
+	if err != nil {
+		return fmt.Errorf("contractVersion: %w", err)
+	}
+	supported, err := ParseSemver(SupportedContractVersion)
+	if err != nil {
+		return fmt.Errorf("contractVersion: internal: %w", err)
+	}
+
+	if got.Major != supported.Major {
+		return fmt.Errorf("contractVersion %s: this whippletree supports %s; major versions must match", raw, SupportedContractVersion)
+	}
+	if supported.Less(got) {
+		return fmt.Errorf("contractVersion %s is newer than this whippletree supports (%s); upgrade whippletree", raw, SupportedContractVersion)
 	}
 	return nil
 }
