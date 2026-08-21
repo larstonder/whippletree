@@ -1,0 +1,107 @@
+name: windows-probe
+
+# Answers one question that no harness documents and that decides whether a
+# compiled bundle stays portable across platforms: when a hooks file names an
+# extensionless absolute path, does Windows resolve it to the .exe?
+#
+# PATHEXT does that, but only when the command is launched through a shell and
+# only when no extensionless file already exists at that path. CreateProcess
+# does no resolution at all. So the answer depends on how a harness spawns its
+# hook command, which is a fact to be measured rather than reasoned about.
+#
+# Manual: this exists to produce a finding, not to gate anything.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Layer 1: the mechanism. No harness needed, and the result is definitive
+  # about what Windows itself will and will not resolve.
+  mechanism:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - name: build the dispatcher as .exe only
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path probe/bin | Out-Null
+          go build -o probe/bin/whippletree-hook.exe ./cmd/whippletree-hook
+          Get-ChildItem probe/bin | Select-Object Name, Length | Format-Table
+          # The whole question assumes no extensionless file is present, since
+          # PATHEXT only fires when the exact path misses.
+          if (Test-Path probe/bin/whippletree-hook) { throw "extensionless file exists; probe invalid" }
+
+      - name: does an extensionless absolute path resolve?
+        shell: pwsh
+        run: |
+          $bin = (Resolve-Path probe/bin).Path
+          $noext = Join-Path $bin 'whippletree-hook'
+          $withext = Join-Path $bin 'whippletree-hook.exe'
+          Write-Host "extensionless target: $noext"
+          Write-Host ""
+
+          function Probe($label, $block) {
+            try {
+              $out = & $block 2>&1 | Out-String
+              Write-Host "$label => LAUNCHED"
+              Write-Host ("    " + ($out -split "`n")[0])
+            } catch {
+              Write-Host "$label => NOT FOUND ($($_.Exception.Message.Split([char]10)[0]))"
+            }
+          }
+
+          # Control: the .exe must launch, or the probe proves nothing.
+          Probe "exe, direct           " { & $withext }
+          # The real question, three spawn paths.
+          Probe "no ext, pwsh direct   " { & $noext }
+          Probe "no ext, cmd /c        " { cmd /c "`"$noext`"" }
+          Probe "no ext, Start-Process " { Start-Process -FilePath $noext -NoNewWindow -Wait -PassThru }
+
+      - name: and via CreateProcess, which is what a non-shell spawn uses
+        shell: pwsh
+        run: |
+          $bin = (Resolve-Path probe/bin).Path
+          @"
+          package main
+
+          import (
+              "fmt"
+              "os/exec"
+              "path/filepath"
+          )
+
+          func main() {
+              bin := ``$bin``
+              for _, name := range []string{"whippletree-hook", "whippletree-hook.exe"} {
+                  p := filepath.Join(bin, name)
+                  err := exec.Command(p).Run()
+                  if err == nil {
+                      fmt.Printf("%-24s => LAUNCHED (exit 0)\n", name)
+                      continue
+                  }
+                  if _, ok := err.(*exec.ExitError); ok {
+                      fmt.Printf("%-24s => LAUNCHED (%v)\n", name, err)
+                      continue
+                  }
+                  fmt.Printf("%-24s => NOT FOUND (%v)\n", name, err)
+              }
+          }
+          "@ | Set-Content -Path probe/createprocess.go -Encoding utf8
+          Push-Location probe
+          go mod init probe 2>$null
+          go run createprocess.go
+          Pop-Location
+
+      - name: what a hooks file actually contains today
+        shell: bash
+        run: |
+          go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
+          go run ./cmd/whippletree build examples/kb-shaped --targets-dir targets --allow-refuse >/dev/null 2>&1 || true
+          echo "the emitted command, verbatim:"
+          grep -o '"command": "[^"]*"' examples/kb-shaped/hooks/claude-code.json | head -1
