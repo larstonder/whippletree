@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harnesses — Whippletree</title>
+<meta name="description" content="Which AI coding harnesses Whippletree targets, what each one can enforce, and what it cannot.">
+<meta name="go-import" content="whippletree.dev git https://github.com/larstonder/whippletree">
+<link rel="icon" href="/brand/logo_black.svg" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/brand/logo_white.svg" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="lockup" href="/" aria-label="Whippletree">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="/brand/wordmark_white.svg">
+        <img src="/brand/wordmark_black.svg" alt="Whippletree" width="107" height="18">
+      </picture>
+    </a>
+    <nav>
+      <a href="/docs/">Docs</a>
+      <a href="https://github.com/larstonder/whippletree">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="doc">
+  <div class="wrap">
+    <p class="crumb"><a href="/docs/">Docs</a> / Harnesses</p>
+
+    <h1>Harnesses</h1>
+    <p class="standfirst">Three targets today. They do not support the same things, and the
+      differences decide what your contract can actually promise.</p>
+
+    <table>
+      <thead><tr><th>harness</th><th>backend</th><th>install</th><th>tested against</th></tr></thead>
+      <tbody>
+        <tr><td>claude-code</td><td>hooks-json</td><td>its own plugin marketplace</td><td>2.1.0 and up</td></tr>
+        <tr><td>codex</td><td>hooks-json</td><td>its own plugin marketplace</td><td>0.144.0 and up</td></tr>
+        <tr><td>opencode</td><td>ts-plugin</td><td>Whippletree writes the shim</td><td>1.18.10 and up</td></tr>
+      </tbody>
+    </table>
+
+    <h2>What each event maps to</h2>
+    <p>A dash means the harness has no equivalent, so a requirement bound to that event lands
+      ABSENT there, and REFUSES if you marked it hard-required.</p>
+
+    <table>
+      <thead><tr><th>event</th><th>claude-code</th><th>codex</th><th>opencode</th></tr></thead>
+      <tbody>
+        <tr><td>session-start</td><td>SessionStart</td><td>SessionStart</td><td>session.created</td></tr>
+        <tr><td>session-end</td><td>SessionEnd</td><td>SessionEnd</td><td><b>none</b></td></tr>
+        <tr><td>turn-end</td><td>Stop, blocking</td><td>Stop, blocking</td><td><b>none</b></td></tr>
+        <tr><td>tool-pre</td><td>PreToolUse, blocking</td><td>PreToolUse, blocking</td><td>tool.execute.before, blocking</td></tr>
+        <tr><td>tool-post</td><td>PostToolUse</td><td>PostToolUse</td><td>tool.execute.after</td></tr>
+      </tbody>
+    </table>
+
+    <h2>What each tool class maps to</h2>
+    <p>This is what the <code>file-read</code>, <code>file-write</code> and
+      <code>shell-exec</code> aliases resolve to.</p>
+
+    <table>
+      <thead><tr><th>class</th><th>claude-code</th><th>codex</th><th>opencode</th></tr></thead>
+      <tbody>
+        <tr><td>read</td><td>Read</td><td><b>no such tool</b></td><td>read</td></tr>
+        <tr><td>write</td><td>Write</td><td>apply_patch</td><td>write</td></tr>
+        <tr><td>shell</td><td>Bash</td><td>Bash</td><td>bash</td></tr>
+      </tbody>
+    </table>
+
+    <h2>claude-code</h2>
+    <p>The most complete target. Every event maps to a native hook, all three tool classes have
+      a dedicated tool, and skills ride inside the plugin. Nothing degrades.</p>
+
+    <h2>codex</h2>
+    <p>Identical on events, but it has <b>no file-read tool</b>. Rather than drop
+      <code>file-read</code>, the target definition declares a degradation to T2:</p>
+
+<pre><code>file-read  want ≥T4  got T2  SATISFY   matcher Bash|Edit|Write|apply_patch;
+                                       misses reads in pipelines/heredocs/scripts;
+                                       may double-count</code></pre>
+
+    <p>The lossage is written into the target definition, not discovered at runtime, so
+      preflight prints it before you install rather than after something goes wrong. If T2 is
+      not good enough, declare <code>minTier: T1</code> and it will REFUSE here instead.</p>
+
+    <h2>opencode</h2>
+    <p>The one that genuinely cannot do something. <b>It has no blocking stop event.</b> A
+      thrown error fails a single tool call and the agent loop carries on, so there is nothing
+      to bind <code>turn-end</code> to.</p>
+
+    <div class="note">A hard-required <code>blocking-gate</code> on <code>turn-end</code>
+      <b>REFUSES</b> on opencode. That is the correct answer, not a limitation to work around:
+      a gate that silently becomes advice is worse than one that will not install, because you
+      would believe it was running.</div>
+
+    <p>If advice is acceptable, pair the gate with a <code>skill</code> through
+      <code>fallbackSkill</code> and the step compiles into instructions at T3 instead of
+      refusing. It also uses a different backend: opencode has no plugin manifest to extend, so
+      <code>install</code> writes a TypeScript shim into <code>.opencode/plugin/</code> and
+      copies skills into <code>.opencode/skills</code> rather than shipping them in the bundle.</p>
+
+    <h2>How these claims are checked</h2>
+    <p>Every row above comes from a target definition in the repository, and each one records
+      the harness versions it was probed against. Those definitions are established by running
+      the harness in a sandbox, not by reading its documentation, and the probe notes are kept
+      with the code. A nightly job reinstalls all three and reruns the end-to-end suite, so a
+      harness changing under a definition shows up as a failure rather than as a wrong answer
+      in your terminal.</p>
+
+    <ul>
+      <li><a href="https://github.com/larstonder/whippletree/tree/main/targets">Target definitions</a></li>
+      <li><a href="https://github.com/larstonder/whippletree/tree/main/docs">Probe findings</a>, dated and honest about what a probe could not verify</li>
+      <li><a href="https://github.com/larstonder/whippletree/blob/main/MAINTENANCE.md">Maintenance</a>, the upkeep bet and the version baselines</li>
+    </ul>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache-2.0</span>
+    <a href="https://github.com/larstonder/whippletree/blob/main/TRADEMARK.md">Trademark</a>
+    <a href="https://github.com/larstonder/whippletree/blob/main/SECURITY.md">Security</a>
+    <span class="end">Whippletree is a trademark of Lars Tønder.</span>
+  </div>
+</footer>
+
+</body>
+</html>
