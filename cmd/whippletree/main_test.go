@@ -718,7 +718,7 @@ spec:
     installerPath: true
   skillChannel:
     kind: copy-dir
-    dest: "` + destValue + `"
+    dest: "` + escapeYAMLDoubleQuoted(destValue) + `"
 `
 	if err := os.WriteFile(filepath.Join(td, "target.yaml"), []byte(yaml), 0o644); err != nil {
 		t.Fatal(err)
