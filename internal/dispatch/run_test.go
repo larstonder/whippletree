@@ -513,13 +513,13 @@ func TestRunRefusesHandlerSymlinkedOutsideBundle(t *testing.T) {
 }
 
 func TestRunTimesOutHangingHandlerAndFailsOpen(t *testing.T) {
-	if testing.Short() {
-		t.Skip("sleeps for the handler timeout")
-	}
-	// Exit 2 after the sleep: if the timeout ever stopped killing the
-	// handler, Run would return 2 and this would fail loudly rather than
-	// just hanging.
-	script := fmt.Sprintf("#!/bin/bash\nsleep %d\nexit 2\n", int(dispatch.HandlerTimeout.Seconds())+10)
+	defer dispatch.SetHandlerTimeoutForTest(200 * time.Millisecond)()
+
+	// The handler backgrounds a sleep before hanging itself. That
+	// grandchild inherits the stdout pipe, so killing the handler alone
+	// does not release it and Run would block on the pipe regardless of
+	// the timeout. Exit 2 would surface as a block if it ever ran.
+	script := "#!/bin/bash\nsleep 20 &\nsleep 20\nexit 2\n"
 	bundle := newBundle(t, map[string]string{"hang.sh": script})
 	writeVendoredContract(t, bundle, contract.Requirement{
 		ID: "hang", Kind: "blocking-gate", Event: "turn-end",
@@ -529,18 +529,16 @@ func TestRunTimesOutHangingHandlerAndFailsOpen(t *testing.T) {
 	stdin := []byte(`{"session_id":"s1","cwd":"/tmp/proj","hook_event_name":"Stop","stop_hook_active":false}`)
 	var stdout, stderr bytes.Buffer
 
-	done := make(chan int, 1)
-	go func() { done <- dispatch.Run(bundle, "turn-end", "codex", stdin, &stdout, &stderr) }()
+	start := time.Now()
+	code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stdout, &stderr)
+	elapsed := time.Since(start)
 
-	select {
-	case code := <-done:
-		if code != 0 {
-			t.Fatalf("Run = %d, want 0 (timeout is fail-open) (stderr: %s)", code, stderr.String())
-		}
-	case <-time.After(dispatch.HandlerTimeout + 30*time.Second):
-		t.Fatal("Run did not return: the handler timeout did not fire")
+	if code != 0 {
+		t.Fatalf("Run = %d, want 0 (timeout is fail-open) (stderr: %s)", code, stderr.String())
 	}
-
+	if elapsed > 10*time.Second {
+		t.Fatalf("Run took %s: the timeout did not bound the handler", elapsed)
+	}
 	if !strings.Contains(stderr.String(), "timed out") {
 		t.Errorf("stderr = %q, want it to report the timeout", stderr.String())
 	}

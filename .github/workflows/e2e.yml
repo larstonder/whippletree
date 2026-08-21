@@ -1,0 +1,86 @@
+name: e2e
+
+# The e2e suite drives the real harness CLIs, so it needs each one
+# installed and, for opencode, network access to its default hosted
+# model. That is too slow and too dependent on third parties to gate
+# every pull request on, but it is the only thing that proves a target
+# definition still matches the harness it describes -- which is the
+# claim metadata.testedVersions makes. Nightly plus on demand.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: e2e (${{ matrix.harness }})
+    runs-on: ubuntu-latest
+    # A harness that has moved on is a finding, not a broken build: the
+    # point of running this nightly is to learn that before a user does.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - harness: claude
+            install: npm install -g @anthropic-ai/claude-code
+            script: test/e2e/run-claude.sh
+          - harness: codex
+            install: npm install -g @openai/codex
+            script: test/e2e/run-codex.sh
+          - harness: opencode
+            install: npm install -g opencode-ai
+            script: test/e2e/run-opencode.sh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: install ${{ matrix.harness }}
+        run: ${{ matrix.install }}
+
+      - name: record the probed version
+        run: |
+          go build -o /tmp/whippletree ./cmd/whippletree
+          /tmp/whippletree version
+
+      - name: run
+        run: bash ${{ matrix.script }}
+        timeout-minutes: 20
+
+  # Nightly runs are only worth having if a drift shows up somewhere a
+  # person looks. Any harness whose e2e failed lands here.
+  report:
+    needs: e2e
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: open or update a drift issue
+        if: needs.e2e.result != 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="e2e drift: a harness no longer matches its target definition"
+          existing=$(gh issue list --state open --search "$title" --json number --jq '.[0].number')
+          body="Nightly e2e failed. A harness has likely changed under a target definition; check whether metadata.testedVersions still holds.
+
+          Run: $RUN"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
