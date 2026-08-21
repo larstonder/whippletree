@@ -8,7 +8,7 @@ Authored body.
 <!-- compiled-tier: T3
      source-requirement: pull-signal (lifecycle-signal, session-start)
      fidelity: best-effort, no harness-level enforcement on this target: the model is instructed to run the step and usually will, but can skip it under pressure
-     compiled-by: whippletree 1.2.3, do not hand-edit (edit the bundle contract instead) -->
+     compiled-by: whippletree 1.2.3 (https://whippletree.dev), do not hand-edit (edit the bundle contract instead) -->
 ## Manual step on this harness (session-start)
 
 This harness has no session-start hook seam. At the start of a session, before

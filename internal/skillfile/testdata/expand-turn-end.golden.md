@@ -8,7 +8,7 @@ Authored body.
 <!-- compiled-tier: T3
      source-requirement: capture-gate (blocking-gate, turn-end)
      fidelity: best-effort, no harness-level enforcement on this target: the model is instructed to run the step and usually will, but can skip it under pressure
-     compiled-by: whippletree 1.2.3, do not hand-edit (edit the bundle contract instead) -->
+     compiled-by: whippletree 1.2.3 (https://whippletree.dev), do not hand-edit (edit the bundle contract instead) -->
 ## Manual step on this harness (turn-end)
 
 This harness has no enforced turn-end hook. Before writing any message that
