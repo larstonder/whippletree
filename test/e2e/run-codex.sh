@@ -22,8 +22,8 @@ echo "harness=codex version=${version:-unknown} date=$(date -u +%Y-%m-%dT%H:%M:%
 
 go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
 
-codex plugin marketplace add "$repo_root/examples/kb-shaped"
-codex plugin add kb-shaped@kb-shaped-mkt
+codex plugin marketplace add "$repo_root/examples/kb-shaped" </dev/null
+codex plugin add kb-shaped@kb-shaped-mkt </dev/null
 
 mkdir -p "$sandbox/proj"
 cd "$sandbox/proj"
