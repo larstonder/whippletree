@@ -73,6 +73,14 @@ jobs:
       - name: vet for windows
         run: GOOS=windows go vet ./...
 
+      - name: licence headers
+        run: |
+          missing=$(git ls-files '*.go' | xargs grep -L 'SPDX-License-Identifier' || true)
+          if [ -n "$missing" ]; then
+            echo "::error::Go files without an SPDX header:"; echo "$missing"
+            exit 1
+          fi
+
   # examples/kb-shaped's compiled artifacts are committed as fixtures, so
   # a build that no longer reproduces them byte-for-byte is a silent
   # change to what every user's bundle looks like.

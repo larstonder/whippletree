@@ -428,3 +428,13 @@ v1.0 rather than patched in now.
 The dispatcher itself is Windows-clean: it no longer applies a POSIX mode check that
 Windows can never satisfy, so a bundle whose handlers are real executables will run. Tests
 that depend on shell-script handlers skip on Windows rather than reporting a false pass.
+
+## Licence and the name
+
+The code is [Apache-2.0](LICENSE). The name and logo are not: Apache-2.0
+section 6 reserves trademarks explicitly, and [`TRADEMARK.md`](TRADEMARK.md) says
+what that means in practice. Fork freely; if you change how the verdicts behave,
+call it something else.
+
+Contributions are under the [DCO](CONTRIBUTING.md), not a CLA. Vulnerability
+reports go through [`SECURITY.md`](SECURITY.md).

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 // Command whippletree is the developer-facing CLI: it compiles a
 // bundle's per-target variants (build) and reports whether a target
 // can satisfy a bundle's contract before install (preflight).

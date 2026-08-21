@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 // Command whippletree-hook is the process a harness's native hooks file
 // invokes. It is not meant to be run by humans: harnesses call
 // `whippletree-hook run <event> --target <name>` with the raw hook payload

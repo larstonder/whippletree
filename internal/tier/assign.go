@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 // Package tier assigns a contract.Requirement to the tier at which a
 // specific target can satisfy it, given that target's Def.
 package tier

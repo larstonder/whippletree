@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 // Package dispatch normalizes a target's raw hook stdin payload into the
 // whippletree's canonical Event shape, so downstream handlers work against
 // one representation regardless of which target produced the payload.

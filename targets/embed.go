@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 // Package targets embeds the repo's built-in target definitions into the
 // whippletree binary, so the CLI has targets to load when run from
 // outside a whippletree checkout.
