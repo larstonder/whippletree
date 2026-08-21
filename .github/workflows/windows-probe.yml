@@ -67,6 +67,11 @@ jobs:
           Probe "no ext, cmd /c        " { cmd /c "`"$noext`"" }
           Probe "no ext, Start-Process " { Start-Process -FilePath $noext -NoNewWindow -Wait -PassThru }
 
+          # The probed binary exits non-zero on purpose (it prints usage). That
+          # is a successful launch, not a failed step.
+          $global:LASTEXITCODE = 0
+          exit 0
+
       - name: and via CreateProcess, which is what a non-shell spawn uses
         shell: pwsh
         run: |
@@ -101,6 +106,8 @@ jobs:
           go mod init probe 2>$null
           go run createprocess.go
           Pop-Location
+          $global:LASTEXITCODE = 0
+          exit 0
 
       - name: what a hooks file actually contains today
         shell: bash
