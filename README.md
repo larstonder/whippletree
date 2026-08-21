@@ -1,5 +1,7 @@
 # whippletree
 
+[![ci](https://github.com/larstonder/whippletree/actions/workflows/ci.yml/badge.svg)](https://github.com/larstonder/whippletree/actions/workflows/ci.yml)
+
 A whippletree is the pivoting crossbar that lets one pull drive differently matched
 horses in harness. This does the same for agent tools across AI coding harnesses.
 
@@ -11,6 +13,7 @@ Claude Code + Codex CLI, plus opencode on its own backend.
 - `whippletree build <bundle-dir>`: compile per-target variants
 - `whippletree preflight <bundle-dir> --target <name>`: probe + tier report
 - `whippletree install <bundle-dir> --target <name> [--project <dir>]`: place or guide the actual install
+- `whippletree version`: build provenance and the compiled-in target definitions
 - `whippletree-hook run <event> --target <name>`: hook dispatcher (invoked by harnesses, not humans)
 
 ## Performance
@@ -345,6 +348,12 @@ one real, unauthenticated turn against the installed `codex`, `claude`, and `ope
 CLIs, then assert on a marker file the example's handlers write to. They are standalone
 bash, not wired into `go test`; they're the environment-dependent, real-harness
 conformance layer.
+
+CI runs them nightly rather than per-push (`.github/workflows/e2e.yml`), installing each
+harness from npm first. A failure there opens or comments on a drift issue instead of
+failing the build: a harness that has moved on is a finding about
+`metadata.testedVersions`, not a broken commit. Unit tests, vet, `gofmt` and an
+artifacts-reproduce check run per-push on Linux, macOS and Windows.
 
 ```bash
 test/e2e/run-codex.sh

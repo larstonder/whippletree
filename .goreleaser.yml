@@ -1,0 +1,76 @@
+version: 2
+
+# whippletree ships two binaries and they must travel together: every
+# hooks file a bundle compiles invokes bin/whippletree-hook, and
+# `whippletree build` provisions it by copying the one sitting beside
+# its own executable.
+builds:
+  - id: whippletree
+    main: ./cmd/whippletree
+    binary: whippletree
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .FullCommit }}
+      - -X main.buildDate={{ .CommitDate }}
+
+  - id: whippletree-hook
+    main: ./cmd/whippletree-hook
+    binary: whippletree-hook
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
+archives:
+  - ids: [whippletree, whippletree-hook]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files: [LICENSE, NOTICE*, README.md]
+
+checksum:
+  name_template: checksums.txt
+
+# Keyless: the certificate binds the signature to this workflow's OIDC
+# identity, so there is no key to hold or rotate.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    Verify the checksums before trusting a binary:
+
+    ```
+    cosign verify-blob checksums.txt \
+      --signature checksums.txt.sig \
+      --certificate checksums.txt.pem \
+      --certificate-identity-regexp 'https://github\.com/larstonder/whippletree/.*' \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com
+    ```
+
+    Then confirm the build provenance:
+
+    ```
+    gh attestation verify <archive> --repo larstonder/whippletree
+    ```
