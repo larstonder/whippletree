@@ -46,9 +46,6 @@ func TestParseConstraintAndCheck(t *testing.T) {
 	}
 }
 
-// TestParseConstraintRejectsUnsupportedGrammar: the grammar is
-// deliberately tiny, and anything outside it must fail loudly rather
-// than be silently ignored.
 func TestParseConstraintRejectsUnsupportedGrammar(t *testing.T) {
 	for _, s := range []string{"^2.1.0", "~2.1.0", ">2.1.0", "2.1.0", ">=abc", ">=2", "<=3.0.0"} {
 		if _, err := preflight.ParseConstraint(s); err == nil {

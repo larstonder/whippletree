@@ -20,19 +20,15 @@ type tsPlugin struct {
 	seen   map[string]bool
 }
 
-// tsHookGroup is every dispatch call destined for one handler key
-// (e.g. "event" or "tool.execute.after") in the emitted plugin's
-// object literal.
 type tsHookGroup struct {
 	hookKey string
 	twoArg  bool
 	entries []tsHookEntry
 }
 
-// tsHookEntry is one requirement's dispatch call: filterExpr is the
-// boolean guard it fires under (empty means unconditional), and
-// dispatchEvent is the whippletree event name (verbatim from the
-// contract, alias or primitive) passed to the dispatcher CLI.
+// tsHookEntry is one requirement's dispatch call. An empty filterExpr
+// means the call is unconditional; dispatchEvent is the contract's own
+// event name, alias or primitive, not the resolved one.
 type tsHookEntry struct {
 	filterExpr    string
 	dispatchEvent string
@@ -42,11 +38,8 @@ func newTSPlugin() *tsPlugin {
 	return &tsPlugin{groups: make(map[string]*tsHookGroup), seen: make(map[string]bool)}
 }
 
-// add appends entry to the group for hookKey, creating the group if
-// this is the first entry seen for it, and dedupes on
-// (hookKey, filterExpr, dispatchEvent) so two requirements that
-// resolve to the same guarded dispatch call don't emit that call
-// twice.
+// add appends entry to hookKey's group, dropping an exact repeat so two
+// requirements resolving to the same guarded call emit it once.
 func (p *tsPlugin) add(hookKey string, twoArg bool, entry tsHookEntry) {
 	key := hookKey + "\x00" + entry.filterExpr + "\x00" + entry.dispatchEvent
 	if p.seen[key] {
@@ -63,11 +56,9 @@ func (p *tsPlugin) add(hookKey string, twoArg bool, entry tsHookEntry) {
 	g.entries = append(g.entries, entry)
 }
 
-// addTSHookEntry resolves req's native handler key, tool-id filter and
-// argument shape for target name (via td), and appends the resulting
-// dispatch call onto p. Matcher resolution goes through matcherFor,
-// the same helper addHookEntry uses, so a ts-plugin target degrades
-// exactly the way a hooks-json target does.
+// addTSHookEntry appends req's dispatch call onto p. Matcher resolution
+// goes through matcherFor, the hooks-json emitter's own helper, so a
+// ts-plugin target degrades exactly the way a hooks-json target does.
 func addTSHookEntry(p *tsPlugin, req contract.Requirement, td *target.Def, name string) error {
 	primitive, toolClass, err := contract.ResolveEvent(req.Event)
 	if err != nil {
@@ -86,11 +77,6 @@ func addTSHookEntry(p *tsPlugin, req contract.Requirement, td *target.Def, name 
 	return nil
 }
 
-// tsHookShape splits a target's native event string into the object
-// key the emitted plugin exposes it under, the boolean guard (if any)
-// that must hold before dispatching, and whether the handler takes
-// two arguments (input, output) rather than one (input).
-//
 // opencode wraps its bus events under a single literal "event" hook:
 // a native string of the form "event:<type>" names the bus event type
 // to filter on. Every other native string names a two-argument tool
@@ -108,11 +94,9 @@ func tsHookShape(native, matcher string) (hookKey, filterExpr string, twoArg boo
 	return native, "", true
 }
 
-// renderTSPlugin renders the full opencode shim source for target
-// name from the dispatch calls accumulated in p. The HOOK constant
-// is a literal placeholder: the file as built is not directly
-// loadable, since resolving it to a real dispatcher path is install's
-// job, not build's.
+// renderTSPlugin renders the opencode shim for target name. The HOOK
+// constant is left as a literal placeholder: resolving it to a real
+// dispatcher path is install's job, not build's.
 func renderTSPlugin(name string, p *tsPlugin) []byte {
 	var b strings.Builder
 
@@ -150,9 +134,6 @@ func renderTSPlugin(name string, p *tsPlugin) []byte {
 	return []byte(b.String())
 }
 
-// tsObjectKey renders hookKey as a TS object-literal key: bare for the
-// "event" identifier, quoted for anything containing dots (the
-// tool.execute.* native names).
 func tsObjectKey(hookKey string) string {
 	if hookKey == "event" {
 		return "event"
@@ -181,10 +162,8 @@ func writeTSHookGroup(b *strings.Builder, name string, g *tsHookGroup) {
 	b.WriteString("  },\n")
 }
 
-// tsDispatchPayload builds the object literal passed as dispatch's
-// second argument. The event-style ("event") hook only ever sees one
-// argument, so the whole thing rides under payload; the two-argument
-// tool hooks pass input/output through as their own keys.
+// tsDispatchPayload builds dispatch's second argument. The "event" hook
+// only ever sees one argument, so the whole thing rides under payload.
 func tsDispatchPayload(name, hookKey string, twoArg bool) string {
 	if !twoArg {
 		return fmt.Sprintf("{ source: %q, hook: %q, payload: input, directory: ctx.directory }", name, hookKey)
@@ -192,8 +171,7 @@ func tsDispatchPayload(name, hookKey string, twoArg bool) string {
 	return fmt.Sprintf("{ source: %q, hook: %q, input, output, directory: ctx.directory }", name, hookKey)
 }
 
-// writeTSPluginFile writes hooks/<name>.ts for a ts-plugin target.
-// Unlike a hooks-json target, no manifest pair is written: opencode
+// writeTSPluginFile writes hooks/<name>.ts. No manifest pair: opencode
 // has no manifest for whippletree to extend.
 func writeTSPluginFile(bundleDir, name string, p *tsPlugin) error {
 	dir := filepath.Join(bundleDir, "hooks")

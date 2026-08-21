@@ -146,8 +146,6 @@ If it fails, tell the user what went wrong rather than silently continuing.
 `, e.Target, handlerPath)
 }
 
-// copyTree copies every regular file under src to dst, preserving
-// relative paths and permissions.
 func copyTree(src, dst string) error {
 	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
