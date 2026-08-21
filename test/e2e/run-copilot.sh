@@ -4,10 +4,10 @@
 # against the real copilot CLI, through the marketplace route `install`
 # actually prints.
 #
-# Unlike run-claude.sh and run-codex.sh this needs a working login: copilot
-# has no pre-auth event, so the run has to reach a real turn before Stop and
-# PostToolUse fire. COPILOT_HOME is still sandboxed so the script cannot
-# collide with the caller's plugin state; credentials do not live there.
+# Unlike run-claude.sh and run-codex.sh this needs a working login. The events
+# asserted below only fire once an agent takes a turn; whether copilot has any
+# pre-auth event was not probed. COPILOT_HOME is still sandboxed so the script
+# cannot collide with the caller's plugin state; credentials do not live there.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

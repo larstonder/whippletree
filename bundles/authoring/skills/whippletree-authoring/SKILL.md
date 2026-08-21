@@ -7,7 +7,7 @@ description: Use when creating or editing a whippletree bundle or tool: writing 
 
 Whippletree packages an agent tool (skills, hooks, executables) once and
 compiles it onto multiple AI coding harnesses (claude-code, codex,
-opencode), with an honest per-requirement report of how faithfully each
+copilot, opencode), with an honest per-requirement report of how faithfully each
 harness can enforce it. Reach for it when a tool must survive a harness
 switch. This guide is the working summary; `references/AUTHORING.md` in
 this skill directory is the full authoring reference, read it when a
@@ -29,7 +29,7 @@ tell the user to install it first rather than improvising files by hand.
    --target <t>` (add `--assume-version X` to skip live probing).
 5. Install into a project: `whippletree install <dir> --target <t>
    --project <projectDir>`. On harnesses with their own plugin
-   mechanism (claude-code, codex) this prints the two commands to run
+   mechanism (claude-code, codex, copilot) this prints the two commands to run
    instead of placing files itself.
 
 ## Contract cheat sheet
@@ -88,5 +88,6 @@ idempotent. Test handlers standalone:
 - Build error about a missing bin/whippletree-hook: run the go build
   command the error prints, or pass --allow-missing-dispatcher for
   bundles with no hooks.
-- REFUSE on opencode for a hard turn-end gate with no fallbackSkill:
-  that is loud degradation working as designed; see "Reading preflight".
+- REFUSE on opencode or copilot for a hard turn-end gate with no
+  fallbackSkill: that is loud degradation working as designed; see
+  "Reading preflight".

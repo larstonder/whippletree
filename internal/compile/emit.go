@@ -334,8 +334,9 @@ func CheckSkillFiles(bundleDir string, c *contract.Contract) error {
 // requirement actually falls back to T3: the bundle's own skills/ directory
 // is shared by every plugin-dir target, so a target-specific expansion cannot
 // live there. writeManifest points that target's skills key at the variant,
-// which suppresses the harness's discovery of skills/ entirely (measured on
-// Copilot, see docs/copilot-probe-findings.md). A channel-less target still
+// which suppresses the harness's discovery of skills/ entirely, so every skill
+// is copied in and not just the expanded one (measured on Copilot, see section
+// 7 of docs/copilot-probe-findings.md). A channel-less target still
 // cannot carry one, and says so rather than dropping it silently.
 func writeSkillVariants(bundleDir, name string, td *target.Def, c *contract.Contract, assignments []tier.Assignment) (bool, error) {
 	expsBySkill := make(map[string][]skillfile.Expansion)

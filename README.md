@@ -58,6 +58,7 @@ whippletree: scaffolded my-tool in ./my-tool
 $ whippletree build my-tool
 target claude-code: 1 satisfy, 0 degrade, 0 refuse, 0 absent
 target codex: 1 satisfy, 0 degrade, 0 refuse, 0 absent
+target copilot: 1 satisfy, 0 degrade, 0 refuse, 0 absent
 target opencode: 1 satisfy, 0 degrade, 0 refuse, 0 absent
 
 $ whippletree preflight my-tool --target claude-code
@@ -160,11 +161,13 @@ new version must not break every install that day.
 | `copilot` | `hooks-json` | the harness's own plugin marketplace | `>=1.0.80` |
 | `opencode` | `ts-plugin` | Whippletree places the shim in `.opencode/plugin/` | `>=1.18.10` |
 
-Definitions are embedded in the binary, so the CLI works from any directory. Two of them
-cannot enforce a turn-end gate, for different reasons: opencode has no blocking stop
-event at all, and Copilot has a `Stop` hook whose exit code it declines to act on. A hard
-`turn-end` gate REFUSEs on both rather than pretending. See [opencode notes][opencode]
-and [Copilot probe findings][copilot].
+Definitions are embedded in the binary, so the CLI works from any directory. A hard
+`turn-end` gate REFUSEs on two of them rather than pretending, for different reasons.
+opencode has no blocking stop event at all. Copilot has one and honours it, but only
+through a JSON decision on stdout, and the dispatcher signals a block by exiting 2 and
+nothing else — so that REFUSE reflects a limit in Whippletree, not in Copilot, and is
+tracked as [issue 19](https://github.com/larstonder/whippletree/issues/19). See
+[opencode notes][opencode] and [Copilot probe findings][copilot].
 
 ## Docs
 
@@ -189,7 +192,7 @@ and [Copilot probe findings][copilot].
 
 ## Scope
 
-This is the class-1 spine, Claude Code and Codex CLI, at whatever tier (T1/T2) each
+This is the class-1 spine, Claude Code, Codex CLI and Copilot CLI, at whatever tier (T1/T2) each
 requirement can verifiably reach on those harnesses today, plus opencode on its own
 ts-plugin backend (see "opencode" above). Out of scope:
 

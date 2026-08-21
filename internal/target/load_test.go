@@ -13,7 +13,7 @@ import (
 	"whippletree.dev/targets"
 )
 
-func TestLoadDir_ReturnsBothClass1Targets(t *testing.T) {
+func TestLoadDir_ReturnsClass1Targets(t *testing.T) {
 	defs, err := LoadDir("../../targets")
 	if err != nil {
 		t.Fatalf("LoadDir: %v", err)
@@ -53,7 +53,7 @@ func TestLoad_BackendDefaultsToHooksJSONWhenAbsent(t *testing.T) {
 		t.Fatalf("LoadDir: %v", err)
 	}
 
-	for _, name := range []string{"codex", "claude-code"} {
+	for _, name := range []string{"codex", "claude-code", "copilot"} {
 		def, ok := defs[name]
 		if !ok {
 			t.Fatalf("expected defs to contain %q, got keys %v", name, keys(defs))

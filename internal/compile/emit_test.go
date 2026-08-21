@@ -204,7 +204,7 @@ func TestBuild_VendoredTargetYAMLMatchesEmbeddedSource(t *testing.T) {
 		t.Fatalf("compile.Build: %v", err)
 	}
 
-	for _, name := range []string{"codex", "claude-code"} {
+	for _, name := range []string{"codex", "claude-code", "copilot"} {
 		got, err := os.ReadFile(filepath.Join(bundleDir, ".whippletree", "targets", name+".yaml"))
 		if err != nil {
 			t.Fatalf("read vendored %s.yaml: %v", name, err)
@@ -356,9 +356,39 @@ func TestBuildSkillVariants(t *testing.T) {
 	targets := map[string]*target.Def{
 		"opencode":    testTargetDef(t, "opencode"),
 		"claude-code": testTargetDef(t, "claude-code"),
+		"copilot":     testTargetDef(t, "copilot"),
 	}
 	if _, err := compile.Build(bundleDir, targets); err != nil {
 		t.Fatal(err)
+	}
+
+	// copilot is the real reason the plugin-dir expansion path exists: it maps
+	// turn-end but cannot carry this gate, so the requirement falls back where
+	// claude-code's does not. Asserted against the embedded definition rather
+	// than a synthetic one. The fixture sets loopGuardRequired, so what is
+	// pinned is the pair: copilot would have to gain both a blocking Stop and a
+	// loopGuardField before this stopped expanding.
+	copilotVariant := filepath.Join(bundleDir, ".whippletree", "skills", "copilot", "cap", "SKILL.md")
+	copilotRaw, err := os.ReadFile(copilotVariant)
+	if err != nil {
+		t.Fatalf("plugin-dir variant missing for copilot: %v", err)
+	}
+	if !strings.Contains(string(copilotRaw), "Manual step on this harness (turn-end)") {
+		t.Errorf("copilot variant not expanded:\n%s", copilotRaw)
+	}
+
+	copilotManifest, err := os.ReadFile(filepath.Join(bundleDir, ".plugin", "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cm struct {
+		Skills []string `json:"skills"`
+	}
+	if err := json.Unmarshal(copilotManifest, &cm); err != nil {
+		t.Fatal(err)
+	}
+	if want := "./.whippletree/skills/copilot"; len(cm.Skills) != 1 || cm.Skills[0] != want {
+		t.Errorf("copilot manifest skills = %v, want [%s]", cm.Skills, want)
 	}
 
 	variant := filepath.Join(bundleDir, ".whippletree", "skills", "opencode", "cap", "SKILL.md")
@@ -370,8 +400,17 @@ func TestBuildSkillVariants(t *testing.T) {
 		t.Fatalf("variant not expanded:\n%s", raw)
 	}
 
+	// claude-code is plugin-dir too, but blocks on turn-end, so nothing falls
+	// back and it must keep discovering the bundle's own skills/ directory.
 	if _, err := os.Stat(filepath.Join(bundleDir, ".whippletree", "skills", "claude-code")); !os.IsNotExist(err) {
-		t.Fatal("plugin-dir target must not get a skill variant")
+		t.Fatal("claude-code has no fallback, so it must not get a skill variant")
+	}
+	ccManifest, err := os.ReadFile(filepath.Join(bundleDir, ".claude-plugin", "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(ccManifest), `"skills"`) {
+		t.Errorf("claude-code manifest names a skills dir, which would suppress skills/:\n%s", ccManifest)
 	}
 
 	authored, _ := os.ReadFile(filepath.Join(bundleDir, "skills", "cap", "SKILL.md"))
@@ -380,7 +419,7 @@ func TestBuildSkillVariants(t *testing.T) {
 	}
 }
 
-func TestBuildRejectsExpansionOnPluginDir(t *testing.T) {
+func TestBuildExpandsSkillsOnPluginDir(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", `{
   "name": "sk", "version": "0.1.0", "description": "d",

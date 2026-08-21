@@ -34,12 +34,15 @@ scaffold soft by default, so this build succeeds everywhere; a hard-required
 acme-tool/
 ├── .claude-plugin/plugin.json        ← generated: per-target manifest (hooks key)
 ├── .codex-plugin/plugin.json         ← generated: per-target manifest (hooks key)
+├── .plugin/plugin.json               ← generated: per-target manifest (hooks key)
 ├── .whippletree/
 │   ├── contract.json                 ← generated: normalized contract, vendored
+│   ├── skills/<target>/              ← generated: per-target skill variants, when a T3 fallback applies
 │   └── targets/*.yaml                ← generated: target defs used at build time, vendored
 ├── hooks/
 │   ├── claude-code.json              ← generated: hooks-json manifest fragment
 │   ├── codex.json                    ← generated: hooks-json manifest fragment
+│   ├── copilot.json                  ← generated: hooks-json manifest fragment
 │   └── opencode.ts                   ← generated: compiled ts-plugin shim
 └── bin/
     └── whippletree-hook              ← generated: copied dispatcher binary
@@ -51,6 +54,7 @@ acme-tool/
 /hooks/
 /.claude-plugin/plugin.json
 /.codex-plugin/
+/.plugin/
 /.whippletree/
 /bin/whippletree-hook
 ```
@@ -60,7 +64,7 @@ It ignores every generated path and nothing else: `.claude-plugin/marketplace.js
 untracked-but-not-ignored, same as any other source file.
 
 `examples/kb-shaped/` in this repo breaks that rule on purpose: it commits
-`hooks/`, `.whippletree/`, `.claude-plugin/plugin.json`, and `.codex-plugin/`
+`hooks/`, `.whippletree/`, `.claude-plugin/plugin.json`, `.codex-plugin/` and `.plugin/`
 instead of gitignoring them, because that bundle exists to be read as a worked
 example of what `build` produces, not just run. Only `bin/whippletree-hook`
 stays gitignored there too (via the repo's root `.gitignore`), since that one
@@ -449,6 +453,31 @@ honest ceiling for an instruction-carried gate: it's SATISFY against its own
 claude-code or codex, and the disclosure line underneath says exactly why in
 the same words the generated `SKILL.md`'s own provenance comment uses.
 
+### Where a compiled variant is written
+
+A target that needs an expansion gets its own copy of every skill under
+`.whippletree/skills/<target>/`, so two targets can carry different
+instructions for the same skill. How that copy reaches the harness depends on
+the skill channel:
+
+- **copy-dir** targets (opencode): `install` copies the variant into the
+  harness's own skills directory. The variant always exists, because the
+  compiled-by marker is how `install` recognises a directory it owns.
+- **plugin-dir** targets (claude-code, codex, copilot): skills normally travel
+  inside the bundle and the harness discovers `skills/` on its own. A variant
+  is written only when a requirement actually falls back, and then the
+  generated manifest gets a `"skills": ["./.whippletree/skills/<target>"]` key
+  pointing at it.
+
+That key **replaces** the harness's discovery of `skills/` rather than adding
+to it, which is why it is set only when there is a variant, and why the variant
+contains every skill in the contract rather than just the expanded one. Both
+behaviours are measured in `docs/copilot-probe-findings.md`.
+
+In practice this only triggers where a gate cannot be enforced natively, so
+claude-code and codex bundles never carry the key: both map `turn-end` and
+`session-start` and block on them, so nothing falls back there.
+
 ## Per-target notes
 
 - **opencode has no true blocking gate.** There is no native `turn-end`
@@ -460,6 +489,14 @@ the same words the generated `SKILL.md`'s own provenance comment uses.
   for this target or accept that `install`/`preflight` will refuse there by
   design. See the README's "opencode" section for the full architecture
   behind this.
+- **Copilot's turn-end gate cannot be driven yet.** Copilot maps `turn-end` to
+  its `Stop` hook and does honour a block there, but only via a JSON decision
+  written to stdout; it ignores the handler's exit code, which is the only
+  block signal the dispatcher emits. So a `hardRequired: true` `blocking-gate`
+  at `turn-end` REFUSEs on copilot the same way it does on opencode, for a
+  different reason: opencode has no gate, copilot has one Whippletree cannot
+  yet reach. Pair it with a `fallbackSkill` to land T3 instead, or soften it.
+  Measured in `docs/copilot-probe-findings.md`; tracked as issue 19.
 - **Codex rejects unknown fields in its own manifest.** Codex's plugin loader
   is strict about the hooks-json shape it accepts
   (`targets/codex/target.yaml`'s `strictness.unknownFieldsFatal: true`); this

@@ -57,7 +57,7 @@
       <tbody>
         <tr><td>session-start</td><td>SessionStart</td><td>SessionStart</td><td>SessionStart</td><td>session.created</td></tr>
         <tr><td>session-end</td><td>SessionEnd</td><td>SessionEnd</td><td>SessionEnd</td><td><b>none</b></td></tr>
-        <tr><td>turn-end</td><td>Stop, blocking</td><td>Stop, blocking</td><td>Stop, <b>not blocking</b></td><td><b>none</b></td></tr>
+        <tr><td>turn-end</td><td>Stop, blocking</td><td>Stop, blocking</td><td>Stop, <b>not via exit code</b></td><td><b>none</b></td></tr>
         <tr><td>tool-pre</td><td>PreToolUse, blocking</td><td>PreToolUse, blocking</td><td>PreToolUse, blocking</td><td>tool.execute.before, blocking</td></tr>
         <tr><td>tool-post</td><td>PostToolUse</td><td>PostToolUse</td><td>PostToolUse</td><td>tool.execute.after</td></tr>
       </tbody>
@@ -97,16 +97,20 @@
       unchanged, so it needed no new backend. Its own documented entry format is flatter,
       but the nested Claude shape works and that is what ships.</p>
 
-    <p>The one thing it will not do is <b>enforce a turn-end gate</b>. Copilot has a
-      <code>Stop</code> hook and fires it reliably, but a handler exiting 2 there is
-      logged and ignored, and the session ends anyway. The same handler exiting 2 on
-      <code>PreToolUse</code> denies the call outright, which is how that was measured
-      rather than inferred.</p>
+    <p><b>Its turn-end gate does not work yet, and the reason is ours.</b> A handler
+      exiting 2 on <code>Stop</code> is ignored and the session ends; the same handler
+      exiting 2 on <code>PreToolUse</code> denies the call outright, which is the control
+      that makes this a measurement. But Copilot <i>does</i> honour a
+      <code>{"decision":"block"}</code> written to stdout on <code>Stop</code> &mdash; the
+      hook re-fires and the agent acts on the reason.</p>
 
     <div class="note">So a hard-required <code>blocking-gate</code> on
-      <code>turn-end</code> <b>REFUSES</b> on copilot, exactly as it does on opencode,
-      even though copilot does have the event. Having the hook and honouring its exit code
-      are different claims, and only the second one is a gate.</div>
+      <code>turn-end</code> <b>REFUSES</b> on copilot today, but not for opencode's
+      reason. opencode has no blocking stop event; Copilot has one Whippletree cannot yet
+      drive, because the dispatcher signals a block by exiting 2 and nothing else.
+      Reporting that as REFUSE rather than as a working gate is the honest answer, and
+      closing it would make this T1. Tracked as
+      <a href="https://github.com/larstonder/whippletree/issues/19">issue 19</a>.</div>
 
     <p>One trap worth naming: hooks are not auto-discovered, and Copilot reads
       <code>.plugin/plugin.json</code> before the root <code>plugin.json</code> that every
@@ -157,9 +161,11 @@
     <p>Every row above comes from a target definition in the repository, and each one records
       the harness versions it was probed against. Those definitions are established by running
       the harness in a sandbox, not by reading its documentation, and the probe notes are kept
-      with the code. A nightly job reinstalls them and reruns the end-to-end suite, so a
-      harness changing under a definition shows up as a failure rather than as a wrong answer
-      in your terminal.</p>
+      with the code. A nightly job reinstalls claude-code, codex and opencode and reruns the
+      end-to-end suite, so a harness changing under a definition shows up as a failure
+      rather than as a wrong answer in your terminal. Copilot is not in that job yet: its
+      hooks only fire once an agent takes a turn, so its end-to-end script needs a real
+      login.</p>
 
     <ul>
       <li><a href="https://github.com/larstonder/whippletree/tree/main/targets">Target definitions</a></li>
