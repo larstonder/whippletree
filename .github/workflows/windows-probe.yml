@@ -1,0 +1,233 @@
+name: windows-probe
+
+# Answers one question that no harness documents: when a hooks file names an
+# extensionless absolute path, does Windows resolve it to the .exe?
+#
+# There is no single answer, because there is no single resolver: PATHEXT,
+# Go's lookExtensions and libuv each behave in their own way. So the question
+# is really "which of the ways a harness might spawn a hook resolves it", and
+# each is measured rather than reasoned about from any one of the others.
+#
+# Three phases, because the arrangement of files on disk changes the answer:
+# only the .exe present, both present with the extensionless one loadable, and
+# both present with the extensionless one a foreign binary. The last is what
+# shipping one bundle for every platform would actually produce.
+#
+# Manual: this exists to produce a finding, not to gate anything. It is only
+# dispatchable once it is on the default branch.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mechanism:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - name: record the environment
+        shell: pwsh
+        run: |
+          Write-Host "runner image : $env:ImageOS $env:ImageVersion"
+          Write-Host "os version   : $([System.Environment]::OSVersion.VersionString)"
+          Write-Host "go           : $(go version)"
+          Write-Host "node         : $(node --version)"
+          Write-Host "pwsh         : $($PSVersionTable.PSVersion)"
+          Write-Host "bash         : $(bash -c 'echo $BASH_VERSION')"
+          Write-Host "run id       : ${{ github.run_id }}"
+
+      - name: build the dispatcher and the spawn helpers
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path probe/bin, probe/gospawn | Out-Null
+          go build -o probe/bin/whippletree-hook.exe ./cmd/whippletree-hook
+
+          # A second, distinguishable binary. Phases 2 and 3 install it under
+          # the extensionless name so each row reports which file it reached,
+          # rather than only whether something launched.
+          @'
+          package main
+
+          import "fmt"
+
+          func main() { fmt.Println("REACHED-EXTENSIONLESS-PE") }
+          '@ | Set-Content probe/marker.go -Encoding utf8
+          go build -o probe/marker.exe probe/marker.go
+
+          # Go's exec resolves through lookExtensions, not CreateProcess alone.
+          @'
+          package main
+
+          import (
+              "fmt"
+              "os"
+              "os/exec"
+          )
+
+          func main() {
+              out, err := exec.Command(os.Getenv("PROBE_NOEXT")).CombinedOutput()
+              fmt.Print(string(out))
+              if err != nil {
+                  fmt.Println("spawn error:", err)
+              }
+          }
+          '@ | Set-Content probe/gospawn/main.go -Encoding utf8
+
+          # This is the shape internal/compile/tsplugin.go emits: an argv array
+          # with no shell, so nothing in the chain consults PATHEXT.
+          @'
+          const { spawnSync } = require("node:child_process")
+          const r = spawnSync(process.env.PROBE_NOEXT, [], { encoding: "utf8" })
+          process.stdout.write((r.stdout || "") + (r.stderr || ""))
+          if (r.error) console.log("spawn error: " + r.error.message)
+          '@ | Set-Content probe/nodespawn.js -Encoding utf8
+
+          Push-Location probe
+          go mod init probe 2>$null
+          Pop-Location
+          Get-ChildItem probe/bin | Select-Object Name, Length | Format-Table
+
+      - name: which file does each spawner reach?
+        shell: pwsh
+        run: |
+          $bin     = (Resolve-Path probe/bin).Path
+          $noext   = Join-Path $bin 'whippletree-hook'
+          $withext = Join-Path $bin 'whippletree-hook.exe'
+          $fwd     = $noext -replace '\\', '/'
+          $env:PROBE_NOEXT = $noext
+
+          # The label has to come from what the child printed. cmd is always
+          # found whether or not its argument is, and Start-Process reports a
+          # missing file without throwing, so an exception-only discriminator
+          # would score both as a launch no matter what happened.
+          function Classify($out, $code) {
+            if ($out -match 'REACHED-EXTENSIONLESS-PE')   { return 'extensionless (the marker PE)' }
+            if ($out -match 'REACHED-EXTENSIONLESS-TEXT') { return 'extensionless (the text file, via its shebang)' }
+            if ($out -match 'expected subcommand')        { return 'the .exe' }
+            $first = ($out -split "`r?`n" | Where-Object { $_.Trim() -ne '' } | Select-Object -First 1)
+            if ($null -eq $first) { $first = "(no output, exit $code)" }
+            return "NEITHER -- $($first.Trim())"
+          }
+
+          function Row($label, $block) {
+            $out = ''
+            $code = -1
+            try {
+              $out = (& $block 2>&1 | Out-String)
+              $code = $LASTEXITCODE
+            } catch {
+              $out = $_.Exception.Message
+            }
+            Write-Host ("  {0,-34} {1}" -f $label, (Classify $out $code))
+          }
+
+          function RunPhase($name) {
+            Write-Host ''
+            Write-Host "=== $name ==="
+            Get-ChildItem $bin | ForEach-Object { Write-Host "  on disk: $($_.Name) ($($_.Length) bytes)" }
+            Write-Host ''
+            Row 'exe, direct (control)'   { & $withext }
+            Row 'pwsh, & operator'        { & $noext }
+            Row 'cmd /c'                  { cmd /c "`"$noext`"" }
+            Row 'Start-Process'           { Start-Process -FilePath $noext -NoNewWindow -Wait -ErrorAction Stop -RedirectStandardOutput probe/sp.txt -RedirectStandardError probe/spe.txt; Get-Content probe/sp.txt, probe/spe.txt -ErrorAction SilentlyContinue }
+            Row 'sh -c, forward slashes'  { bash -c "'$fwd'" }
+            Row 'Go exec.Command'         { Push-Location probe; try { go run ./gospawn } finally { Pop-Location } }
+            Row 'Node spawnSync, argv'    { node probe/nodespawn.js }
+          }
+
+          # Phase 1: what whippletree actually ships on Windows.
+          RunPhase 'phase 1 - only the .exe is present'
+
+          # Phase 2: both names present, extensionless one loadable. Isolates
+          # selection order from load failure.
+          Copy-Item probe/marker.exe $noext
+          RunPhase 'phase 2 - both present, extensionless is a valid PE'
+
+          # Phase 3: the arrangement a single cross-platform bundle produces,
+          # where the extensionless file is a POSIX binary Windows cannot load.
+          "#!/bin/sh`necho REACHED-EXTENSIONLESS-TEXT`n" | Set-Content $noext -Encoding ascii -NoNewline
+          RunPhase 'phase 3 - both present, extensionless is not a PE'
+
+          # Every probed binary exits non-zero on purpose. That is a launch,
+          # not a failed step.
+          $global:LASTEXITCODE = 0
+          exit 0
+
+      - name: which handler shapes can the dispatcher actually exec?
+        shell: pwsh
+        run: |
+          # internal/dispatch/run.go runs a handler with exec.CommandContext and
+          # no interpreter, so whichever extensions CreateProcess accepts on its
+          # own are the whole set an author may use for handlerWindows. .PS1 is
+          # absent from the default PATHEXT, which is the case worth measuring.
+          New-Item -ItemType Directory -Force -Path probe/handlers | Out-Null
+          '@echo HANDLER-RAN-cmd'                     | Set-Content probe/handlers/h.cmd -Encoding ascii
+          '@echo HANDLER-RAN-bat'                     | Set-Content probe/handlers/h.bat -Encoding ascii
+          'Write-Output "HANDLER-RAN-ps1"'            | Set-Content probe/handlers/h.ps1 -Encoding ascii
+          "#!/bin/sh`necho HANDLER-RAN-sh"            | Set-Content probe/handlers/h.sh  -Encoding ascii
+          Copy-Item probe/marker.exe probe/handlers/h.exe
+          Write-Host "default PATHEXT: $env:PATHEXT"
+          Write-Host ""
+
+          New-Item -ItemType Directory -Force -Path probe/handlerexec | Out-Null
+          @'
+          package main
+
+          import (
+              "fmt"
+              "os/exec"
+              "path/filepath"
+          )
+
+          // Mirrors internal/dispatch/run.go: the handler path, nothing else.
+          func main() {
+              for _, n := range []string{"h.exe", "h.cmd", "h.bat", "h.ps1", "h.sh"} {
+                  p := filepath.Join("handlers", n)
+                  out, err := exec.Command(p).CombinedOutput()
+                  status := "RAN"
+                  if err != nil {
+                      status = "FAILED: " + err.Error()
+                  }
+                  fmt.Printf("  %-8s %-40s %s\n", n, status, firstLine(string(out)))
+              }
+          }
+
+          func firstLine(s string) string {
+              for i := 0; i < len(s); i++ {
+                  if s[i] == '\r' || s[i] == '\n' {
+                      return s[:i]
+                  }
+              }
+              return s
+          }
+          '@ | Set-Content probe/handlerexec/main.go -Encoding utf8
+
+          Push-Location probe
+          go run ./handlerexec
+          Pop-Location
+          $global:LASTEXITCODE = 0
+          exit 0
+
+      - name: the command whippletree emits today
+        shell: pwsh
+        run: |
+          # Windows ships whippletree-hook.exe, but ensureDispatcher stats the
+          # extensionless name, so build cannot provision its own dispatcher
+          # here. Recorded rather than worked around: it is the finding.
+          go build -o examples/kb-shaped/bin/whippletree-hook.exe ./cmd/whippletree-hook
+          go run ./cmd/whippletree build examples/kb-shaped --targets-dir targets --allow-refuse
+          if ($LASTEXITCODE -ne 0) { Write-Host "  ^ build could not provision the dispatcher on Windows" }
+          $global:LASTEXITCODE = 0
+          Write-Host 'hooks-json backend, first command:'
+          (Get-Content examples/kb-shaped/hooks/claude-code.json -Raw |
+            ConvertFrom-Json).hooks.SessionStart.hooks[0].command | Write-Host
+          Write-Host ''
+          Write-Host 'ts-plugin backend, the spawn call:'
+          Select-String -Path examples/kb-shaped/.whippletree/*.ts, examples/kb-shaped/**/*.ts `
+            -Pattern 'spawnSync|const HOOK' -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "  $($_.Line.Trim())" }
