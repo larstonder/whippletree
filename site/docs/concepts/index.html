@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concepts — Whippletree</title>
+<meta name="description" content="What a Whippletree contract declares, the requirement kinds, the tier ladder, and why a verdict can be a refusal.">
+<meta name="go-import" content="whippletree.dev git https://github.com/larstonder/whippletree">
+<link rel="icon" href="/brand/logo_black.svg" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/brand/logo_white.svg" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="lockup" href="/" aria-label="Whippletree">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="/brand/wordmark_white.svg">
+        <img src="/brand/wordmark_black.svg" alt="Whippletree" width="107" height="18">
+      </picture>
+    </a>
+    <nav>
+      <a href="/docs/">Docs</a>
+      <a href="https://github.com/larstonder/whippletree">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="doc">
+  <div class="wrap">
+    <p class="crumb"><a href="/docs/">Docs</a> / Concepts</p>
+
+    <h1>Concepts</h1>
+    <p class="standfirst">A contract says what your tool needs. A target definition says what a
+      harness can give. Everything else is the arithmetic between them.</p>
+
+    <h2>The contract</h2>
+    <p>A bundle is a directory with a <code>plugin.json</code> and some handler scripts. The
+      contract lives under the <code>dev.whippletree.v1</code> key and is a list of
+      requirements: things your tool needs the harness to do.</p>
+
+<pre><code>{
+  "name": "my-tool",
+  "extensions": {
+    "dev.whippletree.v1": {
+      "contractVersion": "1.0.0",
+      "requires": [
+        {
+          "id": "capture-gate",
+          "kind": "blocking-gate",
+          "event": "turn-end",
+          "minTier": "T1",
+          "hardRequired": true,
+          "loopGuardRequired": true,
+          "handler": "./handlers/capture.sh"
+        }
+      ]
+    }
+  }
+}</code></pre>
+
+    <p>That requirement reads: <b>before the agent finishes a turn, run
+      <code>handlers/capture.sh</code>, and if the harness cannot enforce that natively, do not
+      install at all.</b> The rest of this page is what each of those fields means.</p>
+
+    <h2>Requirement kinds</h2>
+    <p>Five kinds, a closed set. The kind determines which other fields apply.</p>
+
+    <table>
+      <thead><tr><th>kind</th><th>what it asks for</th></tr></thead>
+      <tbody>
+        <tr><td>blocking-gate</td><td>Run a handler at a point where it can <b>stop</b> what happens next. Exit 2 blocks.</td></tr>
+        <tr><td>lifecycle-signal</td><td>Run a handler when something happens. It cannot block; the harness carries on regardless.</td></tr>
+        <tr><td>observation-signal</td><td>Run a handler when a <b>tool of a given class</b> is used, such as a file read.</td></tr>
+        <tr><td>executable-path</td><td>No handler. Asks only that a binary in the bundle is reachable at runtime.</td></tr>
+        <tr><td>skill</td><td>Ship a <code>SKILL.md</code> the harness will surface to the model.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Events</h2>
+    <p>A requirement binds to one event. Nine are primitives, mapping to a harness's own hook:</p>
+    <p><code>session-start</code> <code>session-end</code> <code>turn-end</code>
+       <code>tool-pre</code> <code>tool-post</code> <code>subagent-start</code>
+       <code>subagent-stop</code> <code>compact-pre</code> <code>compact-post</code></p>
+
+    <p>Three more are aliases that expand to a primitive plus a tool class, because
+      "tell me when a file is read" is what you actually mean:</p>
+
+    <table>
+      <thead><tr><th>alias</th><th>expands to</th></tr></thead>
+      <tbody>
+        <tr><td>file-read</td><td><code>tool-post</code> filtered to the harness's read tool</td></tr>
+        <tr><td>file-write</td><td><code>tool-post</code> filtered to its write tool</td></tr>
+        <tr><td>shell-exec</td><td><code>tool-post</code> filtered to its shell tool</td></tr>
+      </tbody>
+    </table>
+
+    <p>The alias matters because harnesses disagree about what tools exist. Claude Code has a
+      dedicated <code>Read</code> tool. Codex has none, so <code>file-read</code> there degrades
+      to watching a broader matcher, which misses reads inside pipelines and heredocs. You wrote
+      the same requirement either way; Whippletree tells you which one you got.</p>
+
+    <h2>The tier ladder</h2>
+    <p>A requirement lands at the best tier the harness can actually carry it at.</p>
+
+    <table>
+      <thead><tr><th>tier</th><th>meaning</th></tr></thead>
+      <tbody>
+        <tr><td>T1</td><td><b>Native.</b> A real hook, enforced by the harness itself.</td></tr>
+        <tr><td>T2</td><td><b>Degraded.</b> Approximated through a coarser mechanism, with the lossage stated in full.</td></tr>
+        <tr><td>T3</td><td><b>Compiled to instructions.</b> The model is told to run the step and usually will, but can skip it under pressure.</td></tr>
+        <tr><td>T4</td><td><b>Observer.</b> Reserved. Not implemented.</td></tr>
+      </tbody>
+    </table>
+
+    <p>You declare a <code>minTier</code>: the worst you are willing to accept. Comparing what
+      the harness achieves against what you declared gives the verdict.</p>
+
+    <h2>Verdicts</h2>
+
+    <table>
+      <thead><tr><th>verdict</th><th>meaning</th><th>exit</th></tr></thead>
+      <tbody>
+        <tr><td>SATISFY</td><td>Reached your declared minimum, or better.</td><td>0</td></tr>
+        <tr><td>DEGRADE</td><td>Below the minimum, but the requirement is soft. Installs, and says so.</td><td>0</td></tr>
+        <tr><td>REFUSE</td><td>Below the minimum and <code>hardRequired</code>. Nothing is installed.</td><td>1</td></tr>
+        <tr><td>ABSENT</td><td>The harness has no mechanism at all, and the requirement is soft.</td><td>0</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note"><b>REFUSE is the point.</b> A security gate that silently becomes advice is
+      worse than one that fails to install, because you will believe it is running. opencode has
+      no blocking stop event, so a hard <code>turn-end</code> gate refuses there rather than
+      pretending.</div>
+
+    <h2>Instruction fallback</h2>
+    <p>Refusing is not always what you want. Pair a <code>blocking-gate</code> with a
+      <code>skill</code> requirement through <code>fallbackSkill</code>, and on a harness with no
+      native gate the step is compiled into the skill's instructions instead of refusing.</p>
+
+    <p>That is T3, and Whippletree says the same sentence about it everywhere it appears, in the
+      preflight report and in the generated <code>SKILL.md</code> itself:</p>
+
+    <div class="note">best-effort, no harness-level enforcement on this target: the model is
+      instructed to run the step and usually will, but can skip it under pressure</div>
+
+    <h2>Probed versions</h2>
+    <p>A target definition records the harness versions it was actually tested against. Probe
+      something outside that range and preflight says so:</p>
+
+<pre><code><b>$ whippletree preflight ./my-tool --target codex</b>
+whippletree preflight · target codex (probed 0.100.0)
+
+  ! probed 0.100.0 is below the tested range &gt;=0.144.0
+  ! the verdicts below were not verified against this version</code></pre>
+
+    <p>A warning, never a refusal. A harness shipping a new version must not break every install
+      that day, and Whippletree cannot know whether the change matters. What it can do is stop
+      asserting a confidence it has not earned.</p>
+
+    <h2>Next</h2>
+    <ul>
+      <li><a href="https://github.com/larstonder/whippletree/blob/main/docs/AUTHORING.md">Authoring a bundle</a> for every field, the handler wire format, and the exit-code contract.</li>
+      <li><a href="https://github.com/larstonder/whippletree/blob/main/docs/opencode.md">opencode notes</a> for why one target needs a different backend entirely.</li>
+    </ul>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache-2.0</span>
+    <a href="https://github.com/larstonder/whippletree/blob/main/TRADEMARK.md">Trademark</a>
+    <a href="https://github.com/larstonder/whippletree/blob/main/SECURITY.md">Security</a>
+    <span class="end">Whippletree is a trademark of Lars Tønder.</span>
+  </div>
+</footer>
+
+</body>
+</html>
