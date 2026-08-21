@@ -41,6 +41,11 @@ type yamlSpec struct {
 	SkillChannel yamlSkillChannel           `yaml:"skillChannel"`
 }
 
+// yamlDiscovery: only ManifestDir is consumed. HooksKey and
+// MergeSemantics are parsed so strict decoding accepts the files that
+// declare them, and are kept in the schema as documented research about
+// each harness, but nothing reads them: the "hooks" key is fixed by the
+// emitters, and merge semantics are the harness's behavior, not ours.
 type yamlDiscovery struct {
 	ManifestDir    string `yaml:"manifestDir"`
 	HooksKey       string `yaml:"hooksKey"`
@@ -64,6 +69,9 @@ type yamlDegradation struct {
 	Lossage string `yaml:"lossage"`
 }
 
+// yamlStrictness records whether the *harness's* own config parser
+// rejects unknown fields. Parsed and kept as documentation; whippletree
+// only ever emits fields it knows, so nothing acts on it.
 type yamlStrictness struct {
 	UnknownFieldsFatal bool `yaml:"unknownFieldsFatal"`
 }
@@ -128,17 +136,16 @@ func decodeTarget(raw []byte, sourcePath string) (*Def, error) {
 	}
 
 	def := &Def{
-		Name:               doc.Metadata.Name,
-		Class:              doc.Metadata.Class,
-		Backend:            backend,
-		ManifestDir:        doc.Spec.Discovery.ManifestDir,
-		HooksKey:           doc.Spec.Discovery.HooksKey,
-		MergeSemantics:     doc.Spec.Discovery.MergeSemantics,
-		Events:             make(map[string]EventMapping, len(doc.Spec.Events)),
-		ToolClassMap:       doc.Spec.ToolClassMap,
-		Degradations:       make(map[string]Degradation, len(doc.Spec.Degradations)),
-		UnknownFieldsFatal: doc.Spec.Strictness.UnknownFieldsFatal,
-		PluginRootVars:     doc.Spec.Env.PluginRoot,
+		Name:           doc.Metadata.Name,
+		Class:          doc.Metadata.Class,
+		SchemaVersion:  doc.Metadata.SchemaVersion,
+		TestedVersions: doc.Metadata.TestedVersions,
+		Backend:        backend,
+		ManifestDir:    doc.Spec.Discovery.ManifestDir,
+		Events:         make(map[string]EventMapping, len(doc.Spec.Events)),
+		ToolClassMap:   doc.Spec.ToolClassMap,
+		Degradations:   make(map[string]Degradation, len(doc.Spec.Degradations)),
+		PluginRootVars: doc.Spec.Env.PluginRoot,
 		Probe: ProbeSpec{
 			Command:        doc.Spec.Probe.Command,
 			VersionPattern: doc.Spec.Probe.VersionPattern,

@@ -15,21 +15,30 @@ const (
 type Def struct {
 	Name  string
 	Class int
+
+	// SchemaVersion is metadata.schemaVersion: the version of the
+	// target.yaml schema this file is written against.
+	SchemaVersion string
+
+	// TestedVersions is metadata.testedVersions: the range of harness
+	// versions this definition has actually been probed against, as a
+	// constraint string (see ParseConstraint). It is the currency claim
+	// a target definition makes, and preflight checks the probed
+	// version against it.
+	TestedVersions string
+
 	// Backend selects the compiler path used to emit this target's
 	// artifacts: hooks-json writes a native JSON hooks file, ts-plugin
 	// writes an in-process TypeScript shim.
-	Backend            string
-	ManifestDir        string
-	HooksKey           string
-	MergeSemantics     string
-	Events             map[string]EventMapping
-	ToolClassMap       map[string]*string
-	Degradations       map[string]Degradation
-	UnknownFieldsFatal bool
-	PluginRootVars     []string
-	Probe              ProbeSpec
-	Capabilities       map[string]bool
-	SkillChannel       SkillChannel
+	Backend        string
+	ManifestDir    string
+	Events         map[string]EventMapping
+	ToolClassMap   map[string]*string
+	Degradations   map[string]Degradation
+	PluginRootVars []string
+	Probe          ProbeSpec
+	Capabilities   map[string]bool
+	SkillChannel   SkillChannel
 
 	// SourcePath is the filesystem path Load read this Def from, or
 	// "embedded:<name>/target.yaml" for a Def LoadFS produced from the

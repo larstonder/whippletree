@@ -44,6 +44,14 @@ type Line struct {
 type Report struct {
 	Lines   []Line
 	Refused bool
+
+	// VersionNote is set when the probed version falls outside the
+	// target definition's metadata.testedVersions range. It is a
+	// warning, never a refusal: a harness releasing a new version must
+	// not break every install that day, and whippletree cannot know
+	// whether the change matters. What it can do is stop claiming the
+	// verdicts below were verified against this version.
+	VersionNote string
 }
 
 // Check evaluates every requirement in c against target td, using the
@@ -61,6 +69,19 @@ func Check(c *contract.Contract, td *target.Def, probed Version, interactive boo
 	}
 
 	report := &Report{}
+
+	// The target definition declares which harness versions it was
+	// actually probed against. Until now that claim was authored and
+	// then discarded, so preflight would report a confident verdict for
+	// a harness nobody had ever tested this definition on.
+	constraint, err := ParseConstraint(td.TestedVersions)
+	if err != nil {
+		return nil, fmt.Errorf("target %q: %w", td.Name, err)
+	}
+	if ok, reason := constraint.Check(probed); !ok {
+		report.VersionNote = reason
+	}
+
 	for _, req := range c.Requires {
 		a := tier.Assign(req, td)
 		verdict := Classify(a)
@@ -159,6 +180,11 @@ func (r *Report) Render(targetName string, v Version) string {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "whippletree preflight · target %s (probed %s)\n\n", targetName, versionStr)
+
+	if r.VersionNote != "" {
+		fmt.Fprintf(&b, "  ! %s\n", r.VersionNote)
+		fmt.Fprintf(&b, "  ! the verdicts below were not verified against this version\n\n")
+	}
 
 	var satisfy, degrade, refuse, absent int
 	for _, l := range r.Lines {

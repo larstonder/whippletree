@@ -84,7 +84,7 @@ func TestValidateSkillKind(t *testing.T) {
 	yes := true
 	no := false
 
-	valid := &Contract{Requires: []Requirement{
+	valid := &Contract{ContractVersion: SupportedContractVersion, Requires: []Requirement{
 		{ID: "s", Kind: "skill", Path: "./skills/s", MinTierRaw: "T1", MinTier: T1, HardRequired: &no},
 	}}
 	if err := Validate(valid); err != nil {
@@ -107,7 +107,7 @@ func TestValidateSkillKind(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := Validate(&Contract{Requires: []Requirement{tc.req}})
+			err := Validate(&Contract{ContractVersion: SupportedContractVersion, Requires: []Requirement{tc.req}})
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("want error containing %q, got %v", tc.want, err)
 			}
@@ -128,10 +128,10 @@ func TestValidateFallbackSkill(t *testing.T) {
 			HardRequired: &no, Handler: "./h.sh", FallbackSkill: fallback}
 	}
 
-	if err := Validate(&Contract{Requires: []Requirement{skill, gate("turn-end", "cap")}}); err != nil {
+	if err := Validate(&Contract{ContractVersion: SupportedContractVersion, Requires: []Requirement{skill, gate("turn-end", "cap")}}); err != nil {
 		t.Fatalf("gate turn-end fallback rejected: %v", err)
 	}
-	if err := Validate(&Contract{Requires: []Requirement{skill, signal("session-start", "cap")}}); err != nil {
+	if err := Validate(&Contract{ContractVersion: SupportedContractVersion, Requires: []Requirement{skill, signal("session-start", "cap")}}); err != nil {
 		t.Fatalf("signal session-start fallback rejected: %v", err)
 	}
 
@@ -160,9 +160,42 @@ func TestValidateFallbackSkill(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := Validate(&Contract{Requires: tc.reqs})
+			err := Validate(&Contract{ContractVersion: SupportedContractVersion, Requires: tc.reqs})
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("want error containing %q, got %v", tc.want, err)
+			}
+		})
+	}
+}
+
+func TestValidateContractVersion(t *testing.T) {
+	req := Requirement{ID: "a", Kind: "lifecycle-signal", Event: "session-start",
+		MinTierRaw: "T2", MinTier: T2, HardRequired: boolPtr(false), Handler: "./h.sh"}
+
+	cases := []struct{ name, version, wantErr string }{
+		{"supported exactly", SupportedContractVersion, ""},
+		{"older minor is readable", "1.0.0", ""},
+		{"missing", "", "contractVersion is required"},
+		{"unparseable", "one point oh", "invalid version"},
+		{"newer major", "2.0.0", "major versions must match"},
+		{"older major", "0.9.0", "major versions must match"},
+		{"newer minor is refused", "1.99.0", "newer than this whippletree supports"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Validate(&Contract{ContractVersion: tc.version, Requires: []Requirement{req}})
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate with contractVersion %q = %v, want nil", tc.version, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("Validate with contractVersion %q = nil, want an error", tc.version)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error = %q, want it to mention %q", err, tc.wantErr)
 			}
 		})
 	}
