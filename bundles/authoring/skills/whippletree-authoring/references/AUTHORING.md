@@ -198,7 +198,7 @@ string where the concept doesn't apply to this invocation):
 | `ADAPTER_EVENT` | the logical event name exactly as your contract wrote it (may be an alias, e.g. `file-read`) | never |
 | `ADAPTER_TARGET` | the target name (`claude-code`, `codex`, `copilot`, `opencode`) | never |
 | `ADAPTER_PRIMITIVE` | the resolved primitive (`tool-post` when `ADAPTER_EVENT` is the `file-read` alias) | never |
-| `ADAPTER_STOP_ACTIVE` | `"true"`/`"false"` | every event except `turn-end` on claude-code/codex (the only primitive either target declares a loop-guard field for); empty on opencode's hook path; a T3 fallback skill instructs the model to set it explicitly when running the handler manually |
+| `ADAPTER_STOP_ACTIVE` | `"true"`/`"false"` | every event except `turn-end` on claude-code/codex (the only primitive either target declares a loop-guard field for); empty on opencode's hook path, and on copilot, which delivers `stop_hook_active` in its own payload but has no `loopGuardField` declared because whippletree cannot drive its gate; a T3 fallback skill instructs the model to set it explicitly when running the handler manually |
 | `ADAPTER_CWD` | the harness-reported working directory | the harness gave no cwd |
 | `ADAPTER_PATH` | the first normalized path | no path applies to this event |
 

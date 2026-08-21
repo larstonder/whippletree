@@ -70,8 +70,9 @@ one-tool session was run.
 
 The bottom row is "this session did not provoke them", not "unsupported". The
 target definition declares only the five primitives whippletree already binds,
-all of which are measured above. `PostCompact` is not a documented Copilot event
-and did not fire.
+all of which are measured above. `PostCompact` appears in the table only because
+it was registered as a control: it is not a documented Copilot event, and it did
+not fire.
 
 An unrecognised event key is **ignored**, not fatal: a file declaring
 `NotARealEvent` alongside `SessionStart` still fired `SessionStart`. Hence
@@ -172,10 +173,11 @@ both and worth deciding separately.
 
 ## 6. `${PLUGIN_ROOT}` resolves
 
-`"${PLUGIN_ROOT}/h.sh"` expanded to the mounted plugin directory. `PLUGIN_ROOT`
-is the documented Copilot name; `CLAUDE_PLUGIN_ROOT` was not probed, and the
-target lists both because the dispatcher's `selfBundleRoot` fallback does not
-depend on either.
+`"${PLUGIN_ROOT}/h.sh"` expanded to the mounted plugin directory, which is the
+name the emitter actually uses: `internal/compile/emit.go` substitutes
+`PluginRootVars[0]` and never reads the rest of the list. The target lists
+`CLAUDE_PLUGIN_ROOT` second by analogy with codex, but it is inert — nothing
+emits it, and it was not probed.
 
 ## 7. Skills, and why the manifest key replaces rather than adds
 
