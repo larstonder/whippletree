@@ -10,8 +10,6 @@ import (
 	"github.com/larstonder/whippletree/internal/target"
 )
 
-// loadTarget loads the named target's target.yaml from the repo's shared
-// targets/ directory.
 func loadTarget(t *testing.T, name string) *target.Def {
 	t.Helper()
 	defs, err := target.LoadDir("../../targets")

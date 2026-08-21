@@ -26,12 +26,10 @@ type Event struct {
 	Raw            json.RawMessage `json:"raw"`
 }
 
-// pathLikeRE extracts filesystem-path-shaped tokens out of a shell command
-// string. This is a deliberately lossy heuristic: it has
-// no understanding of shell syntax, so it can double-count a path that
-// appears more than once in the command, and it can miss paths embedded in
-// pipelines, heredocs, or scripts. Deliberately not deduped; that decision
-// belongs to the handler.
+// pathLikeRE extracts path-shaped tokens from a shell command. It has no
+// understanding of shell syntax, so it double-counts a path that appears
+// twice and misses paths inside pipelines and heredocs. Not deduped:
+// that call belongs to the handler.
 var pathLikeRE = regexp.MustCompile(`[A-Za-z0-9_./~-]+\.[A-Za-z0-9]{1,8}`)
 
 // payload is the subset of hook stdin fields Normalize reads, common across
@@ -45,8 +43,6 @@ type payload struct {
 	} `json:"tool_input"`
 }
 
-// opencodeArgs is the subset of an opencode tool call's args Normalize
-// reads across tool kinds.
 type opencodeArgs struct {
 	FilePath string `json:"filePath"`
 }
@@ -64,11 +60,9 @@ type opencodeEnvelope struct {
 	} `json:"output"`
 }
 
-// Normalize decodes stdin (a target's raw hook payload) into the canonical
-// Event shape. logicalEvent may be an alias (e.g. "file-read") or a
-// primitive (e.g. "turn-end"); td supplies the backend that selects the
-// payload dialect and the target-specific mapping needed to read the
-// loop-guard field on turn-end payloads.
+// Normalize decodes a target's raw hook payload into the canonical Event
+// shape. logicalEvent may be an alias ("file-read") or a primitive
+// ("turn-end").
 func Normalize(logicalEvent string, td *target.Def, stdin []byte) (*Event, error) {
 	primitive, toolClass, err := contract.ResolveEvent(logicalEvent)
 	if err != nil {
@@ -129,10 +123,9 @@ func Normalize(logicalEvent string, td *target.Def, stdin []byte) (*Event, error
 	return ev, nil
 }
 
-// normalizeOpencode decodes an envelope-shaped stdin payload, the shape the
-// opencode ts-plugin shim wraps its raw hook arguments in. opencode has no
-// loop guard: a blocking tool-pre throw fails just that tool call and the
-// agent loop continues, so StopHookActive is always nil here.
+// normalizeOpencode decodes the envelope the ts-plugin shim wraps
+// opencode's hook arguments in. opencode has no loop guard, so
+// StopHookActive is always nil here.
 func normalizeOpencode(logicalEvent, primitive, toolClass string, stdin []byte) (*Event, error) {
 	var env opencodeEnvelope
 	if err := json.Unmarshal(stdin, &env); err != nil {
