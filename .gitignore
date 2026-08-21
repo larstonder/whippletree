@@ -17,3 +17,4 @@ examples/kb-shaped/.whippletree/install-state.json
 /internal/assets/*
 !/internal/assets/logo.svg
 !/internal/assets/README.md
+/probe/

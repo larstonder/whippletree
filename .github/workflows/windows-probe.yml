@@ -3,11 +3,10 @@ name: windows-probe
 # Answers one question that no harness documents: when a hooks file names an
 # extensionless absolute path, does Windows resolve it to the .exe?
 #
-# There is no single answer, because there is no single resolver. PATHEXT is
-# consulted by cmd and PowerShell command discovery; Go and libuv each append
-# extensions in their own loop; CreateProcess on its own does none of it. So
-# the question is really "which of the ways a harness might spawn a hook
-# resolves it", and that is measured here rather than reasoned about.
+# There is no single answer, because there is no single resolver: PATHEXT,
+# Go's lookExtensions and libuv each behave in their own way. So the question
+# is really "which of the ways a harness might spawn a hook resolves it", and
+# each is measured rather than reasoned about from any one of the others.
 #
 # Three phases, because the arrangement of files on disk changes the answer:
 # only the .exe present, both present with the extensionless one loadable, and
@@ -18,8 +17,6 @@ name: windows-probe
 # dispatchable once it is on the default branch.
 on:
   workflow_dispatch:
-  push:
-    branches: [windows-probe]
 
 permissions:
   contents: read
