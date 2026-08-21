@@ -687,6 +687,13 @@ func TestRunWith_PlumbsWithoutBehaviorChange(t *testing.T) {
 
 // writeSkillTestTarget writes a minimal copy-dir target def whose dest
 // is destValue, returning the targets dir for --targets-dir.
+// escapeYAMLDoubleQuoted makes a path safe inside a double-quoted YAML
+// scalar. Windows temp paths are full of backslashes, and "\U" there is
+// a YAML escape rather than a literal.
+func escapeYAMLDoubleQuoted(s string) string {
+	return strings.ReplaceAll(s, `\`, `\\`)
+}
+
 func writeSkillTestTarget(t *testing.T, destValue string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -860,6 +867,7 @@ func TestInstallRefusesSkillDirMissingSkillMD(t *testing.T) {
 func TestInstallExpandsTildeAgainstHOME(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir reads this on Windows
 	targetsDir := writeSkillTestTarget(t, "~/.agents/skills")
 	bundle := scaffoldSkillBundle(t, targetsDir)
 	projectDir := t.TempDir()
