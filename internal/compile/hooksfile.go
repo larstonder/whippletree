@@ -23,31 +23,26 @@ var primitiveOrder = []string{
 	"compact-post",
 }
 
-// hookCommand is a single {"type": "command", "command": "..."} entry.
 type hookCommand struct {
 	Type    string `json:"type"`
 	Command string `json:"command"`
 }
 
-// hookEntry is one element of a native event's hooks array: an optional
-// matcher (observation-signal only) plus the commands to run.
+// hookEntry is one element of a native event's hooks array. Only
+// observation-signal requirements ever set Matcher.
 type hookEntry struct {
 	Matcher string        `json:"matcher,omitempty"`
 	Hooks   []hookCommand `json:"hooks"`
 }
 
-// eventGroup collects every hookEntry destined for a single native event
-// name, along with the primitive it was reached through (used only for
-// ordering during marshaling).
+// eventGroup is every hookEntry destined for one native event name.
 type eventGroup struct {
 	native  string
 	entries []hookEntry
 }
 
 // hooksFile is the top-level {"hooks": {...}} document written to
-// hooks/<target>.json. It marshals its native-event keys in a fixed
-// deterministic order (see primitiveOrder) rather than Go's randomized
-// map order, so golden-file comparisons are byte-stable.
+// hooks/<target>.json.
 type hooksFile struct {
 	byPrimitive map[string]*eventGroup
 	seen        map[string]bool
@@ -57,12 +52,9 @@ func newHooksFile() *hooksFile {
 	return &hooksFile{byPrimitive: make(map[string]*eventGroup), seen: make(map[string]bool)}
 }
 
-// add appends entry to the group for primitive, creating the group if
-// this is the first entry seen for it. Two requirements that resolve to
-// the same primitive can independently produce byte-identical entries;
-// without deduping, both entries would be emitted and the harness would
-// run the same handler invocation twice per firing. add dedupes on
-// (primitive, matcher, command list), so repeat entries are dropped.
+// add appends entry to primitive's group, dropping an exact repeat of
+// (primitive, matcher, commands): two requirements can resolve to the
+// same entry, and emitting both runs the handler twice per firing.
 func (h *hooksFile) add(primitive, native string, entry hookEntry) {
 	key := dedupeKey(primitive, entry)
 	if h.seen[key] {
@@ -92,9 +84,7 @@ func dedupeKey(primitive string, entry hookEntry) string {
 	return b.String()
 }
 
-// MarshalJSON implements a fixed key order for the top-level "hooks" map,
-// per primitiveOrder, so repeated builds of the same contract produce
-// byte-identical output.
+// MarshalJSON emits the top-level "hooks" keys in primitiveOrder.
 func (h *hooksFile) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteString(`{"hooks":{`)

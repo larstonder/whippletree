@@ -96,9 +96,7 @@ func parseBuildArgs(args []string) (buildArgs, error) {
 			parsed.targetsDir = args[i+1]
 			i++
 		default:
-			// An unrecognized flag is an error, never a positional:
-			// folding it in let "whippletree build --allow-refuse" use
-			// the flag itself as the bundle directory.
+			// An unrecognized flag is an error, never a positional.
 			if strings.HasPrefix(args[i], "-") {
 				return buildArgs{}, fmt.Errorf("unknown flag %q", args[i])
 			}

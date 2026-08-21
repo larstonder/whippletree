@@ -16,8 +16,7 @@ var primitives = map[string]bool{
 	"compact-post":   true,
 }
 
-// aliases maps a convenience event name to the [primitive, toolClass] pair
-// it expands to.
+// aliases expands a convenience event name to [primitive, toolClass].
 var aliases = map[string][2]string{
 	"file-read":  {"tool-post", "read"},
 	"file-write": {"tool-post", "write"},

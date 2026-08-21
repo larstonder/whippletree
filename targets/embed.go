@@ -1,8 +1,6 @@
-// Package targets embeds the repo's built-in target definitions
-// (claude-code, codex, opencode) into the whippletree binary, so the
-// CLI has a set of targets to load even when run from outside the
-// whippletree repo (where a cwd-relative "targets" directory would
-// not exist).
+// Package targets embeds the repo's built-in target definitions into the
+// whippletree binary, so the CLI has targets to load when run from
+// outside a whippletree checkout.
 package targets
 
 import "embed"

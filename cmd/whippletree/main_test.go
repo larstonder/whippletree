@@ -203,8 +203,6 @@ func TestRunBuild_TargetsDirWithZeroTargetsErrors(t *testing.T) {
 	}
 }
 
-// TestEnsureDispatcher_AlreadyPresent covers the no-op case: the
-// binary is already there, so ensureDispatcher does nothing.
 func TestEnsureDispatcher_AlreadyPresent(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "bin/whippletree-hook", "already here", 0o755)
@@ -644,8 +642,6 @@ func TestRunInstall_ProjectDefaultsToCWD(t *testing.T) {
 	}
 }
 
-// TestStdinIsTTY_FalseForRegularFile confirms stdinIsTTY reports false
-// for a non-terminal stdin.
 func TestStdinIsTTY_FalseForRegularFile(t *testing.T) {
 	f, err := os.CreateTemp(t.TempDir(), "not-a-tty")
 	if err != nil {
@@ -685,8 +681,6 @@ func TestRunWith_PlumbsWithoutBehaviorChange(t *testing.T) {
 	}
 }
 
-// writeSkillTestTarget writes a minimal copy-dir target def whose dest
-// is destValue, returning the targets dir for --targets-dir.
 // escapeYAMLDoubleQuoted makes a path safe inside a double-quoted YAML
 // scalar. Windows temp paths are full of backslashes, and "\U" there is
 // a YAML escape rather than a literal.
@@ -694,6 +688,8 @@ func escapeYAMLDoubleQuoted(s string) string {
 	return strings.ReplaceAll(s, `\`, `\\`)
 }
 
+// writeSkillTestTarget writes a minimal copy-dir target def whose dest
+// is destValue, returning the targets dir for --targets-dir.
 func writeSkillTestTarget(t *testing.T, destValue string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -945,10 +941,8 @@ func TestPreflightRejectsBrokenSkillFile(t *testing.T) {
 	}
 }
 
-// TestParsersRejectUnknownFlags: build, preflight and install used to
-// fold any unrecognized token into the positionals, so a mistyped flag
-// was silently dropped, or silently became the bundle directory. All
-// three are now strict, matching parseInitArgs.
+// TestParsersRejectUnknownFlags: an unrecognized token is an error in
+// all four parsers, never folded into the positionals.
 func TestParsersRejectUnknownFlags(t *testing.T) {
 	cases := []struct {
 		name string

@@ -157,8 +157,6 @@ func TestRunForwardsStderrOnCleanExit(t *testing.T) {
 	}
 }
 
-// TestRunForwardsHandlerStdout: a handler's stdout is forwarded
-// verbatim to the dispatcher's own stdout.
 func TestRunForwardsHandlerStdout(t *testing.T) {
 	script := "#!/bin/sh\necho \"CTX-LINE-1\"\nexit 0\n"
 	bundle := newBundle(t, map[string]string{"pull.sh": script})
@@ -175,8 +173,6 @@ func TestRunForwardsHandlerStdout(t *testing.T) {
 	}
 }
 
-// TestRunForwardsStdoutOnBlock: stdout is forwarded even when the
-// handler blocks (exit 2), the same as stderr already is.
 func TestRunForwardsStdoutOnBlock(t *testing.T) {
 	script := "#!/bin/sh\necho \"CTX-ON-BLOCK\"\necho \"reason\" >&2\nexit 2\n"
 	bundle := newBundle(t, map[string]string{"capture.sh": script})
@@ -545,3 +541,31 @@ func TestRunTimesOutHangingHandlerAndFailsOpen(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// TestRunHonoursExitCodeWhenDeadlineAlsoElapsed: a handler that exits 2
+// on its own must block even if the deadline elapses before Run returns.
+// The handler here backgrounds a sleep that holds the stdout pipe, so
+// Run cannot return until WaitDelay closes it, by which time the context
+// is done -- but the process itself exited 2 long before, and that
+// verdict is real and must not be reported as a timeout.
+func TestRunHonoursExitCodeWhenDeadlineAlsoElapsed(t *testing.T) {
+	// A full second so the handler reliably reaches its exit before the
+	// deadline; the backgrounded sleep is what pushes Run's return past
+	// it, which is the whole point.
+	defer dispatch.SetHandlerTimeoutForTest(time.Second)()
+
+	script := "#!/bin/bash\nsleep 10 &\necho \"blocked\" >&2\nexit 2\n"
+	bundle := newBundle(t, map[string]string{"gate.sh": script})
+	writeVendoredContract(t, bundle, contract.Requirement{
+		ID: "gate", Kind: "blocking-gate", Event: "turn-end",
+		MinTier: contract.T1, HardRequired: boolPtr(false), Handler: "./handlers/gate.sh",
+	})
+
+	stdin := []byte(`{"session_id":"s1","cwd":"/tmp/proj","hook_event_name":"Stop","stop_hook_active":false}`)
+	var stdout, stderr bytes.Buffer
+	code := dispatch.Run(bundle, "turn-end", "codex", stdin, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("Run = %d, want 2: the handler exited 2 on its own, so the block is real (stderr: %s)", code, stderr.String())
+	}
+}

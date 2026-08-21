@@ -34,8 +34,9 @@ var handlerTimeout = HandlerTimeout
 // This is the exit-2 refusal dialect: exit 2 is a hard block and returns
 // immediately without running later handlers ("first block wins"), while
 // any other non-zero exit, or a missing or non-executable handler, is
-// logged and ignored. Handler stdout is forwarded verbatim on every exit
-// path; what it means is the harness's decision. See docs/AUTHORING.md.
+// logged and ignored. Handler stdout is forwarded verbatim whenever the
+// handler produced a verdict, whatever that verdict was; what it means
+// is the harness's decision. See docs/AUTHORING.md.
 func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stdout, stderr io.Writer) int {
 	c, err := loadVendoredContract(bundleRoot)
 	if err != nil {
@@ -182,16 +183,25 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 		return 0, stdoutBuf.Bytes(), captured.Bytes(), true
 	}
 
-	// Not reported as an exit code: the handler was killed, so what it
-	// exited with says nothing about whether it meant to block.
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		fmt.Fprintf(stderr, "whippletree-hook: handler %s: timed out after %s (ignored)\n", handlerRelPath, handlerTimeout)
-		return 0, stdoutBuf.Bytes(), captured.Bytes(), false
+	// A real exit code outranks the deadline. WaitDelay makes it ordinary
+	// for Run to return after the deadline even though the handler
+	// answered long before: a child holding the stdout pipe keeps Wait
+	// blocked past it. Reporting that as a timeout would drop a genuine
+	// exit-2 block. ExitCode is -1 when a signal killed the handler,
+	// which is the case with no verdict to honour.
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) && exitErr.ExitCode() >= 0 {
+		return exitErr.ExitCode(), stdoutBuf.Bytes(), captured.Bytes(), true
 	}
 
-	var exitErr *exec.ExitError
-	if errors.As(runErr, &exitErr) {
-		return exitErr.ExitCode(), stdoutBuf.Bytes(), captured.Bytes(), true
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		// Diagnostics still help, so stderr is forwarded. Stdout is not:
+		// it is a payload channel, and half a payload is worse than none.
+		if captured.Len() > 0 {
+			_, _ = stderr.Write(captured.Bytes())
+		}
+		fmt.Fprintf(stderr, "whippletree-hook: handler %s: timed out after %s (ignored)\n", handlerRelPath, handlerTimeout)
+		return 0, nil, nil, false
 	}
 
 	fmt.Fprintf(stderr, "whippletree-hook: handler %s: %v (ignored)\n", handlerRelPath, runErr)
