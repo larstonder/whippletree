@@ -1,7 +1,7 @@
-> Source: session research captured 2026-07-30 (whippletree opencode-backend planning session).
+> Source: session research captured 2026-07-30 (Whippletree opencode-backend planning session).
 > opencode versions verified against v1.18.9 (@opencode-ai/plugin) and 1.18.10 (opencode-ai CLI).
 
-# opencode plugin research (for whippletree TS-emission backend)
+# opencode plugin research (for Whippletree TS-emission backend)
 
 Repo: `github.com/anomalyco/opencode` (org confirmed live via `gh api repos/anomalyco/opencode`). Default branch `dev` (HEAD at research time, commit reachable via `git/refs/tags/v1.18.9` = same tree for the plugin package — see below). Docs: `https://opencode.ai/docs/*`.
 
@@ -47,7 +47,7 @@ All "VERIFIED" citations below are file paths in this repo at `dev` HEAD unless 
 - Runtime: Bun-first (`$` only populated under Bun); no evidence of a hard per-plugin sandbox — a plugin is just an imported module with full ambient access.
 
 ### 2. Event/hook surface
-See table rows 12-14 above for the full list and throw semantics. Key structural point for the whippletree plan: **there is no per-hook-return "block/allow" contract like Claude Code's hook JSON decisions.** Blocking is achieved only by throwing (soft, tool-call-scoped) or by the internal `Permission.Service` deny path (which the `permission.ask` hook can only nudge via `output.status`, not fully author — the internal ruleset evaluation in `packages/opencode/src/permission/index.ts` runs regardless of the plugin hook and can independently deny/ask/allow).
+See table rows 12-14 above for the full list and throw semantics. Key structural point for the Whippletree plan: **there is no per-hook-return "block/allow" contract like Claude Code's hook JSON decisions.** Blocking is achieved only by throwing (soft, tool-call-scoped) or by the internal `Permission.Service` deny path (which the `permission.ask` hook can only nudge via `output.status`, not fully author — the internal ruleset evaluation in `packages/opencode/src/permission/index.ts` runs regardless of the plugin hook and can independently deny/ask/allow).
 
 ### 3. Tool identity
 Confirmed IDs (as they'll appear in `tool.execute.before/after` `input.tool` and `tool.definition` `input.toolID`): `bash`, `read`, `write`, `edit`, `apply_patch`, `glob`, `grep`, `webfetch`, `websearch` (id `"websearch"`, defined at `packages/opencode/src/tool/websearch.ts` line ~100 as `Tool.define("websearch", ...)` — correcting an earlier assumption of `"search"`, which was actually the *registry map key*, not the tool `id`), `skill`, `lsp`, `plan_exit` (not `plan` — `PlanExitTool` is `Tool.define("plan_exit", ...)`), `task` (from `const id = "task"` in `task.ts`), plus `todo`/`question`/`invalid` (ids not explicitly grepped this pass, follow registry key names `todo`/`question`/`invalid` by convention — treat those three specifically as UNVERIFIED-exact-string, everything else in this paragraph is grep-confirmed against `Tool.define("<id>", ...)` call sites).
@@ -63,7 +63,7 @@ Confirmed IDs (as they'll appear in `tool.execute.before/after` `input.tool` and
 - Isolation via env: `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` all honored through the `xdg-basedir` npm package (source-verified); `OPENCODE_CONFIG_DIR` flag as a direct override; DB path also independently overridable via `OPENCODE_DB` flag/env.
 
 ### 6. Version/velocity
-`opencode-ai@latest` = 1.18.10 (published during this research session), `@opencode-ai/plugin@latest` = 1.18.9. ~20 releases in the trailing 30 days, frequently 2+ same-day releases. The `dev` npm dist-tag (`0.0.0-dev-202607301413`) and a `2.0` git branch both exist — active pre-release churn alongside the stable channel. The one concrete forward-looking break already visible in source: the `bash` tool-id/permission-key rename is explicitly deferred to "opencode 2.0" (comment in `shell/id.ts`), meaning a whippletree tool-name mapping table keyed on `"bash"` today will need a compat shim whenever 2.0 ships — no timeline found for that cut.
+`opencode-ai@latest` = 1.18.10 (published during this research session), `@opencode-ai/plugin@latest` = 1.18.9. ~20 releases in the trailing 30 days, frequently 2+ same-day releases. The `dev` npm dist-tag (`0.0.0-dev-202607301413`) and a `2.0` git branch both exist — active pre-release churn alongside the stable channel. The one concrete forward-looking break already visible in source: the `bash` tool-id/permission-key rename is explicitly deferred to "opencode 2.0" (comment in `shell/id.ts`), meaning a Whippletree tool-name mapping table keyed on `"bash"` today will need a compat shim whenever 2.0 ships — no timeline found for that cut.
 
 ### 7. Session storage
 SQLite (via `drizzle-orm/sqlite-core`, per-platform driver split `sqlite.bun.ts`/`sqlite.node.ts`), single file `opencode.db` (or `opencode-<channel>.db`) under `Global.Path.data` (`$XDG_DATA_HOME/opencode/`, override via `OPENCODE_DB`). This replaces whatever "JSON per message" scheme the prior matrix-level pass assumed — a T4 observer should target SQLite reads (schema churns often; `packages/core/src/database/schema.gen.ts` and the migration folder are the ground truth for current table shape at any given commit, not a fixed schema to hardcode against).

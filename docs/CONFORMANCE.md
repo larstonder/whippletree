@@ -7,9 +7,9 @@ The terms need a trademark attorney before publication.
 
 ## The problem it addresses
 
-Apache-2.0 lets anyone fork whippletree and ship it. That is intended. What the
+Apache-2.0 lets anyone fork Whippletree and ship it. That is intended. What the
 licence cannot do is stop a fork from being *wrong* while still being called
-whippletree — and whippletree's entire proposition is that its verdicts can be
+Whippletree — and Whippletree's entire proposition is that its verdicts can be
 trusted. A `SATISFY` from a build that quietly relaxed the tier rules, or from
 one carrying a target definition last probed two years ago, is worse than no
 answer, because it looks like an answer.

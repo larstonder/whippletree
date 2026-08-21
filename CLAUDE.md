@@ -1,4 +1,4 @@
-# whippletree — working notes
+# Whippletree — working notes
 
 ## Comments
 

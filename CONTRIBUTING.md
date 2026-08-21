@@ -1,8 +1,8 @@
-# Contributing to whippletree
+# Contributing to Whippletree
 
 ## Sign your commits (DCO)
 
-whippletree uses the Developer Certificate of Origin rather than a CLA. There is
+Whippletree uses the Developer Certificate of Origin rather than a CLA. There is
 nothing to sign up for and no copyright to assign: you certify the origin of
 what you contribute by adding a `Signed-off-by` line to each commit.
 

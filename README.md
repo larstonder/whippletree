@@ -7,12 +7,29 @@
 
 **[whippletree.dev](https://whippletree.dev)**
 
-A whippletree is the pivoting crossbar that lets one pull drive differently matched
-horses in harness. This does the same for agent tools across AI coding harnesses.
+Write one `plugin.json` saying what your agent tool needs from a coding harness:
+run this handler when a session starts, block the turn if a check fails, tell me
+when a file is read, make this binary reachable. `whippletree build` compiles that
+into each harness's own native hook format, so you write the requirement once
+instead of three times.
 
-Declare an agent tool's lifecycle requirements once; compile them onto multiple
-AI coding harnesses at the best verifiable fidelity tier. Class-1 spine:
-Claude Code + Codex CLI, plus opencode on its own backend.
+Harnesses support different slices of that lifecycle, and none of them tell you
+which. Whippletree probes the harness you have installed and reports the tier
+every requirement actually reaches before it writes anything:
+
+```
+  stop-gate             want ≥T1  got T1  SATISFY   native Stop + stop_hook_active
+  file-read-signal      want ≥T4  got T2  SATISFY   matcher Bash|Edit|Write|apply_patch;
+                                                    misses reads in pipelines and heredocs
+```
+
+A hard requirement the harness cannot meet refuses to install rather than
+degrading quietly.
+
+Targets today: Claude Code, Codex CLI, and opencode.
+
+The name is the mechanism: a whippletree is the pivoting crossbar that lets a
+single pull drive differently matched horses.
 
 - `whippletree init [<dir>]`: scaffold a new bundle (wizard on a bare TTY, flags otherwise)
 - `whippletree build <bundle-dir>`: compile per-target variants

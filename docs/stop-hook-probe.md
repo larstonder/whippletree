@@ -20,7 +20,7 @@ Question: in `test/e2e/run-claude.sh`'s isolated, unauthenticated flow, does the
 
 3. For the second manual run, `--debug hooks --debug-file <path>` was added (an additional flag on the `claude` invocation, not a change to any repo file) to see whether the harness invokes the Stop hook internally even if `capture.sh` never gets to write to the marker.
 
-No file inside the whippletree repo was modified. `git status` in the repo is clean before and after this probe (the only build artifact, `examples/kb-shaped/bin/whippletree-hook`, is gitignored).
+No file inside the Whippletree repo was modified. `git status` in the repo is clean before and after this probe (the only build artifact, `examples/kb-shaped/bin/whippletree-hook`, is gitignored).
 
 ## Verbatim marker content
 

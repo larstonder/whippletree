@@ -2,3 +2,9 @@
 /dist/
 examples/kb-shaped/bin/whippletree-hook
 examples/kb-shaped/.whippletree/install-state.json
+# local agent tooling, not part of the project
+.DS_Store
+/.agents/
+/.claude/
+/.superpowers/
+/skills-lock.json
