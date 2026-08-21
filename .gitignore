@@ -16,3 +16,8 @@ examples/kb-shaped/.whippletree/install-state.json
 /site/docs/contributing/
 /site/docs/probes/
 /tools/docsgen/docsgen
+# brand: logo.svg is the master and is tracked. Everything else here is an
+# export or a flatten of it, and the ones the site uses live in site/brand/.
+/internal/assets/*
+!/internal/assets/logo.svg
+!/internal/assets/README.md
