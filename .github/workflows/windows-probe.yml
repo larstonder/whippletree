@@ -12,6 +12,10 @@ name: windows-probe
 # Manual: this exists to produce a finding, not to gate anything.
 on:
   workflow_dispatch:
+  # Temporary, so the probe can run before it reaches the default branch.
+  # workflow_dispatch is only dispatchable from main.
+  push:
+    branches: [windows-probe]
 
 permissions:
   contents: read
