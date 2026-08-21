@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/larstonder/whippletree/internal/dispatch"
-	"github.com/larstonder/whippletree/internal/target"
+	"whippletree.dev/internal/dispatch"
+	"whippletree.dev/internal/target"
 )
 
 func loadTarget(t *testing.T, name string) *target.Def {

@@ -8,7 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/larstonder/whippletree/internal/contract"
+	"whippletree.dev/internal/contract"
 )
 
 // Placeholder is the literal install replaces (replace-all) with the

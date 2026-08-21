@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/larstonder/whippletree/internal/dispatch"
-	"github.com/larstonder/whippletree/internal/target"
+	"whippletree.dev/internal/dispatch"
+	"whippletree.dev/internal/target"
 )
 
 func main() {

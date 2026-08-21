@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/whippletree/internal/contract"
+	"whippletree.dev/internal/contract"
 )
 
 func expandFixture(t *testing.T, description string, exps []Expansion) (dst string) {

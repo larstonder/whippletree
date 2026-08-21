@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/larstonder/whippletree/internal/contract"
+	"whippletree.dev/internal/contract"
 )
 
 // validNamePattern is the closed character set a bundle name must

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/whippletree/internal/compile"
-	"github.com/larstonder/whippletree/internal/target"
-	"github.com/larstonder/whippletree/targets"
+	"whippletree.dev/internal/compile"
+	"whippletree.dev/internal/target"
+	"whippletree.dev/targets"
 )
 
 // setupBundle copies the kb-shaped fixture into a fresh temp bundle dir

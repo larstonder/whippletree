@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/internal/dispatch"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/internal/dispatch"
 )
 
 // newBundle builds a temp bundle directory with a vendored .whippletree/

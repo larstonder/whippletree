@@ -3,7 +3,7 @@ package preflight_test
 import (
 	"testing"
 
-	"github.com/larstonder/whippletree/internal/preflight"
+	"whippletree.dev/internal/preflight"
 )
 
 func TestParseConstraintAndCheck(t *testing.T) {

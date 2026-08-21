@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/internal/target"
-	"github.com/larstonder/whippletree/internal/tier"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/internal/target"
+	"whippletree.dev/internal/tier"
 )
 
 func loadKbExample(t *testing.T) *contract.Contract {

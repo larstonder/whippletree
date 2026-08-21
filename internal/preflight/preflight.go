@@ -11,9 +11,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/internal/target"
-	"github.com/larstonder/whippletree/internal/tier"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/internal/target"
+	"whippletree.dev/internal/tier"
 )
 
 // Version is a target's detected (or assumed) installed version string,
