@@ -1,9 +1,13 @@
 # Pages that used to be hosted and now live in the repository. A redirect is
 # kinder than a 404: these URLs were public, and the documents still exist.
-/docs/opencode/*        /docs/harnesses/                                                          301
-/docs/conformance/*     https://github.com/larstonder/whippletree/blob/main/docs/CONFORMANCE.md    301
-/docs/maintenance/*     https://github.com/larstonder/whippletree/blob/main/MAINTENANCE.md         301
-/docs/probes/*          https://github.com/larstonder/whippletree/tree/main/docs                   301
+#
+# The splat sits directly against the name rather than after a slash. Pages only
+# rewrites /docs/x to /docs/x/ when that directory is still deployed, so for a
+# page that has been removed the slashless form reaches no rule at all.
+/docs/opencode*         /docs/harnesses/                                                          301
+/docs/conformance*      https://github.com/larstonder/whippletree/blob/main/docs/CONFORMANCE.md    301
+/docs/maintenance*      https://github.com/larstonder/whippletree/blob/main/MAINTENANCE.md         301
+/docs/probes*           https://github.com/larstonder/whippletree/tree/main/docs                   301
 
 # No catch-all. A /* -> /index.html 200 rule makes every wrong URL look like the
 # homepage, so nobody ever learns they are lost.
