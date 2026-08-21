@@ -9,6 +9,9 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      - "tools/docsgen/**"
+      - "docs/**"
+      - "*.md"
       - ".github/workflows/site.yml"
   workflow_dispatch:
 
@@ -25,8 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The page is one hand-written HTML file plus the brand SVGs. There
-      # is nothing to build, so the directory ships as-is.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+
+      # The doc pages are rendered from the repository's markdown rather than
+      # written twice. They are gitignored: the markdown is the source, this is
+      # the artifact.
+      - name: render docs
+        working-directory: tools/docsgen
+        run: go run .
+
       - uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
