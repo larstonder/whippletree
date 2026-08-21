@@ -76,6 +76,62 @@ Conventions worth knowing before your first change are in
 put the rationale for a change in its commit message rather than in a source
 file where it will rot.
 
+## End-to-end tests
+
+`test/e2e/run-codex.sh`, `test/e2e/run-claude.sh`, and `test/e2e/run-opencode.sh` install
+the `examples/kb-shaped` bundle into a fresh, isolated harness home (`mktemp -d`,
+`CODEX_HOME` / `CLAUDE_CONFIG_DIR` / an XDG-isolated set of dirs respectively) and drive
+one real, unauthenticated turn against the installed `codex`, `claude`, and `opencode`
+CLIs, then assert on a marker file the example's handlers write to. They are standalone
+bash, not wired into `go test`; they're the environment-dependent, real-harness
+conformance layer.
+
+CI runs them nightly rather than per-push (`.github/workflows/e2e.yml`), installing each
+harness from npm first. A failure there opens or comments on a drift issue instead of
+failing the build: a harness that has moved on is a finding about
+`metadata.testedVersions`, not a broken commit. Unit tests, vet, `gofmt` and an
+artifacts-reproduce check run per-push on Linux, macOS and Windows.
+
+```bash
+test/e2e/run-codex.sh
+test/e2e/run-claude.sh
+test/e2e/run-opencode.sh
+```
+
+All three scripts run fully unauthenticated (no credentials are copied into the isolated
+home): the session-start signal is verified to fire before the harness makes any
+auth/model call, so the scripts tolerate the resulting 401/"not logged in" failure (or,
+for opencode, an anonymous hosted-model call that succeeds on its own) and assert only on
+the marker file. `run-codex.sh` proves `SessionStart` fires end to end through the
+compiled hooks file and the dispatcher; `run-claude.sh` proves the same, plus that it
+fires exactly once, confirming `hooks/hooks.json` is never emitted alongside the
+per-target hooks file (Claude Code merges that file additively, so its presence would
+double-fire every hook). `run-opencode.sh` proves the REFUSE-by-design behavior from
+"opencode" above, then softens the bundle and proves the compiled shim installs and
+fires session-start exactly once through a real `opencode run`.
+
+Actual PASS output from the last verified run, against `codex-cli 0.144.5`,
+`claude 2.1.220`, and `opencode 1.18.10`:
+
+```
+PASS: session-start fired on codex
+```
+
+```
+PASS: session-start fired exactly once on claude
+```
+
+```
+PASS: preflight refuses the hard stop gate on opencode
+PASS: install placed the plugin shim at .opencode/plugin/
+PASS: session-start fired exactly once on opencode
+```
+
+Every e2e script also prints a `harness=<name> version=<probed> date=<iso>` line before
+it does anything else, so the exact upstream version and date a given PASS was measured
+against is always available by grepping test output rather than trusting memory. That
+line is also what backs the maintenance log's entries, see `MAINTENANCE.md`.
+
 ## Adding or changing a target
 
 Target definitions are claims about how a real harness behaves, so they are

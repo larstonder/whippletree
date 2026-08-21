@@ -465,3 +465,18 @@ the same words the generated `SKILL.md`'s own provenance comment uses.
   `.codex-plugin/plugin.json` to add a stray field will break the install on
   Codex specifically, even though the same manifest shape is tolerated fine
   on Claude Code (`unknownFieldsFatal: false` there).
+
+## Conventions this adds
+
+Three additions this implementation makes relative to `harness-adapter.architecture.md`:
+
+1. Each requirement gains a `handler` field: a path, relative to the bundle root, to the
+   executable the dispatcher runs for that behavior. `executable-path` requirements gain a
+   `path` field instead (there's nothing to invoke, only a binary to check for).
+2. The handler convention above (stdin/env/exit codes) is new; the architecture doc
+   described the contract and target definitions but not the wire format a handler sees.
+3. Compiled bundles carry a vendored `.whippletree/` directory: `contract.json` (the
+   normalized contract) and `targets/<name>.yaml` (the exact target definition used at
+   build time). This is what the dispatcher reads at runtime, so it never has to
+   re-resolve the contract or reload target YAMLs the author might have changed since
+   build.
