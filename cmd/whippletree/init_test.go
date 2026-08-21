@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -168,8 +169,12 @@ func TestGuarantee_InitBuildPreflightAllFourKindsDefaultsSoft(t *testing.T) {
 	}
 
 	binDir := t.TempDir()
-	whippletreeBin := filepath.Join(binDir, "whippletree")
-	hookBin := filepath.Join(binDir, "whippletree-hook")
+	exe := ""
+	if runtime.GOOS == "windows" {
+		exe = ".exe"
+	}
+	whippletreeBin := filepath.Join(binDir, "whippletree"+exe)
+	hookBin := filepath.Join(binDir, "whippletree-hook"+exe)
 
 	buildBinary := func(out, pkg string) {
 		t.Helper()
