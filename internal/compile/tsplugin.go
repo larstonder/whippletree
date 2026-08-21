@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/internal/target"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/internal/target"
 )
 
 // GeneratedByPrefix is the stable identity of a whippletree-generated

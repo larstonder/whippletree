@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/larstonder/whippletree/internal/contract"
+	"whippletree.dev/internal/contract"
 )
 
 // Constraint is a parsed metadata.testedVersions range, e.g. ">=1.18.10"

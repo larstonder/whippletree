@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/targets"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/targets"
 )
 
 func TestLoadDir_ReturnsBothClass1Targets(t *testing.T) {

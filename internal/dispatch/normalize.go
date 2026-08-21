@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/internal/target"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/internal/target"
 )
 
 // Event is the canonical, target-agnostic representation of a single hook

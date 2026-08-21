@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/internal/skillfile"
-	"github.com/larstonder/whippletree/internal/target"
-	"github.com/larstonder/whippletree/internal/tier"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/internal/skillfile"
+	"whippletree.dev/internal/target"
+	"whippletree.dev/internal/tier"
 )
 
 // hooksEmittingKinds are the requirement kinds that produce entries in a

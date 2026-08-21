@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/whippletree/internal/compile"
-	"github.com/larstonder/whippletree/internal/contract"
+	"whippletree.dev/internal/compile"
+	"whippletree.dev/internal/contract"
 
-	"github.com/larstonder/whippletree/internal/skillfile"
+	"whippletree.dev/internal/skillfile"
 )
 
 func writeFile(t *testing.T, dir, rel, body string, perm os.FileMode) {

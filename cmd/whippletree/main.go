@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/larstonder/whippletree/internal/compile"
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/internal/preflight"
-	"github.com/larstonder/whippletree/internal/skillfile"
-	"github.com/larstonder/whippletree/internal/target"
-	"github.com/larstonder/whippletree/targets"
+	"whippletree.dev/internal/compile"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/internal/preflight"
+	"whippletree.dev/internal/skillfile"
+	"whippletree.dev/internal/target"
+	"whippletree.dev/targets"
 )
 
 // loadTargets prefers an explicit --targets-dir, falling back to the

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/whippletree/internal/compile"
-	"github.com/larstonder/whippletree/internal/target"
+	"whippletree.dev/internal/compile"
+	"whippletree.dev/internal/target"
 )
 
 // TestBuild_EmitsTSPluginShim: a ts-plugin target (opencode) gets a

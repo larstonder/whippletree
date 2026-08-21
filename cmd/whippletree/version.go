@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 	"sort"
 
-	"github.com/larstonder/whippletree/internal/contract"
+	"whippletree.dev/internal/contract"
 )
 
 // Build metadata set via -ldflags at release time, e.g.

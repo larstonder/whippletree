@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/larstonder/whippletree/internal/contract"
+	"whippletree.dev/internal/contract"
 )
 
 func writeSkill(t *testing.T, dir, name, frontmatter, body string) string {

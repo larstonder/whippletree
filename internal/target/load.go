@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/larstonder/whippletree/internal/contract"
 	"gopkg.in/yaml.v3"
+	"whippletree.dev/internal/contract"
 )
 
 // yamlDoc mirrors the on-disk apiVersion/kind/metadata/spec shape of a

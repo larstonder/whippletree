@@ -5,8 +5,8 @@ package tier
 import (
 	"fmt"
 
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/internal/target"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/internal/target"
 )
 
 // Assignment records the outcome of assigning a Requirement to a target:

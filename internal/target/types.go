@@ -1,6 +1,6 @@
 package target
 
-import "github.com/larstonder/whippletree/internal/contract"
+import "whippletree.dev/internal/contract"
 
 // Known Backend values. hooks-json is the zero-value default: a
 // target.yaml that omits backend entirely loads as hooks-json.

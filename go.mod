@@ -1,4 +1,4 @@
-module github.com/larstonder/whippletree
+module whippletree.dev
 
 go 1.22
 

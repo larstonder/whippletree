@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/larstonder/whippletree/internal/contract"
-	"github.com/larstonder/whippletree/internal/target"
+	"whippletree.dev/internal/contract"
+	"whippletree.dev/internal/target"
 )
 
 // HandlerTimeout bounds a single handler run; outliving it is fail-open,
