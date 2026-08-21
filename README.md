@@ -192,40 +192,41 @@ target on its own ts-plugin backend (see "opencode" above). Out of scope:
 - the T4 (observer) tier
 - the conformance kit
 - uninstall and upgrade flows
-- Windows (see below)
+- running a bundle on Windows, partly (see below)
 
 This implementation is a slice of a larger architecture (a four-tier fidelity ladder
 across harness classes); the remaining tiers and targets land in later slices.
 
 ## Windows
 
-**Partly.** The contract surface question is settled; the tooling around it is not,
-so a bundle can be authored for Windows but not yet built there.
+**Partly, and the boundary is precise.** Authoring, building and installing a bundle
+work. Whether a bundle *runs* depends on what its handlers are written in.
 
-What works: a requirement may declare `handlerWindows` alongside `handler`, and the
-dispatcher picks per platform at dispatch rather than at build, so one compiled bundle
-stays valid on every platform. The command baked into each hooks file names the
-dispatcher without a `.exe`, which resolves correctly on Windows — measured across
-every spawn path a harness plausibly uses, in [`docs/windows-probe-findings.md`](docs/windows-probe-findings.md).
+A requirement may declare `handlerWindows` alongside `handler`, and the dispatcher picks
+per platform at dispatch rather than at build, so one compiled bundle stays valid
+everywhere. The command baked into each hooks file names the dispatcher without a
+`.exe`, which resolves correctly on Windows across every spawn path a harness plausibly
+uses — measured, in [`docs/windows-probe-findings.md`](docs/windows-probe-findings.md),
+along with the reason shipping both filenames is the arrangement to avoid.
 
-What does not:
+Handlers are limited to what the loader launches from a bare path: `.exe`, `.com`,
+`.bat`, `.cmd`. The dispatcher execs the handler directly, with no interpreter, so
+`.ps1` is not among them — wrap it in a `.cmd`. That is refused at build time rather
+than left to fail open at dispatch, because a spawn failure fails open and a
+hard-required gate would otherwise stop enforcing silently.
 
-- `whippletree build` cannot provision its own dispatcher on Windows. It looks for
-  `bin/whippletree-hook` while a Windows release ships `whippletree-hook.exe`, so the
-  copy misses and the build stops.
+What is still missing:
+
 - `whippletree init` scaffolds only `#!/usr/bin/env bash` handlers and never sets
-  `handlerWindows`, so a scaffolded bundle carries nothing on Windows.
+  `handlerWindows`, so a scaffolded bundle carries nothing on Windows until you add one.
 - `preflight` is platform-blind by construction: it reports what a *harness* can carry,
-  and a harness is not a platform. A requirement with no `handlerWindows` still reports
-  SATISFY and is then skipped at dispatch.
+  and a harness is not a machine. A requirement with no `handlerWindows` still reports
+  SATISFY, then gets skipped at dispatch.
+- The T3 instruction fallback compiles a POSIX shell snippet, so it reads wrongly there.
 
-Handlers on Windows are limited to what the loader launches from a bare path — `.exe`,
-`.com`, `.bat`, `.cmd` — because the dispatcher execs the handler directly. `.ps1` is
-not among them; wrap it in a `.cmd`. That is rejected at build time rather than left to
-fail open at dispatch. Tests that depend on shell-script handlers skip on Windows rather
-than reporting a false pass.
-
-Tracked as issue #1.
+Tests that depend on shell-script handlers skip on Windows rather than reporting a false
+pass. Tracked as issues [#1](https://github.com/larstonder/whippletree/issues/1) and
+[#17](https://github.com/larstonder/whippletree/issues/17).
 
 ## Licence and the name
 
