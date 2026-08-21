@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -188,12 +189,26 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// dispatcherName is the dispatcher's filename on disk. Windows will not
+// launch a file without an executable extension, but the command compiled
+// into a hooks file stays extensionless: every spawn path a harness uses
+// resolves that to the .exe, so one emitted bundle stays portable. Shipping
+// both names is the arrangement to avoid, since the resolvers disagree about
+// which one they reach. Both facts are measured in
+// docs/windows-probe-findings.md.
+func dispatcherName() string {
+	if runtime.GOOS == "windows" {
+		return "whippletree-hook.exe"
+	}
+	return "whippletree-hook"
+}
+
 // ensureDispatcher provisions <bundleDir>/bin/whippletree-hook, which
 // every hooks-file command invokes but compile.Build never writes. It
 // falls back to the binary beside whippletree's own executable, then to
 // a warning or an error naming the command to run.
 func ensureDispatcher(bundleDir string, allowMissing bool, stderr io.Writer) error {
-	binPath := filepath.Join(bundleDir, "bin", "whippletree-hook")
+	binPath := filepath.Join(bundleDir, "bin", dispatcherName())
 	if _, err := os.Stat(binPath); err == nil {
 		return nil
 	}
@@ -223,7 +238,7 @@ func copyFromSiblingExecutable(dst string) error {
 		return err
 	}
 
-	src := filepath.Join(filepath.Dir(real), "whippletree-hook")
+	src := filepath.Join(filepath.Dir(real), dispatcherName())
 	info, err := os.Stat(src)
 	if err != nil {
 		return err

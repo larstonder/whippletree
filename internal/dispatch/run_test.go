@@ -25,12 +25,12 @@ import (
 // filename under handlers/, written 0755).
 func newBundle(t *testing.T, handlers map[string]string) string {
 	t.Helper()
-	// Every handler fixture in this package is a #!/bin/bash script, and
-	// Windows has no shebang support, so these assert nothing there. See
-	// the "Windows" section of README.md: running a bundle on Windows
-	// needs a real executable handler, which is out of scope for now.
+	// Every handler fixture in this package is a #!/bin/bash script, which
+	// Windows cannot exec, and none of these contracts declares a
+	// handlerWindows, so Run would skip every requirement before reaching
+	// exec and the assertions would pass without testing anything.
 	if runtime.GOOS == "windows" {
-		t.Skip("handler fixtures are shell scripts; whippletree bundles are not supported on Windows yet")
+		t.Skip("handler fixtures are shell scripts and declare no handlerWindows")
 	}
 	dir := t.TempDir()
 
@@ -207,7 +207,7 @@ func TestRunForwardsStdoutInHandlerOrder(t *testing.T) {
 	// Builds its bundle inline, so it needs newBundle's Windows guard
 	// repeated here: the two handlers below are shell scripts.
 	if runtime.GOOS == "windows" {
-		t.Skip("handler fixtures are shell scripts; whippletree bundles are not supported on Windows yet")
+		t.Skip("handler fixtures are shell scripts and declare no handlerWindows")
 	}
 	dir := t.TempDir()
 

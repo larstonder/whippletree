@@ -207,3 +207,31 @@ func TestValidateContractVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestHandlerWindowsRequiresItsContractVersion(t *testing.T) {
+	req := func(hw string) Requirement {
+		return Requirement{ID: "a", Kind: "lifecycle-signal", Event: "session-start",
+			MinTierRaw: "T2", MinTier: T2, HardRequired: boolPtr(false),
+			Handler: "./h.sh", HandlerWindows: hw}
+	}
+
+	cases := []struct{ name, version, handlerWindows, wantErr string }{
+		{"declared 1.1.0", "1.1.0", "./h.cmd", ""},
+		{"unused on 1.0.0", "1.0.0", "", ""},
+		{"used on 1.0.0", "1.0.0", "./h.cmd", "handlerWindows requires contractVersion 1.1.0 or later"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Validate(&Contract{ContractVersion: tc.version, Requires: []Requirement{req(tc.handlerWindows)}})
+			switch {
+			case tc.wantErr == "" && err != nil:
+				t.Fatalf("unexpected error: %v", err)
+			case tc.wantErr != "" && err == nil:
+				t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+			case tc.wantErr != "" && !strings.Contains(err.Error(), tc.wantErr):
+				t.Fatalf("error %q does not contain %q", err, tc.wantErr)
+			}
+		})
+	}
+}

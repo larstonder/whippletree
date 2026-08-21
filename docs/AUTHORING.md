@@ -161,6 +161,10 @@ from calling the hook again after it already blocked once.
 `executable-path` and `skill`, neither of which has a handler to run: one
 checks for a file, the other places a directory.
 
+A requirement may also carry `handlerWindows`, which the dispatcher prefers on
+Windows. See [Windows handlers](#windows-handlers) for the extensions that are
+legal there and why the set is small.
+
 ### `fallbackSkill`
 
 Only legal on `blocking-gate` at event `turn-end` or `lifecycle-signal` at
@@ -480,7 +484,7 @@ shebang support, so a requirement may declare a second handler for it:
   "minTier": "T1",
   "hardRequired": true,
   "handler": "./handlers/capture.sh",
-  "handlerWindows": "./handlers/capture.ps1"
+  "handlerWindows": "./handlers/capture.cmd"
 }
 ```
 
@@ -488,16 +492,52 @@ Both are validated at build time and both must exist. Which one runs is decided
 at dispatch, not at build, because a bundle is compiled once and may be
 installed on a different platform than it was built on.
 
+### What Windows can actually launch
+
+The dispatcher runs a handler by path, with no interpreter. That limits
+`handlerWindows` to what the loader starts on its own: **`.exe`, `.com`, `.bat`
+and `.cmd`**. Anything else is rejected at build time.
+
+`.ps1` is the one that catches people out. PowerShell scripts are not in the
+default `PATHEXT` and do not launch from a bare path — measured, not assumed;
+see `docs/windows-probe-findings.md`. Nor does `.sh`. Both fail in the loader
+with `%1 is not a valid Win32 application`, and since a spawn failure fails
+open, a hard-required gate would quietly stop enforcing. Hence the build-time
+refusal: it is the last point where the author still sees the problem.
+
+To use PowerShell, wrap it:
+
+```bat
+@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0capture.ps1"
+```
+
+Handlers take no arguments — the payload arrives on stdin — so the argument
+quoting that makes `.bat` and `.cmd` dangerous to invoke from a program does
+not arise here.
+
+### Omitting it
+
 A requirement with no `handlerWindows` is **not carried on Windows**: the
 dispatcher says so and moves on, rather than trying to exec a shell script and
 failing with a loader error that looks like a broken install. Omitting it is
 therefore a decision, not an oversight, and contracts that never mention it
 behave exactly as they did before.
 
-`handlerWindows` is additive in `contractVersion` 1.1.0. A contract that uses it
-should declare 1.1.0 so an older whippletree refuses it rather than silently
-ignoring the field; a contract that does not can stay on 1.0.0.
+Note that `preflight` does not model this. It reports the tier a requirement
+reaches on a target, and a target is a harness, not a platform — so a
+requirement with no `handlerWindows` still reports SATISFY, and is then skipped
+at dispatch on Windows. Read a preflight verdict as "what this harness can
+carry", not "what will run on this machine".
 
+One gap remains: when a requirement falls back to T3, the instructions compiled
+into `SKILL.md` are a POSIX shell snippet naming `handler`, never
+`handlerWindows`. A T3 fallback therefore reads wrongly on Windows.
+
+`handlerWindows` is additive in `contractVersion` 1.1.0, and a contract that
+uses it must declare 1.1.0 or later. That is enforced, not advisory: an older
+whippletree does not know the field, would drop it silently, and would then
+treat the missing Windows handler as the author's choice.
 ## Conventions this adds
 
 Three additions this implementation makes relative to `harness-adapter.architecture.md`:

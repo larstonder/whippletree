@@ -199,22 +199,33 @@ across harness classes); the remaining tiers and targets land in later slices.
 
 ## Windows
 
-**Whippletree does not support Windows yet.** Authoring a bundle works, but running one
-does not, and the gap is in the bundle format rather than in any single bug:
+**Partly.** The contract surface question is settled; the tooling around it is not,
+so a bundle can be authored for Windows but not yet built there.
 
-- Every handler `init` scaffolds is a `#!/usr/bin/env bash` script. Windows has no shebang
-  support, so the handler cannot be executed no matter how it is invoked.
-- The command compiled into each hooks file is `"${PLUGIN_ROOT}/bin/whippletree-hook" run
-  ...`: POSIX shell variable syntax, forward slashes, and a binary name with no `.exe`.
+What works: a requirement may declare `handlerWindows` alongside `handler`, and the
+dispatcher picks per platform at dispatch rather than at build, so one compiled bundle
+stays valid on every platform. The command baked into each hooks file names the
+dispatcher without a `.exe`, which resolves correctly on Windows — measured across
+every spawn path a harness plausibly uses, in [`docs/windows-probe-findings.md`](docs/windows-probe-findings.md).
 
-Closing this means giving a requirement a per-platform handler, the way GitHub Copilot
-CLI's own hooks file splits `bash` and `powershell`. That is a change to the contract
-surface, so it is deliberately being decided before `dev.whippletree.v1` is frozen at
-v1.0 rather than patched in now.
+What does not:
 
-The dispatcher itself is Windows-clean: it no longer applies a POSIX mode check that
-Windows can never satisfy, so a bundle whose handlers are real executables will run. Tests
-that depend on shell-script handlers skip on Windows rather than reporting a false pass.
+- `whippletree build` cannot provision its own dispatcher on Windows. It looks for
+  `bin/whippletree-hook` while a Windows release ships `whippletree-hook.exe`, so the
+  copy misses and the build stops.
+- `whippletree init` scaffolds only `#!/usr/bin/env bash` handlers and never sets
+  `handlerWindows`, so a scaffolded bundle carries nothing on Windows.
+- `preflight` is platform-blind by construction: it reports what a *harness* can carry,
+  and a harness is not a platform. A requirement with no `handlerWindows` still reports
+  SATISFY and is then skipped at dispatch.
+
+Handlers on Windows are limited to what the loader launches from a bare path — `.exe`,
+`.com`, `.bat`, `.cmd` — because the dispatcher execs the handler directly. `.ps1` is
+not among them; wrap it in a `.cmd`. That is rejected at build time rather than left to
+fail open at dispatch. Tests that depend on shell-script handlers skip on Windows rather
+than reporting a false pass.
+
+Tracked as issue #1.
 
 ## Licence and the name
 
