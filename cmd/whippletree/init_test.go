@@ -163,6 +163,14 @@ func TestRunInit_KindsVariants(t *testing.T) {
 // os.Executable(), which under `go test` resolves to the test binary,
 // not a "whippletree" binary with a "whippletree-hook" sibling.
 func TestGuarantee_InitBuildPreflightAllFourKindsDefaultsSoft(t *testing.T) {
+	// build cannot provision bin/whippletree-hook on Windows: naming it
+	// with the .exe the loader needs would contradict the bin/whippletree-hook
+	// path emit.go bakes into every hooks file. Which name wins is part
+	// of the per-platform handler question in issue #1.
+	if runtime.GOOS == "windows" {
+		t.Skip("dispatcher provisioning on Windows is unresolved; see issue #1")
+	}
+
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
