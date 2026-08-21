@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/larstonder/whippletree/internal/contract"
 	"github.com/larstonder/whippletree/internal/dispatch"
@@ -20,6 +22,13 @@ import (
 // filename under handlers/, written 0755).
 func newBundle(t *testing.T, handlers map[string]string) string {
 	t.Helper()
+	// Every handler fixture in this package is a #!/bin/bash script, and
+	// Windows has no shebang support, so these assert nothing there. See
+	// the "Windows" section of README.md: running a bundle on Windows
+	// needs a real executable handler, which is out of scope for now.
+	if runtime.GOOS == "windows" {
+		t.Skip("handler fixtures are shell scripts; whippletree bundles are not supported on Windows yet")
+	}
 	dir := t.TempDir()
 
 	raw, err := os.ReadFile("../tier/testdata/kb-example.json")
@@ -196,6 +205,11 @@ func TestRunForwardsStdoutOnBlock(t *testing.T) {
 // event, so this test vendors its own two-requirement contract rather
 // than going through newBundle.
 func TestRunForwardsStdoutInHandlerOrder(t *testing.T) {
+	// Builds its bundle inline, so it needs newBundle's Windows guard
+	// repeated here: the two handlers below are shell scripts.
+	if runtime.GOOS == "windows" {
+		t.Skip("handler fixtures are shell scripts; whippletree bundles are not supported on Windows yet")
+	}
 	dir := t.TempDir()
 
 	vendorDir := filepath.Join(dir, ".whippletree")
@@ -409,3 +423,127 @@ func TestRunProjectsADAPTERVarsFromNormalizedEvent(t *testing.T) {
 		}
 	})
 }
+
+// writeVendoredContract overwrites a bundle's vendored contract.json
+// with a single hand-built requirement. This deliberately bypasses
+// contract.Validate: it is the shape a bundle whippletree did not
+// compile can have on disk, which is exactly the input the dispatcher
+// must defend itself against.
+func writeVendoredContract(t *testing.T, bundle string, req contract.Requirement) {
+	t.Helper()
+	body, err := json.Marshal(&contract.Contract{ContractVersion: "1.0.0", Requires: []contract.Requirement{req}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundle, ".whippletree", "contract.json"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunRefusesHandlerOutsideBundle(t *testing.T) {
+	// The canary lives outside the bundle. If containment regresses, the
+	// dispatcher runs it and the file appears.
+	outside := t.TempDir()
+	canary := filepath.Join(outside, "canary")
+	escape := filepath.Join(outside, "escape.sh")
+	if err := os.WriteFile(escape, []byte("#!/bin/bash\ntouch "+canary+"\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bundle := newBundle(t, nil)
+
+	rel, err := filepath.Rel(bundle, escape)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel = filepath.ToSlash(rel)
+	if !strings.HasPrefix(rel, "../") {
+		t.Fatalf("test setup: %q should climb out of the bundle", rel)
+	}
+
+	writeVendoredContract(t, bundle, contract.Requirement{
+		ID: "escape", Kind: "lifecycle-signal", Event: "session-start",
+		MinTier: contract.T1, HardRequired: boolPtr(false), Handler: rel,
+	})
+
+	stdin := []byte(`{"session_id":"s1","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
+	var stdout, stderr bytes.Buffer
+	if code := dispatch.Run(bundle, "session-start", "codex", stdin, &stdout, &stderr); code != 0 {
+		t.Fatalf("Run = %d, want 0 (fail-open) (stderr: %s)", code, stderr.String())
+	}
+
+	if _, err := os.Stat(canary); err == nil {
+		t.Fatal("handler outside the bundle root was executed")
+	}
+	if !strings.Contains(stderr.String(), "refused") {
+		t.Errorf("stderr = %q, want it to report the refusal", stderr.String())
+	}
+}
+
+func TestRunRefusesHandlerSymlinkedOutsideBundle(t *testing.T) {
+	outside := t.TempDir()
+	canary := filepath.Join(outside, "canary")
+	real := filepath.Join(outside, "real.sh")
+	if err := os.WriteFile(real, []byte("#!/bin/bash\ntouch "+canary+"\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bundle := newBundle(t, nil)
+	link := filepath.Join(bundle, "handlers", "link.sh")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	writeVendoredContract(t, bundle, contract.Requirement{
+		ID: "link", Kind: "lifecycle-signal", Event: "session-start",
+		MinTier: contract.T1, HardRequired: boolPtr(false), Handler: "./handlers/link.sh",
+	})
+
+	stdin := []byte(`{"session_id":"s1","cwd":"/tmp/proj","hook_event_name":"SessionStart"}`)
+	var stdout, stderr bytes.Buffer
+	if code := dispatch.Run(bundle, "session-start", "codex", stdin, &stdout, &stderr); code != 0 {
+		t.Fatalf("Run = %d, want 0 (fail-open) (stderr: %s)", code, stderr.String())
+	}
+	if _, err := os.Stat(canary); err == nil {
+		t.Fatal("symlink escaping the bundle root was executed")
+	}
+}
+
+func TestRunTimesOutHangingHandlerAndFailsOpen(t *testing.T) {
+	if testing.Short() {
+		t.Skip("sleeps for the handler timeout")
+	}
+	// Exit 2 after the sleep: if the timeout ever stopped killing the
+	// handler, Run would return 2 and this would fail loudly rather than
+	// just hanging.
+	script := fmt.Sprintf("#!/bin/bash\nsleep %d\nexit 2\n", int(dispatch.HandlerTimeout.Seconds())+10)
+	bundle := newBundle(t, map[string]string{"hang.sh": script})
+	writeVendoredContract(t, bundle, contract.Requirement{
+		ID: "hang", Kind: "blocking-gate", Event: "turn-end",
+		MinTier: contract.T1, HardRequired: boolPtr(false), Handler: "./handlers/hang.sh",
+	})
+
+	stdin := []byte(`{"session_id":"s1","cwd":"/tmp/proj","hook_event_name":"Stop","stop_hook_active":false}`)
+	var stdout, stderr bytes.Buffer
+
+	done := make(chan int, 1)
+	go func() { done <- dispatch.Run(bundle, "turn-end", "codex", stdin, &stdout, &stderr) }()
+
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Fatalf("Run = %d, want 0 (timeout is fail-open) (stderr: %s)", code, stderr.String())
+		}
+	case <-time.After(dispatch.HandlerTimeout + 30*time.Second):
+		t.Fatal("Run did not return: the handler timeout did not fire")
+	}
+
+	if !strings.Contains(stderr.String(), "timed out") {
+		t.Errorf("stderr = %q, want it to report the timeout", stderr.String())
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }

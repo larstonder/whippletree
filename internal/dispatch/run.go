@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,11 +10,23 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/larstonder/whippletree/internal/contract"
 	"github.com/larstonder/whippletree/internal/target"
 )
+
+// HandlerTimeout bounds a single handler run. A handler that outlives it
+// is killed and treated as fail-open, matching every other non-blocking
+// failure in this dialect: a wedged handler must never wedge the harness.
+//
+// 30s is deliberately the same default GitHub Copilot CLI uses for its
+// own hook timeoutSec, and Copilot likewise fails open on expiry, so the
+// two agree by construction rather than by coincidence.
+const HandlerTimeout = 30 * time.Second
 
 // Run loads bundleRoot's vendored contract and target definition, selects
 // the requirements whose Event field equals logicalEvent (matched
@@ -79,13 +92,16 @@ func Run(bundleRoot, logicalEvent, targetName string, stdin []byte, stdout, stde
 		// verbatim on every exit path and let the harness assign it
 		// meaning (on claude-code, SessionStart stdout becomes context).
 		if len(handlerStdout) > 0 {
-			stdout.Write(handlerStdout)
+			if _, err := stdout.Write(handlerStdout); err != nil {
+				fmt.Fprintf(stderr, "whippletree-hook: handler %s: forward stdout: %v (ignored)\n", req.Handler, err)
+			}
 		}
 
 		// Handler diagnostics are useful whether or not it blocked, so
-		// forward stderr on every exit path.
+		// forward stderr on every exit path. A failure here has nowhere
+		// left to be reported to, so it is dropped rather than logged.
 		if len(handlerStderr) > 0 {
-			stderr.Write(handlerStderr)
+			_, _ = stderr.Write(handlerStderr)
 		}
 
 		switch {
@@ -141,14 +157,18 @@ func loadVendoredTarget(bundleRoot, targetName string) (*target.Def, error) {
 // 2 is the block dialect; anything else is fail-open logging the
 // caller performs itself).
 func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev *Event, payload []byte, stderr io.Writer) (exitCode int, handlerStdout, handlerStderr []byte, ran bool) {
-	handlerPath := filepath.Join(bundleRoot, handlerRelPath)
+	handlerPath, err := resolveHandlerPath(bundleRoot, handlerRelPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "whippletree-hook: handler %s: refused (%v)\n", handlerRelPath, err)
+		return 0, nil, nil, false
+	}
 
 	info, err := os.Stat(handlerPath)
 	if err != nil {
 		fmt.Fprintf(stderr, "whippletree-hook: handler %s: missing (%v) (ignored)\n", handlerRelPath, err)
 		return 0, nil, nil, false
 	}
-	if info.IsDir() || info.Mode()&0o111 == 0 {
+	if info.IsDir() || !isExecutable(info) {
 		fmt.Fprintf(stderr, "whippletree-hook: handler %s: not executable (ignored)\n", handlerRelPath)
 		return 0, nil, nil, false
 	}
@@ -162,7 +182,10 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 		path = ev.Paths[0]
 	}
 
-	cmd := exec.Command(handlerPath)
+	ctx, cancel := context.WithTimeout(context.Background(), HandlerTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, handlerPath)
 	cmd.Stdin = bytes.NewReader(payload)
 	var stdoutBuf, captured bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -181,6 +204,14 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 		return 0, stdoutBuf.Bytes(), captured.Bytes(), true
 	}
 
+	// A timeout is fail-open, and deliberately not reported as an exit
+	// code: the handler was killed, so whatever it exited with says
+	// nothing about whether it meant to block.
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		fmt.Fprintf(stderr, "whippletree-hook: handler %s: timed out after %s (ignored)\n", handlerRelPath, HandlerTimeout)
+		return 0, stdoutBuf.Bytes(), captured.Bytes(), false
+	}
+
 	var exitErr *exec.ExitError
 	if errors.As(runErr, &exitErr) {
 		return exitErr.ExitCode(), stdoutBuf.Bytes(), captured.Bytes(), true
@@ -188,4 +219,57 @@ func runHandler(bundleRoot, handlerRelPath, logicalEvent, targetName string, ev 
 
 	fmt.Fprintf(stderr, "whippletree-hook: handler %s: %v (ignored)\n", handlerRelPath, runErr)
 	return 0, nil, nil, false
+}
+
+// resolveHandlerPath turns a bundle-relative handler path into an
+// absolute one, refusing anything that would address a file outside
+// bundleRoot.
+//
+// This repeats the check contract.Validate already performs at build
+// time, on purpose. The dispatcher's input is the vendored
+// .whippletree/contract.json, which loadVendoredContract reads with a
+// plain json.Unmarshal and does not re-validate; in a bundle published
+// by a third party that file is untrusted, and a handler of
+// "../../../../bin/sh" would otherwise resolve and execute. Symlinks are
+// resolved before the containment test so a link inside the bundle
+// cannot be used to step outside it either.
+func resolveHandlerPath(bundleRoot, handlerRelPath string) (string, error) {
+	if err := contract.ValidateBundleRelPath(handlerRelPath); err != nil {
+		return "", err
+	}
+
+	root, err := filepath.Abs(bundleRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve bundle root: %w", err)
+	}
+	if real, err := filepath.EvalSymlinks(root); err == nil {
+		root = real
+	}
+
+	full := filepath.Join(root, filepath.FromSlash(handlerRelPath))
+	// A handler that does not exist keeps its joined path, so the
+	// caller's os.Stat reports the missing-handler case as before.
+	if real, err := filepath.EvalSymlinks(full); err == nil {
+		full = real
+	}
+
+	if full != root && !strings.HasPrefix(full, root+string(os.PathSeparator)) {
+		return "", fmt.Errorf("path %q escapes the bundle root", handlerRelPath)
+	}
+	return full, nil
+}
+
+// isExecutable reports whether info describes a file this process can
+// try to execute.
+//
+// Windows needs its own answer: Go's os.Stat there synthesizes a mode
+// from the read-only attribute and never sets an execute bit, so a POSIX
+// mode test rejects every handler and no handler ever runs. Windows
+// decides executability by extension and by the loader instead, so defer
+// to exec and let a genuine failure surface through the fail-open path.
+func isExecutable(info os.FileInfo) bool {
+	if runtime.GOOS == "windows" {
+		return true
+	}
+	return info.Mode()&0o111 != 0
 }

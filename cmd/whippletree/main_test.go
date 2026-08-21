@@ -934,3 +934,78 @@ func TestPreflightRejectsBrokenSkillFile(t *testing.T) {
 		t.Fatalf("error must name the frontmatter problem: %s", errb.String())
 	}
 }
+
+// TestParsersRejectUnknownFlags: build, preflight and install used to
+// fold any unrecognized token into the positionals, so a mistyped flag
+// was silently dropped, or silently became the bundle directory. All
+// three are now strict, matching parseInitArgs.
+func TestParsersRejectUnknownFlags(t *testing.T) {
+	cases := []struct {
+		name string
+		run  func([]string) error
+	}{
+		{"build", func(a []string) error { _, err := parseBuildArgs(a); return err }},
+		{"preflight", func(a []string) error { _, _, _, _, err := parsePreflightArgs(a); return err }},
+		{"install", func(a []string) error { _, err := parseInstallArgs(a); return err }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.run([]string{"./bundle", "--not-a-real-flag"})
+			if err == nil {
+				t.Fatal("parser accepted an unknown flag, want an error")
+			}
+			if !strings.Contains(err.Error(), "unknown flag") {
+				t.Errorf("error = %q, want it to mention the unknown flag", err)
+			}
+		})
+	}
+}
+
+// TestBuildArgsDoesNotSwallowFlagAsBundleDir is the concrete regression:
+// a lone flag must not become the bundle directory.
+func TestBuildArgsDoesNotSwallowFlagAsBundleDir(t *testing.T) {
+	parsed, err := parseBuildArgs([]string{"--allow-refuse"})
+	if err == nil {
+		t.Fatalf("parseBuildArgs = %+v, want an error rather than bundleDir=%q", parsed, parsed.bundleDir)
+	}
+}
+
+func TestResolveSkillDest(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("no home directory: %v", err)
+	}
+	project := t.TempDir()
+
+	cases := []struct {
+		name, dest, want, wantErr string
+	}{
+		{name: "bare tilde is home, not a directory named ~", dest: "~", want: home},
+		{name: "tilde path", dest: "~/.agents/skills", want: filepath.Join(home, ".agents", "skills")},
+		{name: "relative resolves against the project", dest: ".opencode/skills", want: filepath.Join(project, ".opencode", "skills")},
+		{name: "absolute is itself", dest: filepath.Join(project, "abs"), want: filepath.Join(project, "abs")},
+		{name: "tilde-user is refused, not guessed", dest: "~someone/skills", wantErr: "not supported"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolveSkillDest(tc.dest, project)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("resolveSkillDest(%q) = %q, want an error", tc.dest, got)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("error = %q, want it to mention %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveSkillDest(%q) = %v", tc.dest, err)
+			}
+			if got != tc.want {
+				t.Errorf("resolveSkillDest(%q) = %q, want %q", tc.dest, got, tc.want)
+			}
+		})
+	}
+}
