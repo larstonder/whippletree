@@ -1,6 +1,11 @@
-# whippletree
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/brand/wordmark_white.svg">
+  <img src="site/brand/wordmark_black.svg" alt="Whippletree" width="300">
+</picture>
 
 [![ci](https://github.com/larstonder/whippletree/actions/workflows/ci.yml/badge.svg)](https://github.com/larstonder/whippletree/actions/workflows/ci.yml)
+
+**[whippletree.dev](https://whippletree.dev)**
 
 A whippletree is the pivoting crossbar that lets one pull drive differently matched
 horses in harness. This does the same for agent tools across AI coding harnesses.
@@ -15,6 +20,17 @@ Claude Code + Codex CLI, plus opencode on its own backend.
 - `whippletree install <bundle-dir> --target <name> [--project <dir>]`: place or guide the actual install
 - `whippletree version`: build provenance and the compiled-in target definitions
 - `whippletree-hook run <event> --target <name>`: hook dispatcher (invoked by harnesses, not humans)
+
+## Install
+
+```
+go install whippletree.dev/cmd/whippletree@latest
+go install whippletree.dev/cmd/whippletree-hook@latest
+```
+
+Install both, to the same directory. `build` provisions a bundle's
+`bin/whippletree-hook` by copying the one sitting beside the running `whippletree`
+binary, so the pair has to travel together. The signed release archives contain both.
 
 ## Performance
 
@@ -198,7 +214,7 @@ whippletree preflight · target codex (probed 0.100.0)
 ```
 
 This is a warning, never a refusal. A harness shipping a new version must not break every
-install that day, and whippletree cannot know whether the change matters; what it can do is
+install that day, and Whippletree cannot know whether the change matters; what it can do is
 stop asserting a confidence it has not earned.
 
 ### `whippletree version`
@@ -220,7 +236,7 @@ targets (3):
   opencode     schema 1.0.0    tested >=1.18.10
 ```
 
-A whippletree binary carries a probe corpus, and "which harness versions was this tested
+A Whippletree binary carries a probe corpus, and "which harness versions was this tested
 against" is a question about the binary in your hand rather than about the repository.
 
 ### `whippletree install <bundleDir> --target <name>`
@@ -229,7 +245,7 @@ Runs the same check `preflight` does, then, on anything short of a REFUSE, perfo
 actual install. What that means depends on the target's backend:
 
 - A hooks-json target (Claude Code, Codex) has its own plugin-marketplace mechanism;
-  installing into it is that harness's job, not whippletree's, so `install` prints the
+  installing into it is that harness's job, not Whippletree's, so `install` prints the
   two commands from "Authoring a tool" above, pointed at this bundle.
 - A ts-plugin target (opencode) has no such mechanism, so `install` places the shim
   itself: it copies the compiled `hooks/<target>.ts` into
@@ -255,7 +271,7 @@ install for claude-code is the harness's own plugin mechanism:
 `--project <dir>` picks the destination project for a ts-plugin target (defaults to the
 current directory; ignored for a hooks-json target, which installs nothing itself).
 Exit code and `install-state.json` behavior match `preflight`. A pre-existing destination
-file is only overwritten if its first line is whippletree's own generated-by marker, so a
+file is only overwritten if its first line is Whippletree's own generated-by marker, so a
 hand-authored file at that path is left alone.
 
 ### `whippletree-hook run <event> --target <name>`
@@ -291,7 +307,7 @@ Three additions this implementation makes relative to `harness-adapter.architect
 
 opencode has no blocking stop event at all: there is no native primitive `turn-end` can
 map to on this target. A hooks-json target blocks a whole turn; opencode can only ever
-block a single tool call, and even that isn't a native gate. It's whippletree's own
+block a single tool call, and even that isn't a native gate. It's Whippletree's own
 convention layered on top: the compiled shim throws a JavaScript error when the
 dispatcher exits 2, that error fails the one `tool.execute` call it was thrown from, and
 the agent loop continues past it. There is nothing on this target an author can point a
@@ -412,7 +428,7 @@ across harness classes); the remaining tiers and targets land in later slices.
 
 ## Windows
 
-**whippletree does not support Windows yet.** Authoring a bundle works, but running one
+**Whippletree does not support Windows yet.** Authoring a bundle works, but running one
 does not, and the gap is in the bundle format rather than in any single bug:
 
 - Every handler `init` scaffolds is a `#!/usr/bin/env bash` script. Windows has no shebang
