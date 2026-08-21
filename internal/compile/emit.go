@@ -32,27 +32,13 @@ type Result struct {
 	PerTarget map[string][]tier.Assignment
 }
 
-// Build reads bundleDir's plugin.json, parses and validates its
-// whippletree contract, and for every target in targets writes:
+// Build compiles bundleDir's contract for every target, writing
+// .whippletree/contract.json and .whippletree/targets/<name>.yaml, plus
+// per backend: hooks-json gets <manifestDir>/plugin.json and
+// hooks/<name>.json; ts-plugin gets hooks/<name>.ts and no manifest,
+// having none for whippletree to extend.
 //
-//   - .whippletree/contract.json: the normalized, parsed contract.
-//   - .whippletree/targets/<name>.yaml: a byte copy of the target's
-//     source target.yaml.
-//
-// plus, per target backend:
-//
-//   - hooks-json: <manifestDir>/plugin.json (the bundle's original
-//     manifest fields plus a "hooks" pointer to that target's hooks
-//     file) and hooks/<name>.json (the native hooks file, one entry
-//     per non-absent blocking-gate/lifecycle-signal/observation-signal
-//     requirement).
-//   - ts-plugin: hooks/<name>.ts, an in-process TypeScript shim
-//     carrying the same set of non-absent requirements as dispatch
-//     calls. No manifest pair is written: a ts-plugin target has no
-//     manifest for whippletree to extend.
-//
-// It never writes hooks/hooks.json; each target's hooks file is named
-// for that target.
+// Each hooks file is named for its target, never hooks/hooks.json.
 func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 	for name := range targets {
 		if name == "hooks" {

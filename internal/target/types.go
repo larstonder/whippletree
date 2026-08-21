@@ -16,15 +16,10 @@ type Def struct {
 	Name  string
 	Class int
 
-	// SchemaVersion is metadata.schemaVersion: the version of the
-	// target.yaml schema this file is written against.
 	SchemaVersion string
 
-	// TestedVersions is metadata.testedVersions: the range of harness
-	// versions this definition has actually been probed against, as a
-	// constraint string (see ParseConstraint). It is the currency claim
-	// a target definition makes, and preflight checks the probed
-	// version against it.
+	// TestedVersions is the harness range this definition was actually
+	// probed against; preflight checks the probed version against it.
 	TestedVersions string
 
 	// Backend selects the compiler path used to emit this target's
