@@ -23,8 +23,8 @@ echo "harness=claude-code version=${version:-unknown} date=$(date -u +%Y-%m-%dT%
 
 go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
 
-claude plugin marketplace add "$repo_root/examples/kb-shaped"
-claude plugin install kb-shaped@kb-shaped-mkt
+claude plugin marketplace add "$repo_root/examples/kb-shaped" </dev/null
+claude plugin install kb-shaped@kb-shaped-mkt </dev/null
 
 mkdir -p "$sandbox/proj"
 cd "$sandbox/proj"

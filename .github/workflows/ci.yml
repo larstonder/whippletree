@@ -42,9 +42,15 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: true
+      # GOTOOLCHAIN=local pins this to the version go.mod declares. On
+      # auto, adding a toolchain directive would silently fetch a newer
+      # one and make this job a duplicate of `test` without failing.
       - run: go build ./...
+        env:
+          GOTOOLCHAIN: local
       - run: go test ./...
+        env:
+          GOTOOLCHAIN: local
 
   lint:
     runs-on: ubuntu-latest
@@ -80,9 +86,35 @@ jobs:
           cache: true
       - run: go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
       - run: go run ./cmd/whippletree build examples/kb-shaped --targets-dir targets --allow-refuse
+      # git diff only sees tracked files, so a build that starts emitting
+      # a brand-new artifact would pass silently.
       - name: committed artifacts unchanged
         run: |
-          if ! git diff --exit-code -- examples/kb-shaped; then
+          changed=$(git status --porcelain -- examples/kb-shaped)
+          if [ -n "$changed" ]; then
             echo "::error::whippletree build no longer reproduces the committed artifacts"
+            echo "$changed"
+            git diff -- examples/kb-shaped
             exit 1
           fi
+
+  # The release builds six GOOS/GOARCH pairs; without this only the host
+  # three are ever compiled before a tag.
+  cross:
+    name: cross (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - run: go build ./... && go vet ./...
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
