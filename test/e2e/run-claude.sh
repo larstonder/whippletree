@@ -117,10 +117,10 @@ else
 fi
 
 # Authoring-bundle phase: the repo's own authoring bundle builds and
-# lands its skill at T1 SATISFY on all three targets.
+# lands its skill at T1 SATISFY on every target.
 cd "$repo_root"
 go run ./cmd/whippletree build bundles/authoring --allow-missing-dispatcher
-for tgt_v in "claude-code 2.1.220" "codex 0.144.5" "opencode 1.18.10"; do
+for tgt_v in "claude-code 2.1.220" "codex 0.144.5" "copilot 1.0.80" "opencode 1.18.10"; do
   set -- $tgt_v
   ab_out=$(go run ./cmd/whippletree preflight bundles/authoring --target "$1" --assume-version "$2" </dev/null)
   if printf '%s\n' "$ab_out" | grep "authoring" | grep -q "SATISFY"; then

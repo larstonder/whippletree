@@ -1034,9 +1034,9 @@ func TestVersionReportsTargetCorpus(t *testing.T) {
 	for _, want := range []string{
 		"whippletree ",
 		"contract: " + contract.SupportedContractVersion,
-		"targets (3):",
-		"claude-code", "codex", "opencode",
-		">=2.1.0", ">=0.144.0", ">=1.18.10",
+		"targets (4):",
+		"claude-code", "codex", "copilot", "opencode",
+		">=2.1.0", ">=0.144.0", ">=1.0.80", ">=1.18.10",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("version output missing %q\n---\n%s", want, out)

@@ -396,3 +396,52 @@ func keys(m map[string]*Def) []string {
 	}
 	return ks
 }
+
+// TestLoadDir_CopilotTargetLoadsWithExpectedValues pins the values the
+// Copilot probe established, so a definition edit that contradicts
+// docs/copilot-probe-findings.md fails here rather than in a user's terminal.
+func TestLoadDir_CopilotTargetLoadsWithExpectedValues(t *testing.T) {
+	defs, err := LoadDir("../../targets")
+	if err != nil {
+		t.Fatalf("LoadDir: %v", err)
+	}
+	td, ok := defs["copilot"]
+	if !ok {
+		t.Fatalf("expected defs to contain %q, got keys %v", "copilot", keys(defs))
+	}
+
+	if td.Backend != BackendHooksJSON {
+		t.Errorf("Backend = %q, want %q", td.Backend, BackendHooksJSON)
+	}
+	// Root plugin.json carries no hooks key, so .plugin winning the search
+	// order is what makes a bundle register anything at all.
+	if td.ManifestDir != ".plugin" {
+		t.Errorf("ManifestDir = %q, want %q", td.ManifestDir, ".plugin")
+	}
+	if td.SkillChannel.Kind != "plugin-dir" {
+		t.Errorf("SkillChannel.Kind = %q, want %q", td.SkillChannel.Kind, "plugin-dir")
+	}
+
+	// Measured: PreToolUse exit 2 denies, Stop exit 2 does not.
+	if got := td.Events["tool-pre"]; !got.Blocking || got.Native != "PreToolUse" {
+		t.Errorf("tool-pre = %+v, want native PreToolUse, blocking", got)
+	}
+	stop := td.Events["turn-end"]
+	if stop.Native != "Stop" {
+		t.Errorf("turn-end native = %q, want Stop", stop.Native)
+	}
+	if stop.Blocking {
+		t.Error("turn-end is blocking, but the probe found exit 2 on Stop does not block")
+	}
+	if stop.LoopGuardField != "" {
+		t.Errorf("turn-end loopGuardField = %q, want empty: Stop does not loop here",
+			stop.LoopGuardField)
+	}
+
+	for class, want := range map[string]string{"read": "Read", "write": "Write", "shell": "Bash"} {
+		got := td.ToolClassMap[class]
+		if got == nil || *got != want {
+			t.Errorf("toolClassMap[%s] = %v, want %q", class, got, want)
+		}
+	}
+}

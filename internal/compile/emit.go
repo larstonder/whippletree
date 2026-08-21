@@ -107,7 +107,8 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 		}
 		result.PerTarget[name] = assignments
 
-		if err := writeSkillVariants(bundleDir, name, td, c, assignments); err != nil {
+		hasSkillVariants, err := writeSkillVariants(bundleDir, name, td, c, assignments)
+		if err != nil {
 			return nil, err
 		}
 
@@ -122,7 +123,7 @@ func Build(bundleDir string, targets map[string]*target.Def) (*Result, error) {
 			continue
 		}
 
-		if err := writeManifest(bundleDir, name, td, manifestFields); err != nil {
+		if err := writeManifest(bundleDir, name, td, manifestFields, hasSkillVariants); err != nil {
 			return nil, err
 		}
 		if err := writeHooksFile(bundleDir, name, hf); err != nil {
@@ -226,12 +227,19 @@ func matcherFor(req contract.Requirement, td *target.Def, toolClass string) stri
 // writeManifest writes <manifestDir>/plugin.json for target name,
 // carrying over the bundle's original manifest fields verbatim and
 // adding a "hooks" pointer to that target's hooks file.
-func writeManifest(bundleDir, name string, td *target.Def, manifestFields map[string]any) error {
-	targetManifest := make(map[string]any, len(manifestFields)+1)
+func writeManifest(bundleDir, name string, td *target.Def, manifestFields map[string]any, hasSkillVariants bool) error {
+	targetManifest := make(map[string]any, len(manifestFields)+2)
 	for k, v := range manifestFields {
 		targetManifest[k] = v
 	}
 	targetManifest["hooks"] = "./hooks/" + name + ".json"
+
+	// Naming a skills directory replaces the harness's own discovery of
+	// skills/ rather than adding to it, so this is only set when a variant
+	// exists: otherwise the bundle's skills would stop being found at all.
+	if hasSkillVariants && td.SkillChannel.Kind == "plugin-dir" {
+		targetManifest["skills"] = []string{"./.whippletree/skills/" + name}
+	}
 
 	body, err := json.MarshalIndent(targetManifest, "", "  ")
 	if err != nil {
@@ -319,12 +327,17 @@ func CheckSkillFiles(bundleDir string, c *contract.Contract) error {
 }
 
 // writeSkillVariants generates the per-target skill directory variants
-// under .whippletree/skills/<target>/. copy-dir targets always get a
-// variant (the compiled-by marker is install's ownership signal);
-// plugin-dir and channel-less targets get none, and an expansion
-// triggering there is a hard error rather than a silently unexpanded
-// skill.
-func writeSkillVariants(bundleDir, name string, td *target.Def, c *contract.Contract, assignments []tier.Assignment) error {
+// under .whippletree/skills/<target>/, reporting whether it wrote any.
+//
+// copy-dir targets always get a variant, because the compiled-by marker is
+// install's ownership signal. plugin-dir targets get one only when a
+// requirement actually falls back to T3: the bundle's own skills/ directory
+// is shared by every plugin-dir target, so a target-specific expansion cannot
+// live there. writeManifest points that target's skills key at the variant,
+// which suppresses the harness's discovery of skills/ entirely (measured on
+// Copilot, see docs/copilot-probe-findings.md). A channel-less target still
+// cannot carry one, and says so rather than dropping it silently.
+func writeSkillVariants(bundleDir, name string, td *target.Def, c *contract.Contract, assignments []tier.Assignment) (bool, error) {
 	expsBySkill := make(map[string][]skillfile.Expansion)
 	for _, a := range assignments {
 		if !a.Fallback {
@@ -332,7 +345,7 @@ func writeSkillVariants(bundleDir, name string, td *target.Def, c *contract.Cont
 		}
 		primitive, _, err := contract.ResolveEvent(a.Req.Event)
 		if err != nil {
-			return fmt.Errorf("requirement %s: %w", a.Req.ID, err)
+			return false, fmt.Errorf("requirement %s: %w", a.Req.ID, err)
 		}
 		expsBySkill[a.Req.FallbackSkill] = append(expsBySkill[a.Req.FallbackSkill], skillfile.Expansion{
 			Event: primitive, ReqID: a.Req.ID, Kind: a.Req.Kind,
@@ -340,14 +353,24 @@ func writeSkillVariants(bundleDir, name string, td *target.Def, c *contract.Cont
 		})
 	}
 
-	if td.SkillChannel.Kind != "copy-dir" {
-		if len(expsBySkill) > 0 {
-			return fmt.Errorf("target %q: skill expansion is not supported on plugin-dir targets", name)
+	switch td.SkillChannel.Kind {
+	case "copy-dir":
+	case "plugin-dir":
+		if len(expsBySkill) == 0 {
+			return false, nil
 		}
-		return nil
+	default:
+		// Unreachable: tier.Assign only produces a Fallback when the target
+		// has a skill channel. Kept so that relaxing that precondition
+		// surfaces here rather than dropping the expansion silently.
+		if len(expsBySkill) > 0 {
+			return false, fmt.Errorf("target %q: has no skill channel, so a T3 fallback cannot be carried", name)
+		}
+		return false, nil
 	}
 
 	version := skillfile.Version()
+	wrote := false
 	for _, req := range c.Requires {
 		if req.Kind != "skill" {
 			continue
@@ -356,8 +379,9 @@ func writeSkillVariants(bundleDir, name string, td *target.Def, c *contract.Cont
 		src := filepath.Join(bundleDir, filepath.FromSlash(strings.TrimPrefix(req.Path, "./")))
 		dst := filepath.Join(bundleDir, ".whippletree", "skills", name, dirName)
 		if err := skillfile.ExpandDir(src, dst, expsBySkill[req.ID], version); err != nil {
-			return fmt.Errorf("target %q: skill %s: %w", name, req.ID, err)
+			return false, fmt.Errorf("target %q: skill %s: %w", name, req.ID, err)
 		}
+		wrote = true
 	}
-	return nil
+	return wrote, nil
 }

@@ -114,6 +114,7 @@ func TestBuild_EmitsPerTargetVariants(t *testing.T) {
 	}{
 		{"codex", "codex.json"},
 		{"claude-code", "claude-code.json"},
+		{"copilot", "copilot.json"},
 	} {
 		got, err := os.ReadFile(filepath.Join(bundleDir, "hooks", tc.targetName+".json"))
 		if err != nil {
@@ -132,6 +133,7 @@ func TestBuild_EmitsPerTargetVariants(t *testing.T) {
 	}{
 		{".claude-plugin", "./hooks/claude-code.json"},
 		{".codex-plugin", "./hooks/codex.json"},
+		{".plugin", "./hooks/copilot.json"},
 	} {
 		raw, err := os.ReadFile(filepath.Join(bundleDir, tc.manifestDir, "plugin.json"))
 		if err != nil {
@@ -390,8 +392,9 @@ func TestBuildRejectsExpansionOnPluginDir(t *testing.T) {
 	writeFile(t, bundleDir, "handlers/g.sh", "#!/bin/sh\nexit 0\n")
 	writeFile(t, bundleDir, "skills/cap/SKILL.md", "---\nname: cap\ndescription: d.\n---\nb\n")
 
-	// Synthetic plugin-dir target with no turn-end mapping: the gate
-	// falls back, which plugin-dir cannot carry.
+	// Synthetic plugin-dir target with no turn-end mapping, so the gate
+	// falls back to T3 and an expansion has to be materialised somewhere
+	// other than the shared skills/ directory.
 	td := &target.Def{
 		Name:    "pd",
 		Backend: target.BackendHooksJSON,
@@ -404,8 +407,32 @@ func TestBuildRejectsExpansionOnPluginDir(t *testing.T) {
 		RawYAML:        []byte("x"),
 	}
 
-	_, err := compile.Build(bundleDir, map[string]*target.Def{"pd": td})
-	if err == nil || !strings.Contains(err.Error(), "skill expansion is not supported on plugin-dir targets") {
-		t.Fatalf("want plugin-dir expansion error, got %v", err)
+	if _, err := compile.Build(bundleDir, map[string]*target.Def{"pd": td}); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	expanded := filepath.Join(bundleDir, ".whippletree", "skills", "pd", "cap", "SKILL.md")
+	body, err := os.ReadFile(expanded)
+	if err != nil {
+		t.Fatalf("read expanded skill: %v", err)
+	}
+	if !strings.Contains(string(body), "compiled-tier: T3") {
+		t.Errorf("expanded skill carries no T3 provenance:\n%s", body)
+	}
+
+	// The skills key has to name the variant, because naming one replaces
+	// the harness's discovery of skills/ rather than adding to it.
+	raw, err := os.ReadFile(filepath.Join(bundleDir, ".pd-plugin", "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Skills []string `json:"skills"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if want := "./.whippletree/skills/pd"; len(manifest.Skills) != 1 || manifest.Skills[0] != want {
+		t.Errorf("manifest skills = %v, want [%s]", manifest.Skills, want)
 	}
 }

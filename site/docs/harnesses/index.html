@@ -35,7 +35,7 @@
     <p class="crumb"><a href="/docs/">Docs</a> / Harnesses</p>
 
     <h1>Harnesses</h1>
-    <p class="standfirst">Three targets today. They do not support the same things, and the
+    <p class="standfirst">Four targets today. They do not support the same things, and the
       differences decide what your contract can actually promise.</p>
 
     <table>
@@ -43,6 +43,7 @@
       <tbody>
         <tr><td>claude-code</td><td>hooks-json</td><td>its own plugin marketplace</td><td>2.1.0 and up</td></tr>
         <tr><td>codex</td><td>hooks-json</td><td>its own plugin marketplace</td><td>0.144.0 and up</td></tr>
+        <tr><td>copilot</td><td>hooks-json</td><td>its own plugin marketplace</td><td>1.0.80 and up</td></tr>
         <tr><td>opencode</td><td>ts-plugin</td><td>Whippletree writes the shim</td><td>1.18.10 and up</td></tr>
       </tbody>
     </table>
@@ -52,13 +53,13 @@
       ABSENT there, and REFUSES if you marked it hard-required.</p>
 
     <table>
-      <thead><tr><th>event</th><th>claude-code</th><th>codex</th><th>opencode</th></tr></thead>
+      <thead><tr><th>event</th><th>claude-code</th><th>codex</th><th>copilot</th><th>opencode</th></tr></thead>
       <tbody>
-        <tr><td>session-start</td><td>SessionStart</td><td>SessionStart</td><td>session.created</td></tr>
-        <tr><td>session-end</td><td>SessionEnd</td><td>SessionEnd</td><td><b>none</b></td></tr>
-        <tr><td>turn-end</td><td>Stop, blocking</td><td>Stop, blocking</td><td><b>none</b></td></tr>
-        <tr><td>tool-pre</td><td>PreToolUse, blocking</td><td>PreToolUse, blocking</td><td>tool.execute.before, blocking</td></tr>
-        <tr><td>tool-post</td><td>PostToolUse</td><td>PostToolUse</td><td>tool.execute.after</td></tr>
+        <tr><td>session-start</td><td>SessionStart</td><td>SessionStart</td><td>SessionStart</td><td>session.created</td></tr>
+        <tr><td>session-end</td><td>SessionEnd</td><td>SessionEnd</td><td>SessionEnd</td><td><b>none</b></td></tr>
+        <tr><td>turn-end</td><td>Stop, blocking</td><td>Stop, blocking</td><td>Stop, <b>not blocking</b></td><td><b>none</b></td></tr>
+        <tr><td>tool-pre</td><td>PreToolUse, blocking</td><td>PreToolUse, blocking</td><td>PreToolUse, blocking</td><td>tool.execute.before, blocking</td></tr>
+        <tr><td>tool-post</td><td>PostToolUse</td><td>PostToolUse</td><td>PostToolUse</td><td>tool.execute.after</td></tr>
       </tbody>
     </table>
 
@@ -67,11 +68,11 @@
       <code>shell-exec</code> aliases resolve to.</p>
 
     <table>
-      <thead><tr><th>class</th><th>claude-code</th><th>codex</th><th>opencode</th></tr></thead>
+      <thead><tr><th>class</th><th>claude-code</th><th>codex</th><th>copilot</th><th>opencode</th></tr></thead>
       <tbody>
-        <tr><td>read</td><td>Read</td><td><b>no such tool</b></td><td>read</td></tr>
-        <tr><td>write</td><td>Write</td><td>apply_patch</td><td>write</td></tr>
-        <tr><td>shell</td><td>Bash</td><td>Bash</td><td>bash</td></tr>
+        <tr><td>read</td><td>Read</td><td><b>no such tool</b></td><td>Read</td><td>read</td></tr>
+        <tr><td>write</td><td>Write</td><td>apply_patch</td><td>Write</td><td>write</td></tr>
+        <tr><td>shell</td><td>Bash</td><td>Bash</td><td>Bash</td><td>bash</td></tr>
       </tbody>
     </table>
 
@@ -91,6 +92,27 @@
       preflight prints it before you install rather than after something goes wrong. If T2 is
       not good enough, declare <code>minTier: T1</code> and it will REFUSE here instead.</p>
 
+    <h2>copilot</h2>
+    <p>Hooks-json like the first two, and it accepts the file Whippletree already emits
+      unchanged, so it needed no new backend. Its own documented entry format is flatter,
+      but the nested Claude shape works and that is what ships.</p>
+
+    <p>The one thing it will not do is <b>enforce a turn-end gate</b>. Copilot has a
+      <code>Stop</code> hook and fires it reliably, but a handler exiting 2 there is
+      logged and ignored, and the session ends anyway. The same handler exiting 2 on
+      <code>PreToolUse</code> denies the call outright, which is how that was measured
+      rather than inferred.</p>
+
+    <div class="note">So a hard-required <code>blocking-gate</code> on
+      <code>turn-end</code> <b>REFUSES</b> on copilot, exactly as it does on opencode,
+      even though copilot does have the event. Having the hook and honouring its exit code
+      are different claims, and only the second one is a gate.</div>
+
+    <p>One trap worth naming: hooks are not auto-discovered, and Copilot reads
+      <code>.plugin/plugin.json</code> before the root <code>plugin.json</code> that every
+      bundle already ships. Had it been the other way round, a bundle would have installed
+      cleanly and registered nothing at all.</p>
+
     <h2>opencode</h2>
     <p>The one that genuinely cannot do something. <b>It has no blocking stop event.</b> A
       thrown error fails a single tool call and the agent loop carries on, so there is nothing
@@ -108,7 +130,7 @@
       copies skills into <code>.opencode/skills</code> rather than shipping them in the bundle.</p>
 
     <h2>Windows</h2>
-    <p>Windows is a property of the machine, not a fourth target: all three
+    <p>Windows is a property of the machine, not another target: all four
       harnesses run there. What does not work is a handler written as a shell
       script, because Windows has no shebang support. A requirement can declare
       <code>handlerWindows</code> alongside <code>handler</code>, and the dispatcher
@@ -135,7 +157,7 @@
     <p>Every row above comes from a target definition in the repository, and each one records
       the harness versions it was probed against. Those definitions are established by running
       the harness in a sandbox, not by reading its documentation, and the probe notes are kept
-      with the code. A nightly job reinstalls all three and reruns the end-to-end suite, so a
+      with the code. A nightly job reinstalls them and reruns the end-to-end suite, so a
       harness changing under a definition shows up as a failure rather than as a wrong answer
       in your terminal.</p>
 

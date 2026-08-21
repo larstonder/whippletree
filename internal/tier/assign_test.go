@@ -52,15 +52,19 @@ func TestAssignKbEngineMatrix(t *testing.T) {
 	}{
 		{"stop-gate", "claude-code", contract.T1, false},
 		{"stop-gate", "codex", contract.T1, false},
+		{"stop-gate", "copilot", 0, true},  // Stop is mapped but does not block
 		{"stop-gate", "opencode", 0, true}, // opencode has no turn-end mapping
 		{"session-start-signal", "claude-code", contract.T1, false},
 		{"session-start-signal", "codex", contract.T1, false},
+		{"session-start-signal", "copilot", contract.T1, false},
 		{"session-start-signal", "opencode", contract.T1, false},
 		{"file-read-signal", "claude-code", contract.T1, false},
 		{"file-read-signal", "codex", contract.T2, false}, // via matcher alternation degradation
+		{"file-read-signal", "copilot", contract.T1, false},
 		{"file-read-signal", "opencode", contract.T1, false},
 		{"bin-reachable", "claude-code", contract.T1, false},
 		{"bin-reachable", "codex", contract.T1, false},
+		{"bin-reachable", "copilot", contract.T1, false},
 		{"bin-reachable", "opencode", contract.T1, false},
 	}
 

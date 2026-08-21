@@ -1,0 +1,46 @@
+apiVersion: whippletree.dev/v1
+kind: TargetDefinition
+metadata:
+  name: copilot
+  class: 1
+  schemaVersion: "1.0.0"
+  testedVersions: ">=1.0.80"
+spec:
+  discovery:
+    # .plugin wins over the root plugin.json, which matters because every
+    # bundle ships a root manifest with no hooks key. Hooks are not
+    # auto-discovered: the manifest has to name the file, or the plugin
+    # loads and registers nothing. Verified, see docs/copilot-probe-findings.md.
+    manifestDir: ".plugin"
+    hooksKey: "hooks"
+    mergeSemantics: replace
+  probe:
+    command: ["copilot", "--version"]
+    versionPattern: 'GitHub Copilot CLI (\d+\.\d+\.\d+)'
+  events:
+    session-start: { native: SessionStart, blocking: false }
+    session-end:   { native: SessionEnd, blocking: false }
+    tool-pre:      { native: PreToolUse, blocking: true }
+    tool-post:     { native: PostToolUse, blocking: false }
+    # Stop does not block. A handler exiting 2 fires once, is logged, and the
+    # session ends anyway; PreToolUse exiting 2 denies the call, which is the
+    # control proving the probe can see a block. Copilot does deliver
+    # stop_hook_active, but a loop guard on a harness with no loop is not
+    # evidence of one, so loopGuardField stays unset.
+    turn-end:      { native: Stop, blocking: false }
+  toolClassMap:
+    read: Read
+    write: Write
+    shell: Bash
+  strictness:
+    unknownFieldsFatal: false
+  env:
+    pluginRoot: ["PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"]
+  capabilities:
+    bundleChannel: true
+    stopLoopGuard: false
+    matcherAlternation: true
+  # skillChannel is additive to schemaVersion 1.0.0: absent means the
+  # target has no skill channel and skill requirements land Absent.
+  skillChannel:
+    kind: plugin-dir

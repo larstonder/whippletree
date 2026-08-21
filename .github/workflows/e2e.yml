@@ -35,6 +35,10 @@ jobs:
           - harness: codex
             package: "@openai/codex"
             script: test/e2e/run-codex.sh
+
+          # copilot is the one harness whose e2e needs a real login: it has
+          # no event that fires before authentication, so the run has to
+          # reach a turn. Left out of the nightly matrix until that is wired.
             timeout: 20
           # opencode's first run in a fresh config dir installs a
           # node_modules tree and can exceed five minutes before the
