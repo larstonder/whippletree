@@ -227,7 +227,7 @@ func TestGuarantee_InitBuildPreflightAllFourKindsDefaultsSoft(t *testing.T) {
 		t.Fatalf("build exit = %d, want 0 (stdout=%s stderr=%s)", code, buildStdout, buildStderr)
 	}
 
-	if _, err := os.Stat(filepath.Join(bundleDir, "bin", "whippletree-hook")); err != nil {
+	if _, err := os.Stat(filepath.Join(bundleDir, "bin", dispatcherName())); err != nil {
 		t.Errorf("expected build to have copied the dispatcher from the sibling binary: %v", err)
 	}
 
@@ -772,7 +772,7 @@ func TestInitScaffoldWithSkillBuilds(t *testing.T) {
 	// then build against the embedded target defs. With minTier T3 and
 	// the fallback wired, the hard gate must NOT refuse on opencode, so
 	// no --allow-refuse is passed.
-	hook := filepath.Join(bundle, "bin", "whippletree-hook")
+	hook := filepath.Join(bundle, "bin", dispatcherName())
 	if err := os.MkdirAll(filepath.Dir(hook), 0o755); err != nil {
 		t.Fatal(err)
 	}

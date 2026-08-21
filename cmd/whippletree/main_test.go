@@ -209,7 +209,7 @@ func TestRunBuild_TargetsDirWithZeroTargetsErrors(t *testing.T) {
 
 func TestEnsureDispatcher_AlreadyPresent(t *testing.T) {
 	bundleDir := t.TempDir()
-	writeFile(t, bundleDir, "bin/whippletree-hook", "already here", 0o755)
+	writeFile(t, bundleDir, "bin/"+dispatcherName(), "already here", 0o755)
 
 	var stderr bytes.Buffer
 	if err := ensureDispatcher(bundleDir, false, &stderr); err != nil {
@@ -232,7 +232,7 @@ func TestEnsureDispatcher_MissingNamesBuildCommand(t *testing.T) {
 	if err == nil {
 		t.Fatal("ensureDispatcher = nil, want an error naming the missing binary")
 	}
-	wantPath := filepath.Join(bundleDir, "bin", "whippletree-hook")
+	wantPath := filepath.Join(bundleDir, "bin", dispatcherName())
 	if !strings.Contains(err.Error(), "go build -o "+wantPath) {
 		t.Errorf("error = %q, want it to name the exact go build command for %s", err.Error(), wantPath)
 	}
@@ -322,7 +322,7 @@ func realTargetsDir() string { return filepath.Join("..", "..", "targets") }
 func TestRunInstall_TSPluginPlacesResolvedShim(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", tsPluginContractPluginJSON("acme-tool"), 0o644)
-	writeFile(t, bundleDir, "bin/whippletree-hook", "#!/bin/sh\n", 0o755)
+	writeFile(t, bundleDir, "bin/"+dispatcherName(), "#!/bin/sh\n", 0o755)
 	writeFile(t, bundleDir, "hooks/opencode.ts", fakeCompiledOpencodeShim, 0o644)
 
 	projectDir := t.TempDir()
@@ -347,6 +347,8 @@ func TestRunInstall_TSPluginPlacesResolvedShim(t *testing.T) {
 	}
 
 	absBundleDir, _ := filepath.Abs(bundleDir)
+	// Extensionless even on Windows, unlike the file on disk: Node resolves
+	// it to the .exe, so the shim stays identical on every platform.
 	wantHookPath := filepath.Join(absBundleDir, "bin", "whippletree-hook")
 	if !strings.Contains(string(body), wantHookPath) {
 		t.Errorf("placed shim = %q, want it to contain the resolved dispatcher path %q", body, wantHookPath)
@@ -367,7 +369,7 @@ func TestRunInstall_TSPluginPlacesResolvedShim(t *testing.T) {
 func TestRunInstall_ZeroPlaceholderOccurrencesErrors(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", tsPluginContractPluginJSON("acme-tool"), 0o644)
-	writeFile(t, bundleDir, "bin/whippletree-hook", "#!/bin/sh\n", 0o755)
+	writeFile(t, bundleDir, "bin/"+dispatcherName(), "#!/bin/sh\n", 0o755)
 	noPlaceholderShim := generatedByMarkerLine + "\n" + `const HOOK = "/some/stale/absolute/path"
 const TARGET = "opencode"
 `
@@ -402,7 +404,7 @@ const TARGET = "opencode"
 func TestRunInstall_TwoPlaceholderOccurrencesErrors(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", tsPluginContractPluginJSON("acme-tool"), 0o644)
-	writeFile(t, bundleDir, "bin/whippletree-hook", "#!/bin/sh\n", 0o755)
+	writeFile(t, bundleDir, "bin/"+dispatcherName(), "#!/bin/sh\n", 0o755)
 	doublePlaceholderShim := generatedByMarkerLine + "\n" + `const HOOK = "__WHIPPLETREE_HOOK__"
 const HOOK2 = "__WHIPPLETREE_HOOK__"
 const TARGET = "opencode"
@@ -470,7 +472,7 @@ func TestRunInstall_RefuseExitsNonZeroAndPlacesNothing(t *testing.T) {
 func TestRunInstall_RefusesToOverwriteNonMarkerFile(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", tsPluginContractPluginJSON("acme-tool"), 0o644)
-	writeFile(t, bundleDir, "bin/whippletree-hook", "#!/bin/sh\n", 0o755)
+	writeFile(t, bundleDir, "bin/"+dispatcherName(), "#!/bin/sh\n", 0o755)
 	writeFile(t, bundleDir, "hooks/opencode.ts", fakeCompiledOpencodeShim, 0o644)
 
 	projectDir := t.TempDir()
@@ -509,7 +511,7 @@ func TestRunInstall_RefusesToOverwriteNonMarkerFile(t *testing.T) {
 func TestRunInstall_OverwritesOwnPriorPlacement(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", tsPluginContractPluginJSON("acme-tool"), 0o644)
-	writeFile(t, bundleDir, "bin/whippletree-hook", "#!/bin/sh\n", 0o755)
+	writeFile(t, bundleDir, "bin/"+dispatcherName(), "#!/bin/sh\n", 0o755)
 	writeFile(t, bundleDir, "hooks/opencode.ts", fakeCompiledOpencodeShim, 0o644)
 
 	projectDir := t.TempDir()
@@ -606,7 +608,7 @@ func TestRunInstall_CodexGuidanceUsesPluginAdd(t *testing.T) {
 func TestRunInstall_ProjectDefaultsToCWD(t *testing.T) {
 	bundleDir := t.TempDir()
 	writeFile(t, bundleDir, "plugin.json", tsPluginContractPluginJSON("acme-tool"), 0o644)
-	writeFile(t, bundleDir, "bin/whippletree-hook", "#!/bin/sh\n", 0o755)
+	writeFile(t, bundleDir, "bin/"+dispatcherName(), "#!/bin/sh\n", 0o755)
 	writeFile(t, bundleDir, "hooks/opencode.ts", fakeCompiledOpencodeShim, 0o644)
 
 	// realTargetsDir() is relative to this package's directory, so it
@@ -751,7 +753,7 @@ func scaffoldSkillBundle(t *testing.T, targetsDir string) string {
   ]}}}`, 0o644)
 	write("handlers/g.sh", "#!/bin/sh\nexit 0\n", 0o755)
 	write("skills/cap/SKILL.md", "---\nname: cap\ndescription: d.\n---\nb\n", 0o644)
-	write("bin/whippletree-hook", "#!/bin/sh\nexit 0\n", 0o755)
+	write("bin/"+dispatcherName(), "#!/bin/sh\nexit 0\n", 0o755)
 
 	var out, errb bytes.Buffer
 	if code := run([]string{"build", dir, "--targets-dir", targetsDir}, &out, &errb); code != 0 {
@@ -904,7 +906,7 @@ func TestBuildSessionStartSkillExpansionEndToEnd(t *testing.T) {
   ]}}}`, 0o644)
 	writeFile(t, dir, "handlers/pull.sh", "#!/bin/sh\nexit 0\n", 0o755)
 	writeFile(t, dir, "skills/cap/SKILL.md", "---\nname: cap\ndescription: d.\n---\nb\n", 0o644)
-	writeFile(t, dir, "bin/whippletree-hook", "#!/bin/sh\nexit 0\n", 0o755)
+	writeFile(t, dir, "bin/"+dispatcherName(), "#!/bin/sh\nexit 0\n", 0o755)
 
 	var out, errb bytes.Buffer
 	if code := run([]string{"build", dir, "--targets-dir", targetsDir}, &out, &errb); code != 0 {
