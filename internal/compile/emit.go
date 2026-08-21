@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 // Package compile builds the per-target manifest and hooks-file variants
 // a bundle needs, from its plugin.json contract and the set of loaded
 // target definitions.

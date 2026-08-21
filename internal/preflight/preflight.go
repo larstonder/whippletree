@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 // Package preflight compares a bundle's contract against a target's
 // tier assignment (and, optionally, its probed installed version),
 // producing a terraform-plan-shaped report of what will satisfy,

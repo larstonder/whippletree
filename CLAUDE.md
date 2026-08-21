@@ -32,6 +32,18 @@ ten almost always belongs in `docs/` with a pointer to it. Long-form harness res
 Prose style in comments follows the repo's existing voice: plain sentences, no hedging, no
 exclamation. Match the file you are editing.
 
+## Licence headers
+
+Every Go file carries a REUSE-style SPDX header:
+
+```go
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+```
+
+followed by a blank line, so a package doc comment below it still binds to the
+package. New files need it; CI fails without it.
+
 ## Testing
 
 A test for a bug must fail before the fix. Verify that, don't assume it.

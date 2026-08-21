@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 // Package skillfile reads, checks, and (in expand.go) transforms a
 // bundle's SKILL.md files. Parsing is line-based on purpose: authored
 // files are never round-tripped through a YAML encoder, so their

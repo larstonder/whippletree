@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Lars Tønder
+// SPDX-License-Identifier: Apache-2.0
+
 package contract
 
 import "testing"
