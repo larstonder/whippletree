@@ -58,6 +58,8 @@ func Validate(c *Contract) error {
 		if req.Kind == "executable-path" {
 			if req.Path == "" {
 				errs = append(errs, fmt.Errorf("requirement %s: path is required for executable-path", req.ID))
+			} else if err := ValidateBundleRelPath(req.Path); err != nil {
+				errs = append(errs, fmt.Errorf("requirement %s: %w", req.ID, err))
 			}
 			if req.Event != "" {
 				errs = append(errs, fmt.Errorf("requirement %s: event must be empty for executable-path", req.ID))
@@ -74,6 +76,8 @@ func Validate(c *Contract) error {
 
 		if req.Handler == "" {
 			errs = append(errs, fmt.Errorf("requirement %s: handler is required", req.ID))
+		} else if err := ValidateBundleRelPath(req.Handler); err != nil {
+			errs = append(errs, fmt.Errorf("requirement %s: %w", req.ID, err))
 		}
 	}
 

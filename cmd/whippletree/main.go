@@ -97,6 +97,13 @@ func parseBuildArgs(args []string) (buildArgs, error) {
 			parsed.targetsDir = args[i+1]
 			i++
 		default:
+			// Strict, matching parseInitArgs: an unrecognized flag is an
+			// error, never a positional. Folding it in silently let
+			// "whippletree build --allow-refuse" treat the flag itself as
+			// the bundle directory.
+			if strings.HasPrefix(args[i], "-") {
+				return buildArgs{}, fmt.Errorf("unknown flag %q", args[i])
+			}
 			positional = append(positional, args[i])
 		}
 	}
@@ -403,6 +410,12 @@ func parsePreflightArgs(args []string) (bundleDir, targetName, assumeVersion, ta
 			targetsDirArg = args[i+1]
 			i++
 		default:
+			// Strict, matching parseInitArgs: an unrecognized flag is an
+			// error, never a positional. Folding it in silently meant a
+			// mistyped flag was dropped, or became the bundle directory.
+			if strings.HasPrefix(args[i], "-") {
+				return "", "", "", "", fmt.Errorf("unknown flag %q", args[i])
+			}
 			positional = append(positional, args[i])
 		}
 	}
@@ -472,6 +485,12 @@ func parseInstallArgs(args []string) (installArgs, error) {
 			parsed.targetsDir = args[i+1]
 			i++
 		default:
+			// Strict, matching parseInitArgs: an unrecognized flag is an
+			// error, never a positional. Folding it in silently meant a
+			// mistyped flag was dropped, or became the bundle directory.
+			if strings.HasPrefix(args[i], "-") {
+				return installArgs{}, fmt.Errorf("unknown flag %q", args[i])
+			}
 			positional = append(positional, args[i])
 		}
 	}
@@ -687,16 +706,26 @@ func placeSkills(bundleDir, projectDir, targetName string, td *target.Def, stdou
 	return nil
 }
 
-// resolveSkillDest resolves a skillChannel dest: "~/x" against the
-// user's home, a relative path against the project directory, an
+// resolveSkillDest resolves a skillChannel dest: "~" or "~/x" against
+// the user's home, a relative path against the project directory, an
 // absolute path as itself.
+//
+// A bare "~" is home, not a directory literally named "~". The
+// distinction matters because the caller warns about a global location
+// on a "~" prefix: if the two disagreed, a bare-"~" dest would be
+// announced as global while actually being written inside the project.
+// "~user" is refused rather than guessed, since os.UserHomeDir only
+// knows about the current user.
 func resolveSkillDest(dest, projectDir string) (string, error) {
-	if strings.HasPrefix(dest, "~/") {
+	if dest == "~" || strings.HasPrefix(dest, "~/") {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("resolve home for skill dest %q: %w", dest, err)
 		}
-		return filepath.Join(home, dest[2:]), nil
+		return filepath.Join(home, strings.TrimPrefix(dest, "~")), nil
+	}
+	if strings.HasPrefix(dest, "~") {
+		return "", fmt.Errorf("skill dest %q: ~user paths are not supported", dest)
 	}
 	if !filepath.IsAbs(dest) {
 		return filepath.Join(projectDir, dest), nil

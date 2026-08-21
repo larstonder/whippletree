@@ -20,6 +20,9 @@ func TestValidateRejects(t *testing.T) {
 		{"per-call obs at minTier T3", `{"id":"a","kind":"observation-signal","event":"file-read","minTier":"T3","hardRequired":false,"handler":"./h.sh"}`, "T3"},
 		{"handler missing", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true}`, "handler"},
 		{"path missing on executable-path", `{"id":"a","kind":"executable-path","minTier":"T1","hardRequired":true}`, "path"},
+		{"handler escapes the bundle", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"../../../../bin/sh"}`, "escapes the bundle root"},
+		{"handler is absolute", `{"id":"a","kind":"blocking-gate","event":"turn-end","minTier":"T1","hardRequired":true,"handler":"/bin/sh"}`, "must be relative"},
+		{"executable-path escapes the bundle", `{"id":"a","kind":"executable-path","path":"../../../../etc/passwd","minTier":"T1","hardRequired":true}`, "escapes the bundle root"},
 		{"duplicate id", "", "duplicate"}, // built directly below
 	}
 

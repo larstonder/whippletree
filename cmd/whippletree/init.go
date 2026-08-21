@@ -405,26 +405,26 @@ type scaffoldContract struct {
 // defaults table specifies for kind. hard is only consulted for
 // blocking-gate and executable-path: lifecycle-signal and
 // observation-signal are always soft, matching the table.
-func scaffoldRequirement(kind, name string, hard bool) contract.Requirement {
+func scaffoldRequirement(kind, name string, hard bool) (contract.Requirement, error) {
 	no, yes := false, true
 	switch kind {
 	case "skill":
 		return contract.Requirement{
 			ID: "skill", Kind: kind, Path: "./skills/" + name,
 			MinTierRaw: "T1", HardRequired: &no,
-		}
+		}, nil
 	case "lifecycle-signal":
 		return contract.Requirement{
 			ID: "lifecycle-signal", Kind: kind, Event: "session-start",
 			MinTierRaw: "T2", HardRequired: &no,
 			Handler: "./handlers/lifecycle-signal.sh",
-		}
+		}, nil
 	case "observation-signal":
 		return contract.Requirement{
 			ID: "observation-signal", Kind: kind, Event: "file-read",
 			MinTierRaw: "T4", HardRequired: &no,
 			Handler: "./handlers/observation-signal.sh",
-		}
+		}, nil
 	case "blocking-gate":
 		hr := &no
 		if hard {
@@ -434,7 +434,7 @@ func scaffoldRequirement(kind, name string, hard bool) contract.Requirement {
 			ID: "blocking-gate", Kind: kind, Event: "turn-end",
 			MinTierRaw: "T1", HardRequired: hr, LoopGuardRequired: true,
 			Handler: "./handlers/blocking-gate.sh",
-		}
+		}, nil
 	case "executable-path":
 		hr := &no
 		if hard {
@@ -444,9 +444,13 @@ func scaffoldRequirement(kind, name string, hard bool) contract.Requirement {
 			ID: "executable-path", Kind: kind,
 			MinTierRaw: "T1", HardRequired: hr,
 			Path: "./bin/" + name,
-		}
+		}, nil
 	default:
-		panic("scaffoldRequirement: unknown kind " + kind)
+		// Callers validate against validKinds before reaching here, so
+		// this is unreachable today. It returns rather than panics so a
+		// future caller that forgets gets an error like every other
+		// failure in this package, not a stack trace.
+		return contract.Requirement{}, fmt.Errorf("unknown requirement kind %q", kind)
 	}
 }
 
@@ -511,10 +515,14 @@ Replace this body with the knowledge or workflow the skill teaches.
 // T3, never T1, since it's best-effort with no harness enforcement).
 // buildPluginJSON and buildReadme both call this so the manifest and
 // the README's defaults table can never drift apart.
-func scaffoldRequirements(name string, kinds []string, hardSet map[string]bool) []contract.Requirement {
+func scaffoldRequirements(name string, kinds []string, hardSet map[string]bool) ([]contract.Requirement, error) {
 	reqs := make([]contract.Requirement, 0, len(kinds))
 	for _, k := range kinds {
-		reqs = append(reqs, scaffoldRequirement(k, name, hardSet[k]))
+		req, err := scaffoldRequirement(k, name, hardSet[k])
+		if err != nil {
+			return nil, err
+		}
+		reqs = append(reqs, req)
 	}
 
 	hasSkill := false
@@ -531,14 +539,17 @@ func scaffoldRequirements(name string, kinds []string, hardSet map[string]bool) 
 			}
 		}
 	}
-	return reqs
+	return reqs, nil
 }
 
 // buildPluginJSON renders the scaffolded plugin.json for name, one
 // requirement per kind in kinds, with hardRequired driven by hardSet
 // for the kinds that honor it.
 func buildPluginJSON(name string, kinds []string, hardSet map[string]bool) ([]byte, error) {
-	reqs := scaffoldRequirements(name, kinds, hardSet)
+	reqs, err := scaffoldRequirements(name, kinds, hardSet)
+	if err != nil {
+		return nil, err
+	}
 
 	manifest := scaffoldManifest{
 		Name:        name,
@@ -627,7 +638,7 @@ func generatedFileList(kinds []string) []string {
 
 // buildReadme renders the scaffolded README.md: the generated-file
 // list, the defaults table for the chosen kinds, and next steps.
-func buildReadme(name string, kinds []string, hardSet map[string]bool) []byte {
+func buildReadme(name string, kinds []string, hardSet map[string]bool) ([]byte, error) {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "# %s\n\n", name)
@@ -644,7 +655,11 @@ func buildReadme(name string, kinds []string, hardSet map[string]bool) []byte {
 	b.WriteString("\nDefaults (edit plugin.json to change these):\n\n")
 	b.WriteString("| kind | id | event | minTier | hardRequired |\n")
 	b.WriteString("|---|---|---|---|---|\n")
-	for _, req := range scaffoldRequirements(name, kinds, hardSet) {
+	reqs, err := scaffoldRequirements(name, kinds, hardSet)
+	if err != nil {
+		return nil, err
+	}
+	for _, req := range reqs {
 		event := req.Event
 		if event == "" {
 			event = "(none)"
@@ -666,7 +681,7 @@ func buildReadme(name string, kinds []string, hardSet map[string]bool) []byte {
 		}
 	}
 
-	return []byte(b.String())
+	return []byte(b.String()), nil
 }
 
 // scaffoldFiles assembles the full, ordered set of files init will
@@ -707,9 +722,13 @@ func scaffoldFiles(name string, kinds []string, hardSet map[string]bool) ([]scaf
 		files = append(files, scaffoldFile{filepath.Join("bin", name), []byte(binScript(name)), 0o755})
 	}
 
+	readme, err := buildReadme(name, kinds, hardSet)
+	if err != nil {
+		return nil, err
+	}
 	files = append(files,
 		scaffoldFile{".gitignore", []byte(gitignoreBody), 0o644},
-		scaffoldFile{"README.md", buildReadme(name, kinds, hardSet), 0o644},
+		scaffoldFile{"README.md", readme, 0o644},
 	)
 
 	return files, nil
