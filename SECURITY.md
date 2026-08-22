@@ -22,16 +22,16 @@ runtime. The interesting boundary is a bundle you did not author.
 In scope:
 
 - A bundle that makes `whippletree-hook` execute anything outside its own bundle
-  root. The vendored `.whippletree/contract.json` is untrusted input: it is read
-  without re-validation, so containment is enforced again at dispatch time. If
-  you can defeat that, it is a vulnerability.
+  root. The vendored `.whippletree/contract.json` is untrusted input:
+  `whippletree-hook` reads it without re-validation, so it enforces containment
+  again at dispatch time. If you can defeat that, it is a vulnerability.
 - A bundle that makes `whippletree build` or `whippletree install` write outside
   the bundle or the declared skill destination.
 - A handler that can hang the harness indefinitely. Handler execution is bounded
   and fail-open by design.
 - Anything that causes Whippletree to report `SATISFY` for a requirement the
-  target does not actually satisfy. The verdicts are the product; a false one is
-  a real defect even though nothing crashes.
+  target does not satisfy. The verdicts are the product; a false one is a real
+  defect even though nothing crashes.
 
 Out of scope:
 

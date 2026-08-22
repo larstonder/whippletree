@@ -24,7 +24,7 @@
       </picture>
     </a>
     <nav>
-      <a href="/docs/get-started/">Get started</a>
+      <a href="/docs/getting-started/">Getting started</a>
       <a href="/docs/">Docs</a>
       <a href="https://github.com/larstonder/whippletree">GitHub</a>
     </nav>
@@ -66,7 +66,7 @@
 
     <p>That requirement reads: <b>before the agent finishes a turn, run
       <code>handlers/capture.sh</code>, and if the harness cannot enforce that natively, do not
-      install at all.</b> The rest of this page is what each of those fields means.</p>
+      install at all.</b> Each of those fields is below.</p>
 
     <h2>Requirement kinds</h2>
     <p>Five kinds, a closed set. The kind determines which other fields apply.</p>
@@ -83,13 +83,14 @@
     </table>
 
     <h2>Events</h2>
-    <p>A requirement binds to one event. Nine are primitives, mapping to a harness's own hook:</p>
+    <p>A requirement binds to one event. Nine events are primitives, each mapping to a
+      harness's own hook:</p>
     <p><code>session-start</code> <code>session-end</code> <code>turn-end</code>
        <code>tool-pre</code> <code>tool-post</code> <code>subagent-start</code>
        <code>subagent-stop</code> <code>compact-pre</code> <code>compact-post</code></p>
 
     <p>Three more are aliases that expand to a primitive plus a tool class, because
-      "tell me when a file is read" is what you actually mean:</p>
+      "tell me when a file is read" is what you mean:</p>
 
     <table>
       <thead><tr><th>alias</th><th>expands to</th></tr></thead>
@@ -106,7 +107,7 @@
       the same requirement either way; Whippletree tells you which one you got.</p>
 
     <h2>The tier ladder</h2>
-    <p>A requirement lands at the best tier the harness can actually carry it at.</p>
+    <p>A requirement lands at the best tier the harness can carry it at.</p>
 
     <table>
       <thead><tr><th>tier</th><th>meaning</th></tr></thead>
@@ -118,8 +119,8 @@
       </tbody>
     </table>
 
-    <p>You declare a <code>minTier</code>: the worst you are willing to accept. Comparing what
-      the harness achieves against what you declared gives the verdict.</p>
+    <p>You declare a <code>minTier</code>: the worst you are willing to accept. Whippletree
+      weighs it against what the harness achieves and reports the verdict.</p>
 
     <h2>Verdicts</h2>
 
@@ -141,7 +142,8 @@
     <h2>Instruction fallback</h2>
     <p>Refusing is not always what you want. Pair a <code>blocking-gate</code> with a
       <code>skill</code> requirement through <code>fallbackSkill</code>, and on a harness with no
-      native gate the step is compiled into the skill's instructions instead of refusing.</p>
+      native gate Whippletree compiles the step into the skill's instructions instead of
+      refusing.</p>
 
     <p>That is T3, and Whippletree says the same sentence about it everywhere it appears, in the
       preflight report and in the generated <code>SKILL.md</code> itself:</p>
@@ -150,7 +152,7 @@
       instructed to run the step and usually will, but can skip it under pressure</div>
 
     <h2>Probed versions</h2>
-    <p>A target definition records the harness versions it was actually tested against. Probe
+    <p>A target definition records the harness versions it was tested against. Probe
       something outside that range and preflight says so:</p>
 
 <pre><code><b>$ whippletree preflight ./my-tool --target codex</b>
@@ -160,12 +162,12 @@ whippletree preflight · target codex (probed 0.100.0)
   ! the verdicts below were not verified against this version</code></pre>
 
     <p>A warning, never a refusal. A harness shipping a new version must not break every install
-      that day, and Whippletree cannot know whether the change matters. What it can do is stop
-      asserting a confidence it has not earned.</p>
+      that day, and Whippletree cannot know whether the change matters, so it stops asserting a
+      confidence it has not earned.</p>
 
     <h2>Next</h2>
     <ul>
-      <li><a href="/docs/get-started/">Get started</a> to build and install a bundle end to end.</li>
+      <li><a href="/docs/getting-started/">Getting started</a> to build and install a bundle end to end.</li>
       <li><a href="/docs/authoring/">Authoring a bundle</a> for every field, the handler wire format, and the exit-code contract.</li>
       <li><a href="/docs/harnesses/">Harnesses</a> for what each target can enforce, and the two things they cannot.</li>
     </ul>

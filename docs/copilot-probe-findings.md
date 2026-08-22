@@ -9,11 +9,12 @@ Probe run: 2026-08-21, macOS (darwin 25.5.0, arm64).
 | Sandboxing | `mktemp -d` per probe, plugins mounted with `--plugin-dir` |
 
 Every probe in sections 1-6 mounted its plugin with the global `--plugin-dir`
-flag rather than installing one, so nothing was written to a marketplace or to
-the caller's plugin state. Section 7's marketplace route was exercised
-separately, by `test/e2e/run-copilot.sh` against a sandboxed `COPILOT_HOME`. Runs were authenticated: unlike the codex probe, these consumed
-real model calls, because the questions about `Stop` and `PreToolUse` can only
-be answered by an agent that actually runs a turn.
+flag rather than installing one, so Copilot wrote nothing to a marketplace or
+to the caller's plugin state. `test/e2e/run-copilot.sh` exercised section 7's
+marketplace route separately, against a sandboxed `COPILOT_HOME`. Every run
+here was authenticated: unlike the codex probe, these consumed real model
+calls, because only an agent that runs a turn can answer the questions about
+`Stop` and `PreToolUse`.
 
 ## 1. The headline: no new backend is needed
 
@@ -55,8 +56,8 @@ Hence `manifestDir: .plugin`.
 
 ## 3. Events
 
-Every documented event name was registered at once, in PascalCase, and a
-one-tool session was run.
+The probe registered every documented event name at once, in PascalCase, and
+ran a one-tool session.
 
 | event | fired in a simple session |
 |---|---|
@@ -82,7 +83,7 @@ An unrecognised event key is **ignored**, not fatal: a file declaring
 
 Copilot's exit-code semantics are not Claude's, and the first version of this
 document got the conclusion half right for the wrong reason. `Stop` **does**
-block. It just does not listen on the channel whippletree speaks.
+block. It does not listen on the channel whippletree speaks.
 
 Two channels were tested, each twice, with `PreToolUse` as a positive control
 proving the method can see a block at all. Every run used
@@ -120,9 +121,9 @@ banana
 ```
 
 A separate trial that blocked three times produced four firings and sent the
-agent off searching the codebase for the string in its reason. So the loop is
-real, the reason reaches the model, and `stop_hook_active` in the payload is
-guarding a loop that genuinely exists.
+agent off searching the codebase for the string in its reason. The loop is
+real and the reason reaches the model, so `stop_hook_active` in the payload
+guards a real one.
 
 ### What that means for the target
 
@@ -134,10 +135,9 @@ exiting 2 and nothing else, so with today's dispatcher a `blocking-gate` at
 But the ceiling is higher than the current declaration. A dispatcher that
 emitted `{"decision":"block"}` on stdout for this target would make turn-end
 gates land at **T1**, natively enforced. That needs a per-target block dialect
-in the dispatcher, which is a target-surface addition and is deliberately not
-being made here; it is tracked separately. The honest reading of the REFUSE
-this target produces today is "whippletree cannot drive Copilot's gate yet",
-not "Copilot has no gate".
+in the dispatcher, a target-surface addition tracked separately and not made
+here. The honest reading of the REFUSE this target produces today is
+"whippletree cannot drive Copilot's gate yet", not "Copilot has no gate".
 
 `loopGuardField` stays unset for the same reason: whippletree never triggers
 the loop, so it never needs to break out of one.
@@ -163,20 +163,20 @@ session doing a read, a modify, a create and a shell command:
 
 Copilot reports the full Claude tool vocabulary even though its own UI labels
 the shell tool `shell`. So `toolClassMap` matches claude-code exactly, and
-matcher alternation works — a `"Bash|shell"` matcher matched `Bash`.
+matcher alternation works: a `"Bash|shell"` matcher matched `Bash`.
 
 **Carried over, not introduced here:** mapping `write` to `Write` alone means
 the `file-write` alias misses `Edit`, i.e. misses modifications to existing
-files. That is equally true of the claude-code target today. Copilot is
-declared consistently with it rather than diverging, but the gap is real on
-both and worth deciding separately.
+files. That is equally true of the claude-code target today. The Copilot
+target matches it rather than diverging, but the gap is real on both and worth
+deciding separately.
 
 ## 6. `${PLUGIN_ROOT}` resolves
 
 `"${PLUGIN_ROOT}/h.sh"` expanded to the mounted plugin directory, which is the
 name the emitter actually uses: `internal/compile/emit.go` substitutes
 `PluginRootVars[0]` and never reads the rest of the list. The target lists
-`CLAUDE_PLUGIN_ROOT` second by analogy with codex, but it is inert — nothing
+`CLAUDE_PLUGIN_ROOT` second by analogy with codex, but it is inert: nothing
 emits it, and it was not probed.
 
 ## 7. Skills, and why the manifest key replaces rather than adds
@@ -217,7 +217,7 @@ find-skills
 Only `alpha`'s `SKILL.md` carries the `compiled-tier: T3` provenance comment;
 `beta` is copied through unchanged apart from the compiled-by marker.
 
-**The expansion is what the agent actually sees.** For a bundle scaffolded with
+**The expansion is what the agent sees.** For a bundle scaffolded with
 `init --kinds skill,blocking-gate`, the T3 variant Copilot lists carries the
 canonical fidelity sentence verbatim:
 
@@ -241,8 +241,9 @@ despite the documentation's "Local path: `./my-plugin`". Its source grammar is
 work locally:
 
 - `copilot plugin marketplace add <local path>` then
-  `copilot plugin install <name>@<marketplace>` — the same two-step shape codex
-  and claude-code use, which is why `capabilities.bundleChannel` stays true.
+  `copilot plugin install <name>@<marketplace>`. This is the same two-step
+  shape codex and claude-code use, which is why `capabilities.bundleChannel`
+  stays true.
 - `copilot --plugin-dir <dir>`, which mounts a plugin for one invocation
   without installing it. Used for every probe here.
 

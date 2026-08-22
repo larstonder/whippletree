@@ -24,7 +24,7 @@
       </picture>
     </a>
     <nav>
-      <a href="/docs/get-started/">Get started</a>
+      <a href="/docs/getting-started/">Getting started</a>
       <a href="/docs/">Docs</a>
       <a href="https://github.com/larstonder/whippletree">GitHub</a>
     </nav>
@@ -37,7 +37,7 @@
 
     <h1>Harnesses</h1>
     <p class="standfirst">Four targets today. They do not support the same things, and the
-      differences decide what your contract can actually promise.</p>
+      differences decide what your contract can promise.</p>
 
     <table>
       <thead><tr><th>harness</th><th>backend</th><th>install</th><th>tested against</th></tr></thead>
@@ -50,8 +50,8 @@
     </table>
 
     <h2>What each event maps to</h2>
-    <p>A dash means the harness has no equivalent, so a requirement bound to that event lands
-      ABSENT there, and REFUSES if you marked it hard-required.</p>
+    <p>Where a harness has no equivalent, a requirement bound to that event lands ABSENT
+      there, and REFUSES if you marked it hard-required.</p>
 
     <table>
       <thead><tr><th>event</th><th>claude-code</th><th>codex</th><th>copilot</th><th>opencode</th></tr></thead>
@@ -65,8 +65,8 @@
     </table>
 
     <h2>What each tool class maps to</h2>
-    <p>This is what the <code>file-read</code>, <code>file-write</code> and
-      <code>shell-exec</code> aliases resolve to.</p>
+    <p>The <code>file-read</code>, <code>file-write</code> and
+      <code>shell-exec</code> aliases resolve to these tools.</p>
 
     <table>
       <thead><tr><th>class</th><th>claude-code</th><th>codex</th><th>copilot</th><th>opencode</th></tr></thead>
@@ -102,10 +102,10 @@
       exiting 2 on <code>Stop</code> is ignored and the session ends; the same handler
       exiting 2 on <code>PreToolUse</code> denies the call outright, which is the control
       that makes this a measurement. But Copilot <i>does</i> honour a
-      <code>{"decision":"block"}</code> written to stdout on <code>Stop</code> &mdash; the
+      <code>{"decision":"block"}</code> written to stdout on <code>Stop</code>: the
       hook re-fires and the agent acts on the reason.</p>
 
-    <div class="note">So a hard-required <code>blocking-gate</code> on
+    <div class="note">A hard-required <code>blocking-gate</code> on
       <code>turn-end</code> <b>REFUSES</b> on copilot today, but not for opencode's
       reason. opencode has no blocking stop event; Copilot has one Whippletree cannot yet
       drive, because the dispatcher signals a block by exiting 2 and nothing else.
@@ -113,13 +113,13 @@
       closing it would make this T1. Tracked as
       <a href="https://github.com/larstonder/whippletree/issues/19">issue 19</a>.</div>
 
-    <p>One trap worth naming: hooks are not auto-discovered, and Copilot reads
+    <p>One trap: hooks are not auto-discovered, and Copilot reads
       <code>.plugin/plugin.json</code> before the root <code>plugin.json</code> that every
       bundle already ships. Had it been the other way round, a bundle would have installed
       cleanly and registered nothing at all.</p>
 
     <h2>opencode</h2>
-    <p>The one that genuinely cannot do something. <b>It has no blocking stop event.</b> A
+    <p>The target with a real gap. <b>It has no blocking stop event.</b> A
       thrown error fails a single tool call and the agent loop carries on, so there is nothing
       to bind <code>turn-end</code> to.</p>
 
@@ -130,21 +130,21 @@
 
     <p>If advice is acceptable, pair the gate with a <code>skill</code> through
       <code>fallbackSkill</code> and the step compiles into instructions at T3 instead of
-      refusing. It also uses a different backend: opencode has no plugin manifest to extend, so
+      refusing. opencode also uses a different backend: it has no plugin manifest to extend, so
       <code>install</code> writes a TypeScript shim into <code>.opencode/plugin/</code> and
       copies skills into <code>.opencode/skills</code> rather than shipping them in the bundle.</p>
 
     <h2>Windows</h2>
     <p>Windows is a property of the machine, not another target: all four
-      harnesses run there. What does not work is a handler written as a shell
-      script, because Windows has no shebang support. A requirement can declare
+      harnesses run there. A handler written as a shell script does not work,
+      because Windows has no shebang support. A requirement can declare
       <code>handlerWindows</code> alongside <code>handler</code>, and the dispatcher
-      picks per platform at run time. A requirement without one is simply not
+      picks per platform at run time. A requirement without one is not
       carried on Windows, and says so.</p>
     <p>The handler has to be something Windows launches from a bare path, since the
       dispatcher execs it with no interpreter: <code>.exe</code>, <code>.com</code>,
-      <code>.bat</code> or <code>.cmd</code>. <b><code>.ps1</code> is not one of them</b>
-      &mdash; it is absent from the default <code>PATHEXT</code> &mdash; so wrap it in a
+      <code>.bat</code> or <code>.cmd</code>. <b><code>.ps1</code> is not one of them</b>:
+      it is absent from the default <code>PATHEXT</code>, so wrap it in a
       <code>.cmd</code>. Anything else is refused at build time rather than left to fail
       open at dispatch.</p>
 
@@ -160,9 +160,9 @@
 
     <h2>How these claims are checked</h2>
     <p>Every row above comes from a target definition in the repository, and each one records
-      the harness versions it was probed against. Those definitions are established by running
-      the harness in a sandbox, not by reading its documentation, and the probe notes are kept
-      with the code. A nightly job reinstalls claude-code, codex and opencode and reruns the
+      the harness versions it was probed against. Those definitions record what the harness did
+      in a sandbox rather than what its documentation claims, and the probe notes live with
+      the code. A nightly job reinstalls claude-code, codex and opencode and reruns the
       end-to-end suite, so a harness changing under a definition shows up as a failure
       rather than as a wrong answer in your terminal. Copilot is not in that job yet: its
       hooks only fire once an agent takes a turn, so its end-to-end script needs a real
@@ -176,7 +176,7 @@
 
     <h2>Next</h2>
     <ul>
-      <li><a href="/docs/get-started/">Get started</a> to run preflight against a harness you have installed.</li>
+      <li><a href="/docs/getting-started/">Getting started</a> to run preflight against a harness you have installed.</li>
       <li><a href="/docs/authoring/">Authoring a bundle</a> for the per-target notes in full.</li>
     </ul>
   </div>

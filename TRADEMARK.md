@@ -50,7 +50,7 @@ sells.
 
 ## "whippletree-compatible" (planned)
 
-A conformance mark is planned but **does not exist yet** — see
+A conformance mark is planned but **does not exist yet**; see
 [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md). Until it does, please do not claim
 compatibility certification. Describing interoperability factually is always
 fine.

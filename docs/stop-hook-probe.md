@@ -16,7 +16,7 @@ Question: in `test/e2e/run-claude.sh`'s isolated, unauthenticated flow, does the
    PASS: session-start fired exactly once on claude
    ```
 
-2. The script leaves its sandbox behind (no cleanup trap), so its `$E2E_MARKER` file was located under `$TMPDIR` and inspected directly, then `claude -p "say hi" --permission-mode bypassPermissions` was rerun by hand in that same sandbox (same `CLAUDE_CONFIG_DIR` and `E2E_MARKER`, same installed plugin) to get a second, cleanly isolated data point without rebuilding or reinstalling anything.
+2. The script leaves its sandbox behind (no cleanup trap), so its `$E2E_MARKER` file was located under `$TMPDIR` and inspected directly, then `claude -p "say hi" --permission-mode bypassPermissions` was rerun by hand in that same sandbox (same `CLAUDE_CONFIG_DIR` and `E2E_MARKER`, same installed plugin) to get a second, isolated data point without rebuilding or reinstalling anything.
 
 3. For the second manual run, `--debug hooks --debug-file <path>` was added (an additional flag on the `claude` invocation, not a change to any repo file) to see whether the harness invokes the Stop hook internally even if `capture.sh` never gets to write to the marker.
 
@@ -33,11 +33,11 @@ session-start {"event":"session-start","transcriptPath":"/var/folders/.../tmp.lJ
 
 (paths truncated with `...` for readability; the full paths are just the sandbox's own `mktemp -d` directory, nothing sensitive)
 
-`grep -c turn-end` against this file returns `0`. Neither `turn-end-blocked` nor `turn-end-allowed` appears. `capture.sh` was never invoked, since it unconditionally appends one of those two lines on every invocation.
+`grep -c turn-end` against this file returns `0`. Neither `turn-end-blocked` nor `turn-end-allowed` appears. `capture.sh` was never invoked, since it appends one of those two lines on every invocation.
 
 ## Why: the debug log
 
-The `--debug hooks --debug-file` run shows the hook system working correctly up to a point:
+The `--debug hooks --debug-file` run shows the hook system working up to a point:
 
 ```
 Read manifest hooks for plugin kb-shaped (enabled=true): ./hooks/claude-code.json
@@ -49,11 +49,11 @@ dispatching to firstParty model=claude-opus-5[1m]
 Released PID lock for 2.1.220
 ```
 
-All three hooks (SessionStart, PostToolUse, Stop) are registered from the plugin manifest, and SessionStart demonstrably fires (it wrote the marker line above). Right after the single API call fails on missing authentication, the process tears down (LSP shutdown, PID lock release) with no further hook activity logged and no second attempt at a turn. There is no completed assistant turn in this run: the CLI never gets past the first API call, so there is nothing for the agent loop to "stop". The absence of `turn-end` here is a direct, structural consequence of auth failing before any turn completes, not evidence of a wiring gap: the hook is registered exactly like the one that did fire.
+Claude Code registers all three hooks (SessionStart, PostToolUse, Stop) from the plugin manifest, and SessionStart fires (it wrote the marker line above). Right after the single API call fails on missing authentication, the process tears down (LSP shutdown, PID lock release) with no further hook activity logged and no second attempt at a turn. There is no completed assistant turn in this run: the CLI never gets past the first API call, so there is nothing for the agent loop to "stop". The absence of `turn-end` here follows from auth failing before any turn completes, not from a wiring gap: the hook is registered exactly like the one that did fire.
 
 ## Outcome
 
-**(b): fires only with auth.** The wiring (manifest, hook registration, handler script) is provably correct, matching the SessionStart hook that does fire in the same run. What's missing to observe `turn-end` is a completed model turn, which this sandbox cannot produce without real authentication. Settling this definitively (as opposed to by strong inference) would require one authenticated run, which is out of scope here per the no-auth constraint: never authenticate in this probe.
+**(b): fires only with auth.** The wiring (manifest, hook registration, handler script) is provably correct, matching the SessionStart hook that does fire in the same run. Observing `turn-end` needs a completed model turn, which this sandbox cannot produce without real authentication. Settling this definitively (as opposed to by strong inference) would require one authenticated run, which is out of scope here per the no-auth constraint: never authenticate in this probe.
 
 ## Decision for Task 2
 
