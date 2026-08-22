@@ -53,7 +53,7 @@ the pair has to travel together. The [signed release archives][releases] contain
 
 ```
 $ whippletree init my-tool --yes
-whippletree: scaffolded my-tool in ./my-tool
+whippletree: scaffolded my-tool in /home/you/my-tool
 
 $ whippletree build my-tool
 target claude-code: 1 satisfy, 0 degrade, 0 refuse, 0 absent
@@ -112,7 +112,12 @@ format handlers see.
 | `--target <name>` | which target to check against (required) |
 | `--assume-version <v>` | skip the probe and assume this harness version |
 | `--targets-dir <dir>` | as above |
-| `--project <dir>` | install destination for a ts-plugin target (default: cwd) |
+
+`install` only
+
+| flag | effect |
+|---|---|
+| `--project <dir>` | install destination for a ts-plugin target and a copy-dir skill channel (default: cwd) |
 
 </details>
 
