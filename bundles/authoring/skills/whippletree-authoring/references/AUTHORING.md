@@ -37,6 +37,7 @@ acme-tool/
 ├── .plugin/plugin.json               ← generated: per-target manifest (hooks key)
 ├── .whippletree/
 │   ├── contract.json                 ← generated: normalized contract, vendored
+│   ├── install-state.json            ← written by preflight/install: harness, version, tiers reached
 │   ├── skills/<target>/              ← generated: per-target skill variants, when a T3 fallback applies
 │   └── targets/*.yaml                ← generated: target defs used at build time, vendored
 ├── hooks/

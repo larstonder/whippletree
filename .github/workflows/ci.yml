@@ -106,6 +106,20 @@ jobs:
             exit 1
           fi
 
+  # docsgen renders the markdown pages and then resolves every internal link on
+  # the built site against what is on disk. Running it here rather than only on
+  # deploy means a pull request that breaks a link fails on the pull request.
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: true
+      - run: go run .
+        working-directory: tools/docsgen
+
   # The release builds six GOOS/GOARCH pairs; without this only the host
   # three are ever compiled before a tag.
   cross:
