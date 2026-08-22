@@ -63,36 +63,45 @@ gofmt -l .            # must print nothing
 go vet ./...
 GOOS=windows go vet ./...
 go test ./... -race
+go build -o examples/kb-shaped/bin/whippletree-hook ./cmd/whippletree-hook
+go run ./cmd/whippletree build examples/kb-shaped --targets-dir targets --allow-refuse
+git status            # examples/kb-shaped must come back clean
+(cd tools/docsgen && go run .)
 ```
 
-CI runs all of that on Linux, macOS and Windows, plus a cross-compile of every
-platform a release ships, a build against the Go version `go.mod` declares, and
-a check that `whippletree build` still reproduces the committed
-`examples/kb-shaped` artifacts byte-for-byte. That last one catches a silent
-change to what every user's bundle looks like, so if it fails, look before you
-regenerate.
+`go build`, `go vet` and the race-enabled tests run in CI on Linux, macOS and
+Windows. The rest runs on Linux alone: `gofmt`, the Windows vet, a check that
+every Go file carries an SPDX licence header, a build and test against the Go
+version `go.mod` declares, a cross-compile of the six GOOS/GOARCH pairs a
+release ships, a docsgen run that resolves every internal link on the built
+site, and the `examples/kb-shaped` rebuild above. That last one fails unless
+`whippletree build` still reproduces the committed artifacts byte-for-byte,
+which is what catches a silent change to what every user's bundle looks like.
+If it fails, look before you regenerate.
 
-[`CLAUDE.md`](CLAUDE.md) has the conventions worth knowing before your first
-change. Comment what the code cannot say, and put the rationale for a change in
-its commit message rather than in a source file where it will rot.
+Every Go file needs the two-line SPDX header, `SPDX-FileCopyrightText` and
+`SPDX-License-Identifier`. [`CLAUDE.md`](CLAUDE.md) has the exact form, along
+with the conventions worth knowing before your first change. Comment what the
+code cannot say, and put the rationale for a change in its commit message rather
+than in a source file where it will rot.
 
 ## End-to-end tests
 
 `test/e2e/run-codex.sh`, `test/e2e/run-claude.sh`, `test/e2e/run-opencode.sh` and
-`test/e2e/run-copilot.sh` install the `examples/kb-shaped` bundle into a fresh, isolated
-harness home (`mktemp -d`, `CODEX_HOME` / `CLAUDE_CONFIG_DIR` / an XDG-isolated set of
-dirs respectively) and drive one real, unauthenticated turn against the installed
-`codex`, `claude`, and `opencode` CLIs, then assert on a marker file the example's
-handlers write to. They are standalone bash, outside `go test`, because they need the
-real CLI on the machine.
+`test/e2e/run-copilot.sh` each install the `examples/kb-shaped` bundle into a fresh
+harness home under `mktemp -d` (`CODEX_HOME`, `CLAUDE_CONFIG_DIR`, an XDG-isolated set
+of dirs, and `COPILOT_HOME` respectively) and drive a real run against the installed
+CLI. Every script asserts on a marker file the example's handlers write to;
+`run-claude.sh` also asserts on `preflight` output and on the dispatcher's own
+stdout, and `run-opencode.sh` on `preflight` and `install`. They are standalone
+bash, outside `go test`, because they need the real CLI on the machine.
 
 CI runs the first three nightly rather than per-push (`.github/workflows/e2e.yml`),
 installing each harness from npm first. `run-copilot.sh` is excluded: the events it
 asserts on only fire once an agent takes a turn, so unlike the others it needs a real
-login, and copilot installs from Homebrew rather than npm. A failure there opens or
-comments on a drift issue instead of failing the build, because a harness that has moved
-on is a finding about `metadata.testedVersions` rather than a broken commit. Unit tests,
-vet, `gofmt` and an artifacts-reproduce check run per-push on Linux, macOS and Windows.
+login, and copilot installs from Homebrew rather than npm. A failed nightly fails the run and
+also opens or comments on a drift issue, because a harness that has moved on is a
+finding about `metadata.testedVersions` and not only a broken commit.
 
 ```bash
 test/e2e/run-codex.sh
@@ -101,19 +110,21 @@ test/e2e/run-opencode.sh
 test/e2e/run-copilot.sh   # needs a real login, see above
 ```
 
-The first three run unauthenticated, copying no credentials into the isolated home. Each
-one verifies that the session-start signal fires before the harness makes any auth/model
-call, so it tolerates the resulting 401/"not logged in" failure (or, for opencode, an
-anonymous hosted-model call that succeeds on its own) and asserts only on the marker
-file. `run-codex.sh` proves `SessionStart` fires end to end through the compiled hooks
-file and the dispatcher. `run-claude.sh` proves the same, plus that it fires exactly
-once, which confirms `hooks/hooks.json` is never emitted alongside the per-target hooks
-file (Claude Code merges that file additively, so its presence would double-fire every
-hook). `run-opencode.sh` proves the REFUSE-by-design behavior from "opencode" above, then
-softens the bundle and proves the compiled shim installs and fires session-start exactly
-once through a real `opencode run`.
+The first three run unauthenticated, copying no credentials into the isolated home.
+`run-codex.sh` and `run-claude.sh` rest on session-start firing before the harness makes
+any auth or model call, so each tolerates the 401 or "not logged in" that follows and
+still proves the hook wiring. opencode meets no auth failure, because it serves its
+default hosted model anonymously, but `run-opencode.sh` ignores the run's exit code
+too and rests its assertions on the marker file. `run-codex.sh` proves `SessionStart` fires end to end
+through the compiled hooks file and the dispatcher. `run-claude.sh` proves the same,
+plus that it fires exactly once, which confirms `hooks/hooks.json` is never emitted
+alongside the per-target hooks file (Claude Code merges that file additively, so its
+presence would double-fire every hook). `run-opencode.sh` proves the REFUSE-by-design
+behavior that [`docs/opencode.md`](docs/opencode.md) sets out, then softens the bundle and
+proves the compiled shim installs and fires session-start exactly once through a real
+`opencode run`.
 
-Actual PASS output from the last verified run, against `codex-cli 0.144.5`,
+Some of the PASS output from the last verified run, against `codex-cli 0.144.5`,
 `claude 2.1.220` and `opencode 1.18.10`:
 
 ```
@@ -132,16 +143,17 @@ PASS: session-start fired exactly once on opencode
 
 Every e2e script prints a `harness=<name> version=<probed> date=<iso>` line before it
 does anything else, so the test output records which upstream version a given PASS was
-measured against, and when. That line also backs the maintenance log's entries; see
-`MAINTENANCE.md`.
+measured against, and when. Those lines back the entries in
+[`MAINTENANCE.md`](MAINTENANCE.md).
 
 ## Adding or changing a target
 
 Target definitions are claims about how a real harness behaves, so you establish
-them by probing that harness rather than reading its documentation. See
-`docs/opencode-probe-findings.md` and `docs/skill-discovery-probe.md` for the
-method: a `mktemp -d` sandbox, an isolated harness home, and an honest record of
-anything the probe could not verify.
+them by probing that harness rather than reading its documentation.
+[`docs/opencode-probe-findings.md`](docs/opencode-probe-findings.md) and
+[`docs/skill-discovery-probe.md`](docs/skill-discovery-probe.md) show the method:
+a `mktemp -d` sandbox, an isolated harness home, and an honest record of anything
+the probe could not verify.
 
 `metadata.testedVersions` is the claim that a definition was exercised against a
 version range. Do not widen it for a version nobody ran.
@@ -149,7 +161,7 @@ version range. Do not widen it for a version nobody ran.
 ## Changing the contract surface
 
 `dev.whippletree.v1` is versioned by `contractVersion`, and
-`contract.SupportedContractVersion` is what a build will accept. Additive
+`contract.SupportedContractVersion` is the highest a build will accept. Additive
 changes are minor bumps. Changing the meaning of an existing field is a major
 bump: open an issue before you write the code.
 

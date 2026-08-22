@@ -74,9 +74,9 @@ targets (4):
   opencode     schema 1.0.0    tested &gt;=1.18.10</pre>
 
     <div class="note">Two conventions before you start. Flags take a separate argument:
-      <code>--target codex</code>, never <code>--target=codex</code>. And only the bare
-      <code>whippletree --help</code> exists: a subcommand run with no arguments prints its
-      own usage line instead.</div>
+      <code>--target codex</code>, never <code>--target=codex</code>. And <code>--help</code>
+      works on the bare <code>whippletree</code> only: give it to a subcommand and you get an
+      error, that subcommand's usage line on stderr, and exit 1.</div>
 
     <h2 id="scaffold">Scaffold a bundle</h2>
     <p>A bundle is a directory with a <code>plugin.json</code> and some handlers.
@@ -86,12 +86,13 @@ targets (4):
 whippletree: scaffolded my-tool in /home/you/my-tool</pre>
 
     <p>Drop <code>--yes</code> and, on a terminal, you get a short wizard asking for the name,
-      the requirement kinds, and whether the hard ones are hard. Passing any of
+      the requirement kinds, and then, for <code>blocking-gate</code> and
+      <code>executable-path</code> only, whether each is hard-required. Passing any of
       <code>--name</code>, <code>--kinds</code> or <code>--hard</code> skips it too. The name
       must match <code>^[a-z0-9-]+$</code>, and defaults to the directory's own name.</p>
 
-    <p><code>init</code> refuses to write over an existing <code>plugin.json</code>, and
-      checks before writing anything, so a refusal leaves the directory untouched.</p>
+    <p><code>init</code> refuses to overwrite any file it would write, and it checks all of
+      them before writing the first, so a refusal leaves the directory untouched.</p>
 
     <p>What landed:</p>
 
@@ -135,7 +136,8 @@ whippletree: scaffolded my-tool in /home/you/my-tool</pre>
 
     <p>Ask for more than the default with <code>--kinds</code>. The set is closed:</p>
 
-<pre><b>$ whippletree init acme-tool --kinds skill,blocking-gate,executable-path --hard blocking-gate</b></pre>
+<pre><b>$ whippletree init acme-tool --hard blocking-gate \</b>
+<b>    --kinds skill,lifecycle-signal,observation-signal,blocking-gate,executable-path</b></pre>
 
     <table>
       <thead><tr><th>--kinds value</th><th>scaffolds</th><th>at</th></tr></thead>
@@ -208,14 +210,14 @@ target opencode: 1 satisfy, 0 degrade, 0 refuse, 0 absent</pre>
       <code>--allow-missing-dispatcher</code> turns that into a warning, which is what you want
       in a job that only inspects the compiled output.</p>
 
-    <p>A hard requirement that no target can meet makes <code>build</code> exit 1 after
-      reporting which targets refused. <code>--allow-refuse</code> keeps going, for a bundle
-      that is not meant for every harness.</p>
+    <p>One target refusing a hard requirement makes <code>build</code> exit 1. It prints a line
+      per refusing target and requirement before it exits. <code>--allow-refuse</code>
+      keeps going, for a bundle that is not meant for every harness.</p>
 
     <h2 id="preflight">Read the preflight report</h2>
     <p><code>preflight</code> is the step the tool exists for. It probes the harness on your
-      machine and tells you the tier each requirement reaches there, before anything is
-      written:</p>
+      machine and tells you the tier each requirement reaches there, before you install
+      anything:</p>
 
 <pre><b>$ whippletree preflight my-tool --target claude-code</b>
 whippletree preflight · target claude-code (probed 2.1.239)
@@ -226,7 +228,7 @@ Plan: 1 satisfy, 0 degrade, 0 refuse.</pre>
 
     <p>The four target names are <code>claude-code</code>, <code>codex</code>,
       <code>copilot</code> and <code>opencode</code>. Run it against each one you care about;
-      the answers differ, and the reason column says why. A bundle
+      the answers differ, and the last column says why. A bundle
       using all five kinds against opencode:</p>
 
 <pre><b>$ whippletree preflight acme-tool --target opencode</b>
@@ -244,9 +246,9 @@ whippletree preflight · target opencode (probed 1.18.10)
 Plan: 5 satisfy, 0 degrade, 0 refuse.</pre>
 
     <p>The gate reached T3 rather than T1, because opencode has no blocking stop event. It
-      satisfies only because <code>fallbackSkill</code> lowered the bar to T3 and the compiler
-      moved the step into the skill's instructions. Declare that gate hard at T1 instead and
-      the answer changes:</p>
+      satisfies only because the scaffold set <code>minTier</code> to T3 alongside
+      <code>fallbackSkill</code>, and the compiler moved the step into the skill's
+      instructions. Declare that gate hard at T1 instead and the answer changes:</p>
 
 <pre><b>$ whippletree preflight gate-tool --target opencode</b>
 whippletree preflight · target opencode (probed 1.18.10)
@@ -266,7 +268,8 @@ Plan: 0 satisfy, 0 degrade, 1 refuse.</pre>
   ! the verdicts below were not verified against this version</pre>
 
     <h2 id="install-it">Install it</h2>
-    <p><code>install</code> runs the same check, then places the bundle:</p>
+    <p><code>install</code> runs the same check, and what it does next depends on the
+      target:</p>
 
 <pre><b>$ whippletree install my-tool --target claude-code</b>
 whippletree preflight · target claude-code (probed 2.1.239)
@@ -294,12 +297,13 @@ install for claude-code is the harness's own plugin mechanism:
 
     <p>That writes <code>.opencode/plugin/whippletree-my-tool.ts</code> with the absolute path
       to your dispatcher baked in, and copies any skills to
-      <code>.opencode/skills/</code>. Both refuse to overwrite a file Whippletree did not
+      <code>.opencode/skills/</code>. Neither step overwrites anything Whippletree did not
       generate, so a hand-written plugin of the same name is safe.</p>
 
     <p>A successful <code>preflight</code> or <code>install</code> also drops
       <code>.whippletree/install-state.json</code> in the bundle, recording the harness, its
-      version, and the tier every requirement reached. It is gitignored.</p>
+      version, and the tier each requirement reached, leaving out the ones the target cannot
+      provide at all. It is gitignored.</p>
 
     <h2 id="next">Next</h2>
     <ul>
