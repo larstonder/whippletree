@@ -41,6 +41,8 @@ h1{font-weight:800;font-size:clamp(40px,6.4vw,62px);line-height:1.02;letter-spac
   font-family:"IBM Plex Mono",monospace;font-size:14px;overflow-x:auto;max-width:34rem;
 }
 .cmd i{color:var(--dim);font-style:normal;user-select:none;flex:none}
+/* the CLI and the dispatcher install as a pair, so the hero shows both */
+.cmd + .cmd{margin-top:0;border-top:0}
 .go{margin:20px 0 0;font-size:15px}
 .go a{text-decoration:none;border-bottom:1px solid var(--rule);padding-bottom:2px;transition:border-color .2s}
 .go a:hover{border-bottom-color:var(--fg)}
