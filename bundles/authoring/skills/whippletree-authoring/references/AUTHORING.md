@@ -1,10 +1,10 @@
 # Authoring a Whippletree bundle
 
-This is the complete reference for writing a bundle: what's yours to write versus
-what `whippletree build` generates, every field the contract accepts, the wire
-format your handlers see, and how each target's own quirks show up in practice.
-For the CLI's commands (`build`/`preflight`/`install`/`init`) and their flags, see
-the [README](../README.md).
+The complete reference for writing a bundle: what's yours to write versus what
+`whippletree build` generates, every field the contract accepts, the wire format
+your handlers see, and how each target's quirks show up. For the CLI's
+commands (`build`/`preflight`/`install`/`init`) and their flags, see the
+[README](../README.md).
 
 ## Bundle anatomy
 
@@ -120,10 +120,10 @@ target achieving for that requirement.
 
 ### `hardRequired`
 
-No default. `contract.Validate` fails the build if it's omitted from any
-requirement, so it's always explicit, never implied. `true` means: refuse
-install rather than silently run at a tier below `minTier`. `false` means:
-degrade quietly and still install.
+No default. `contract.Validate` fails the build if any requirement omits it, so
+every requirement states its choice outright. `true` means: refuse install
+rather than silently run at a tier below `minTier`. `false` means: degrade
+quietly and still install.
 
 Worked example, the case that comes up most often: a hard
 `observation-signal` on `file-read` at `minTier: T1`.
@@ -154,10 +154,10 @@ silent DEGRADE-to-T2 on codex instead, install succeeding everywhere.
 
 ### `loopGuardRequired`
 
-`blocking-gate`-only. Demands the target supply a native double-fire guard
-(Claude Code and Codex both expose `stop_hook_active` on their Stop event);
-without it a `turn-end` gate can't reach T1, since nothing stops the harness
-from calling the hook again after it already blocked once.
+Only `blocking-gate` reads it. Demands the target supply a native double-fire
+guard (Claude Code and Codex both expose `stop_hook_active` on their Stop
+event); without it a `turn-end` gate can't reach T1, since nothing stops the
+harness from calling the hook again after it already blocked once.
 
 ### `handler` / `path`
 
@@ -241,18 +241,16 @@ ADAPTER_EVENT=turn-end ADAPTER_PRIMITIVE=turn-end ADAPTER_TARGET=codex ADAPTER_S
 needing a harness-specific field the normalizer doesn't surface can still
 reach it.
 
-Note on the dispatcher's own plumbing: a handler's **stderr** is forwarded
-to the harness and carries the block reason for the exit-code-2 dialect. A
-handler's **stdout** is forwarded verbatim to the dispatcher's own stdout,
-in handler order, regardless of exit code; what it means is up to the
-harness. On claude-code, a SessionStart handler's stdout becomes
-additional context the agent reads, which is how a tool can prompt the
-agent at session start. On codex the bytes are forwarded to its hook
-runner, with no specific effect probed or promised. On opencode the
-generated shim captures the dispatcher's stdout in its spawnSync result
-and never uses it, so stdout is discarded on this target. Keep
-diagnostics on stderr or in files you control; stdout is the payload
-channel.
+The dispatcher forwards a handler's **stderr** to the harness, and that stream
+carries the block reason for the exit-code-2 dialect. It forwards a handler's
+**stdout** verbatim to its own stdout, in handler order, regardless of exit
+code; what those bytes mean is up to the harness. On claude-code, a
+SessionStart handler's stdout becomes additional context the agent reads, which
+is how a tool can prompt the agent at session start. On codex the dispatcher
+hands the bytes to its hook runner, with no specific effect probed or promised.
+On opencode the generated shim captures the dispatcher's stdout in its
+spawnSync result and never uses it. Since stdout is the payload channel, keep
+diagnostics on stderr or in files you control.
 
 ## Handler best practices
 
@@ -262,7 +260,7 @@ channel.
   fail-open: a crashing or misconfigured handler never silently blocks a turn
   it wasn't meant to. If a contract declares more than one handler for the
   same event, the dispatcher runs them in order and stops as soon as one
-  exits 2: first block wins, and the rest never run.
+  exits 2: first block wins.
 - **Low-millisecond budget, no network, on tool events.** `tool-pre`/`tool-post`
   handlers run in the hot path of every matching tool call; a slow or
   network-bound handler there costs you on every read/write/shell call the
@@ -287,8 +285,8 @@ channel.
   0
   ```
 
-  No bundle build, no installed harness, no `whippletree-hook` required: this
-  is the fastest loop while writing a handler's logic.
+  No bundle build, no installed harness and no `whippletree-hook`: the fastest
+  loop while writing a handler's logic.
 
 ## Skills and instruction fallback
 
@@ -337,10 +335,10 @@ drift):
 
 `fallbackSkill` is only legal in two (kind, event) combinations, enforced by
 `contract.Validate`: `blocking-gate` at `turn-end`, or `lifecycle-signal` at
-`session-start`. Both are events a skill's one-sentence trigger clause can
-describe unambiguously; the other seven primitives have no such natural,
-single-sentence framing a model reliably acts on from a standing skill
-listing alone, so the validator refuses it there.
+`session-start`. Both are events a skill's one-sentence trigger clause can pin
+down; the other seven primitives have no such single-sentence framing a model
+reliably acts on from a standing skill listing alone, so the validator refuses
+it there.
 
 ### Absent-only: the fallback never overrides a working native gate
 
@@ -360,9 +358,9 @@ clause, appended once per fallback-eligible requirement it covers:
 | `turn-end` | Use this skill before writing any message that declares the task complete. |
 | `session-start` | Use this skill at the start of a session, before other work. |
 
-This is the only thing that changes about the skill's standing, always-loaded
-listing; the model sees a longer one-line description, not a whole new
-mechanism, until the trigger condition is reached.
+Nothing else about the skill's standing, always-loaded listing changes: until
+the trigger condition is reached, the model sees only a longer one-line
+description.
 
 ### The two-run protocol
 
@@ -471,9 +469,9 @@ to it, which is why `build` sets it only when there is a variant, and why the
 variant contains every skill in the contract rather than just the expanded one.
 Both behaviours are measured in `docs/copilot-probe-findings.md`.
 
-In practice this only triggers where a gate cannot be enforced natively, so
-claude-code and codex bundles never carry the key: both map `turn-end` and
-`session-start` and block on them, so nothing falls back there.
+Today only a gate that cannot be enforced natively triggers this, so claude-code
+and codex bundles never carry the key: both map `turn-end` and `session-start`
+and block on them, so nothing falls back there.
 
 ## Per-target notes
 
@@ -522,9 +520,9 @@ shebang support, so a requirement may declare a second handler for it:
 }
 ```
 
-Both are validated at build time and both must exist. Which one runs is decided
-at dispatch, not at build, because a bundle is compiled once and may be
-installed on a different platform than it was built on.
+`build` checks that both exist. The dispatcher chooses between them at dispatch
+time, because a bundle is compiled once and may be installed on a different
+platform than it was built on.
 
 ### What Windows can actually launch
 
@@ -533,11 +531,12 @@ The dispatcher runs a handler by path, with no interpreter. That limits
 and `.cmd`**. Anything else is rejected at build time.
 
 `.ps1` is the one that catches people out. PowerShell scripts are not in the
-default `PATHEXT` and do not launch from a bare path. That is measured, not
-assumed; see `docs/windows-probe-findings.md`. Nor does `.sh`. Both fail in the
-loader with `%1 is not a valid Win32 application`, and since a spawn failure
-fails open, a hard-required gate would quietly stop enforcing. Hence the
-build-time refusal: it is the last point where the author still sees the problem.
+default `PATHEXT` and do not launch from a bare path, and neither does `.sh`.
+Both extensions are measured, not assumed; see `docs/windows-probe-findings.md`.
+Each fails in the loader with `%1 is not a valid Win32 application`, and since a
+spawn failure fails open, a hard-required gate would quietly stop enforcing.
+Hence the build-time refusal: it is the last point where the author still sees
+the problem.
 
 To use PowerShell, wrap it:
 
@@ -555,14 +554,14 @@ not arise here.
 A requirement with no `handlerWindows` is **not carried on Windows**: the
 dispatcher says so and moves on, rather than trying to exec a shell script and
 failing with a loader error that looks like a broken install. Omitting it is
-therefore a decision, not an oversight, and contracts that never mention it
-behave exactly as they did before.
+therefore a decision, not an oversight, and contracts that never mention the
+field behave exactly as they did before.
 
-Note that `preflight` does not model this. It reports the tier a requirement
-reaches on a target, and a target is a harness, not a platform. A requirement
-with no `handlerWindows` therefore still reports SATISFY, and is then skipped
-at dispatch on Windows. Read a preflight verdict as "what this harness can
-carry", not "what will run on this machine".
+`preflight` does not model this. It reports the tier a requirement reaches on a
+target, and a target is a harness, not a platform. A requirement with no
+`handlerWindows` therefore still reports SATISFY, and is then skipped at
+dispatch on Windows. Read a preflight verdict as "what this harness can carry",
+not "what will run on this machine".
 
 One gap remains: when a requirement falls back to T3, the instructions compiled
 into `SKILL.md` are a POSIX shell snippet naming `handler`, never

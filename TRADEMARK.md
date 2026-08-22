@@ -24,7 +24,7 @@ itself, in section 6:
 - Keep the name in an unmodified redistribution of Whippletree itself.
 - Publish bundles, target definitions or tooling that use the
   `dev.whippletree.v1` contract namespace. That namespace is part of the
-  interface, and interoperating with it is the entire point.
+  interface, and interoperating with it is the point.
 
 ## What needs permission
 
@@ -45,8 +45,7 @@ whippletree.
 
 This matters more here than in most projects, because Whippletree's whole
 proposition is that its verdicts are trustworthy. A `SATISFY` from a modified
-build that quietly relaxed the tier rules would poison the one thing the tool
-sells.
+build that quietly relaxed the tier rules would poison that trust.
 
 ## "whippletree-compatible" (planned)
 

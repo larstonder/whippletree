@@ -83,16 +83,16 @@ its commit message rather than in a source file where it will rot.
 harness home (`mktemp -d`, `CODEX_HOME` / `CLAUDE_CONFIG_DIR` / an XDG-isolated set of
 dirs respectively) and drive one real, unauthenticated turn against the installed
 `codex`, `claude`, and `opencode` CLIs, then assert on a marker file the example's
-handlers write to. They are standalone bash, not wired into `go test`; they're the
-environment-dependent, real-harness conformance layer.
+handlers write to. They are standalone bash, outside `go test`, because they need the
+real CLI on the machine.
 
 CI runs the first three nightly rather than per-push (`.github/workflows/e2e.yml`),
-installing each harness from npm first. `run-copilot.sh` is excluded: Copilot's hooks
-only fire once an agent takes a turn, so unlike the others it needs a real login, and it
-installs from Homebrew rather than npm. A failure there opens or comments on a drift
-issue instead of failing the build: a harness that has moved on is a finding about
-`metadata.testedVersions`, not a broken commit. Unit tests, vet, `gofmt` and an
-artifacts-reproduce check run per-push on Linux, macOS and Windows.
+installing each harness from npm first. `run-copilot.sh` is excluded: the events it
+asserts on only fire once an agent takes a turn, so unlike the others it needs a real
+login, and copilot installs from Homebrew rather than npm. A failure there opens or
+comments on a drift issue instead of failing the build, because a harness that has moved
+on is a finding about `metadata.testedVersions` rather than a broken commit. Unit tests,
+vet, `gofmt` and an artifacts-reproduce check run per-push on Linux, macOS and Windows.
 
 ```bash
 test/e2e/run-codex.sh
@@ -101,20 +101,20 @@ test/e2e/run-opencode.sh
 test/e2e/run-copilot.sh   # needs a real login, see above
 ```
 
-The first three run unauthenticated (they copy no credentials into the isolated home):
-each one verifies that the session-start signal fires before the harness makes any
-auth/model call, so it tolerates the resulting 401/"not logged in" failure (or, for
-opencode, an anonymous hosted-model call that succeeds on its own) and asserts only on
-the marker file. `run-codex.sh` proves `SessionStart` fires end to end through the
-compiled hooks file and the dispatcher; `run-claude.sh` proves the same, plus that it
-fires exactly once, confirming `hooks/hooks.json` is never emitted alongside the
-per-target hooks file (Claude Code merges that file additively, so its presence would
-double-fire every hook). `run-opencode.sh` proves the REFUSE-by-design behavior from
-"opencode" above, then softens the bundle and proves the compiled shim installs and
-fires session-start exactly once through a real `opencode run`.
+The first three run unauthenticated, copying no credentials into the isolated home. Each
+one verifies that the session-start signal fires before the harness makes any auth/model
+call, so it tolerates the resulting 401/"not logged in" failure (or, for opencode, an
+anonymous hosted-model call that succeeds on its own) and asserts only on the marker
+file. `run-codex.sh` proves `SessionStart` fires end to end through the compiled hooks
+file and the dispatcher. `run-claude.sh` proves the same, plus that it fires exactly
+once, which confirms `hooks/hooks.json` is never emitted alongside the per-target hooks
+file (Claude Code merges that file additively, so its presence would double-fire every
+hook). `run-opencode.sh` proves the REFUSE-by-design behavior from "opencode" above, then
+softens the bundle and proves the compiled shim installs and fires session-start exactly
+once through a real `opencode run`.
 
 Actual PASS output from the last verified run, against `codex-cli 0.144.5`,
-`claude 2.1.220`, and `opencode 1.18.10`:
+`claude 2.1.220` and `opencode 1.18.10`:
 
 ```
 PASS: session-start fired on codex
@@ -130,15 +130,15 @@ PASS: install placed the plugin shim at .opencode/plugin/
 PASS: session-start fired exactly once on opencode
 ```
 
-Every e2e script also prints a `harness=<name> version=<probed> date=<iso>` line before
-it does anything else, so you can grep test output for the exact upstream version and
-date a given PASS was measured against rather than trusting memory. That line also backs
-the maintenance log's entries; see `MAINTENANCE.md`.
+Every e2e script prints a `harness=<name> version=<probed> date=<iso>` line before it
+does anything else, so the test output records which upstream version a given PASS was
+measured against, and when. That line also backs the maintenance log's entries; see
+`MAINTENANCE.md`.
 
 ## Adding or changing a target
 
 Target definitions are claims about how a real harness behaves, so you establish
-them by probing that harness, not by reading its documentation. See
+them by probing that harness rather than reading its documentation. See
 `docs/opencode-probe-findings.md` and `docs/skill-discovery-probe.md` for the
 method: a `mktemp -d` sandbox, an isolated harness home, and an honest record of
 anything the probe could not verify.
@@ -150,9 +150,8 @@ version range. Do not widen it for a version nobody ran.
 
 `dev.whippletree.v1` is versioned by `contractVersion`, and
 `contract.SupportedContractVersion` is what a build will accept. Additive
-changes are minor bumps; anything that changes the meaning of an existing field
-is a major bump and needs discussion first. Open an issue before writing the
-code.
+changes are minor bumps. Changing the meaning of an existing field is a major
+bump: open an issue before you write the code.
 
 ## Licence
 
