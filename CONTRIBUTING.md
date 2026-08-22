@@ -78,7 +78,8 @@ file where it will rot.
 
 ## End-to-end tests
 
-`test/e2e/run-codex.sh`, `test/e2e/run-claude.sh`, and `test/e2e/run-opencode.sh` install
+`test/e2e/run-codex.sh`, `test/e2e/run-claude.sh`, `test/e2e/run-opencode.sh` and
+`test/e2e/run-copilot.sh` install
 the `examples/kb-shaped` bundle into a fresh, isolated harness home (`mktemp -d`,
 `CODEX_HOME` / `CLAUDE_CONFIG_DIR` / an XDG-isolated set of dirs respectively) and drive
 one real, unauthenticated turn against the installed `codex`, `claude`, and `opencode`
@@ -86,8 +87,10 @@ CLIs, then assert on a marker file the example's handlers write to. They are sta
 bash, not wired into `go test`; they're the environment-dependent, real-harness
 conformance layer.
 
-CI runs them nightly rather than per-push (`.github/workflows/e2e.yml`), installing each
-harness from npm first. A failure there opens or comments on a drift issue instead of
+CI runs the first three nightly rather than per-push (`.github/workflows/e2e.yml`),
+installing each harness from npm first. `run-copilot.sh` is excluded: Copilot's hooks
+only fire once an agent takes a turn, so unlike the others it needs a real login, and it
+installs from Homebrew rather than npm. A failure there opens or comments on a drift issue instead of
 failing the build: a harness that has moved on is a finding about
 `metadata.testedVersions`, not a broken commit. Unit tests, vet, `gofmt` and an
 artifacts-reproduce check run per-push on Linux, macOS and Windows.
@@ -96,9 +99,10 @@ artifacts-reproduce check run per-push on Linux, macOS and Windows.
 test/e2e/run-codex.sh
 test/e2e/run-claude.sh
 test/e2e/run-opencode.sh
+test/e2e/run-copilot.sh   # needs a real login, see above
 ```
 
-All three scripts run fully unauthenticated (no credentials are copied into the isolated
+The first three run fully unauthenticated (no credentials are copied into the isolated
 home): the session-start signal is verified to fire before the harness makes any
 auth/model call, so the scripts tolerate the resulting 401/"not logged in" failure (or,
 for opencode, an anonymous hosted-model call that succeeds on its own) and assert only on

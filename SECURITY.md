@@ -38,7 +38,7 @@ Out of scope:
 - A handler you authored doing something harmful. Handlers are arbitrary
   executables and run with your privileges by design; that is the feature.
 - Vulnerabilities in the harnesses themselves (Claude Code, Codex CLI,
-  opencode). Report those upstream.
+  Copilot CLI, opencode). Report those upstream.
 - Running a bundle from a source you do not trust. Installing a bundle is
   equivalent to running its code.
 

@@ -26,7 +26,7 @@ every requirement actually reaches before it writes anything:
 A hard requirement the harness cannot meet refuses to install rather than
 degrading quietly.
 
-Targets today: Claude Code, Codex CLI, and opencode.
+Targets today: Claude Code, Codex CLI, GitHub Copilot CLI, and opencode.
 
 The name is the mechanism: a whippletree is the pivoting crossbar that lets a
 single pull drive differently matched horses.
@@ -58,6 +58,7 @@ whippletree: scaffolded my-tool in ./my-tool
 $ whippletree build my-tool
 target claude-code: 1 satisfy, 0 degrade, 0 refuse, 0 absent
 target codex: 1 satisfy, 0 degrade, 0 refuse, 0 absent
+target copilot: 1 satisfy, 0 degrade, 0 refuse, 0 absent
 target opencode: 1 satisfy, 0 degrade, 0 refuse, 0 absent
 
 $ whippletree preflight my-tool --target claude-code
@@ -157,11 +158,16 @@ new version must not break every install that day.
 |---|---|---|---|
 | `claude-code` | `hooks-json` | the harness's own plugin marketplace | `>=2.1.0` |
 | `codex` | `hooks-json` | the harness's own plugin marketplace | `>=0.144.0` |
+| `copilot` | `hooks-json` | the harness's own plugin marketplace | `>=1.0.80` |
 | `opencode` | `ts-plugin` | Whippletree places the shim in `.opencode/plugin/` | `>=1.18.10` |
 
-Definitions are embedded in the binary, so the CLI works from any directory. opencode is
-the interesting one: it has no blocking stop event, so a hard `turn-end` gate REFUSEs
-there rather than pretending. See [opencode notes][opencode].
+Definitions are embedded in the binary, so the CLI works from any directory. A hard
+`turn-end` gate REFUSEs on two of them rather than pretending, for different reasons.
+opencode has no blocking stop event at all. Copilot has one and honours it, but only
+through a JSON decision on stdout, and the dispatcher signals a block by exiting 2 and
+nothing else — so that REFUSE reflects a limit in Whippletree, not in Copilot, and is
+tracked as [issue 19](https://github.com/larstonder/whippletree/issues/19). See
+[opencode notes][opencode] and [Copilot probe findings][copilot].
 
 ## Docs
 
@@ -169,6 +175,7 @@ there rather than pretending. See [opencode notes][opencode].
 |---|---|
 | [Authoring a bundle][authoring] | contract fields, handler wire format, per-target notes |
 | [opencode notes][opencode] | why it needs its own backend, and what it cannot do |
+| [Copilot probe findings][copilot] | what was measured on Copilot CLI, and why `Stop` is not a gate |
 | [Maintenance][maintenance] | the upkeep bet, and the versions each target was probed at |
 | [Probe findings][probes] | what each harness actually does, established empirically |
 | [Contributing][contributing] · [Security][security] · [Trademark][trademark] | |
@@ -178,15 +185,16 @@ there rather than pretending. See [opencode notes][opencode].
 [maintenance]: MAINTENANCE.md
 [probes]: docs/
 [opencode]: docs/opencode.md
+[copilot]: docs/copilot-probe-findings.md
 [contributing]: CONTRIBUTING.md
 [security]: SECURITY.md
 [trademark]: TRADEMARK.md
 
 ## Scope
 
-This is the class-1 spine, Claude Code and Codex CLI, at whatever tier (T1/T2) each
-requirement can verifiably reach on those two harnesses today, plus opencode as a third
-target on its own ts-plugin backend (see "opencode" above). Out of scope:
+This is the class-1 spine, Claude Code, Codex CLI and Copilot CLI, at whatever tier (T1/T2) each
+requirement can verifiably reach on those harnesses today, plus opencode on its own
+ts-plugin backend (see "opencode" above). Out of scope:
 
 - Cursor and Zed targets
 - the T4 (observer) tier

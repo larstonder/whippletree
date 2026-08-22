@@ -453,6 +453,7 @@ func scaffoldRequirement(kind, name string, hard bool) (contract.Requirement, er
 const gitignoreBody = `/hooks/
 /.claude-plugin/plugin.json
 /.codex-plugin/
+/.plugin/
 /.whippletree/
 /bin/whippletree-hook
 `

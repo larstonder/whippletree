@@ -1,0 +1,47 @@
+apiVersion: whippletree.dev/v1
+kind: TargetDefinition
+metadata:
+  name: copilot
+  class: 1
+  schemaVersion: "1.0.0"
+  testedVersions: ">=1.0.80"
+spec:
+  discovery:
+    # .plugin wins over the root plugin.json, which matters because every
+    # bundle ships a root manifest with no hooks key. Hooks are not
+    # auto-discovered: the manifest has to name the file, or the plugin
+    # loads and registers nothing. Verified, see docs/copilot-probe-findings.md.
+    manifestDir: ".plugin"
+    hooksKey: "hooks"
+    mergeSemantics: replace
+  probe:
+    command: ["copilot", "--version"]
+    versionPattern: 'GitHub Copilot CLI (\d+\.\d+\.\d+)'
+  events:
+    session-start: { native: SessionStart, blocking: false }
+    session-end:   { native: SessionEnd, blocking: false }
+    tool-pre:      { native: PreToolUse, blocking: true }
+    tool-post:     { native: PostToolUse, blocking: false }
+    # Stop ignores exit codes: a handler exiting 2 fires once and the session
+    # ends anyway, while the same handler exiting 2 on PreToolUse denies the
+    # call. So this is false about whippletree rather than about Copilot, which
+    # does block on a {"decision":"block"} written to stdout. The dispatcher
+    # signals a block by exiting 2 and nothing else, so a gate cannot be driven
+    # here yet; a per-target block dialect would make this T1. Issue #19.
+    turn-end:      { native: Stop, blocking: false }
+  toolClassMap:
+    read: Read
+    write: Write
+    shell: Bash
+  strictness:
+    unknownFieldsFatal: false
+  env:
+    pluginRoot: ["PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"]
+  capabilities:
+    bundleChannel: true
+    stopLoopGuard: false
+    matcherAlternation: true
+  # skillChannel is additive to schemaVersion 1.0.0: absent means the
+  # target has no skill channel and skill requirements land Absent.
+  skillChannel:
+    kind: plugin-dir
