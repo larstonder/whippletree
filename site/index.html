@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Whippletree</title>
-<meta name="description" content="Declare an agent tool's lifecycle once. Whippletree compiles it onto every AI coding harness at the best fidelity each can verify.">
+<meta name="description" content="Declare an agent tool's lifecycle once. Whippletree compiles it into the native format of four coding harnesses, and reports the tier every requirement reaches.">
 
 <!-- Go vanity import path: `go install whippletree.dev/cmd/whippletree@latest` -->
 <meta name="go-import" content="whippletree.dev git https://github.com/larstonder/whippletree">
@@ -40,8 +40,8 @@
   <div class="wrap">
     <div>
       <h1>One pull,<br>every harness.</h1>
-      <p class="lede">Declare your tool's lifecycle once. Whippletree compiles it onto every
-        harness at the best fidelity each can verify.</p>
+      <p class="lede">Declare your tool's lifecycle once. Whippletree compiles it into the native
+        format of all four harnesses, and tells you what each will enforce.</p>
 
       <div class="cmd"><i>$</i> go install whippletree.dev/cmd/whippletree@latest</div>
       <div class="cmd"><i>$</i> go install whippletree.dev/cmd/whippletree-hook@latest</div>
@@ -66,7 +66,7 @@
   <div class="wrap">
     <h2>It tells you what it cannot do</h2>
     <p class="sub">Whippletree probes the harness you have installed and reports the tier every
-      requirement reaches, before it writes anything to disk.</p>
+      requirement reaches, before it places anything on that harness.</p>
 <pre><b>$ whippletree preflight ./my-tool --target codex</b>
 whippletree preflight · target codex (probed 0.146.0)
 
@@ -84,20 +84,20 @@ Plan: 4 satisfy, 0 degrade, 0 refuse.</pre>
   <div class="wrap">
     <h2>Four tiers, named honestly</h2>
     <p class="sub">A requirement lands where the harness can carry it. When the harness cannot
-      meet a hard requirement, Whippletree refuses to install rather than degrading the
-      guarantee without saying so.</p>
+      meet a hard requirement at its declared tier, Whippletree refuses to install rather than
+      degrading the guarantee without saying so.</p>
     <div class="tiers">
       <div class="tier">
         <h3>T1</h3>
-        <p><b>Native</b>The harness has a real hook for it, enforced by the harness itself.</p>
+        <p><b>Native</b>Preflight names a mechanism that meets the requirement outright, with nothing standing in for it.</p>
       </div>
       <div class="tier">
         <h3>T2</h3>
-        <p><b>Degraded</b>A coarser mechanism stands in for the requirement, with the lossage stated in full.</p>
+        <p><b>Degraded</b>A coarser mechanism stands in for the requirement, and preflight prints what the stand-in misses.</p>
       </div>
       <div class="tier">
         <h3>T3</h3>
-        <p><b>Compiled to instructions</b>Best effort. The model is instructed to run the step and usually will, but can skip it under pressure.</p>
+        <p><b>Compiled to instructions</b>Best-effort, no harness-level enforcement: the model is instructed to run the step and usually will, but can skip it under pressure.</p>
       </div>
       <div class="tier spent">
         <h3>T4</h3>

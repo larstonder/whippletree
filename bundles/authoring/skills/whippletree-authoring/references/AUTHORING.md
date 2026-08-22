@@ -25,10 +25,10 @@ acme-tool/
     └── acme-tool                     ← your tool's own executable, optional (authored)
 ```
 
-Run `whippletree build .` on top of that and four more things appear (all four kinds
-scaffold soft by default, so this build succeeds everywhere; a hard-required
-`blocking-gate` can make `build`/`preflight`/`install` refuse on a per-target basis, see
-"Per-target notes" below):
+Run `whippletree build .` on top of that and four more top-level entries appear
+(all four kinds scaffold soft by default, so this build succeeds everywhere; a
+hard-required `blocking-gate` can make `build`/`preflight`/`install` refuse on a
+per-target basis, see "Per-target notes" below):
 
 ```
 acme-tool/
@@ -67,12 +67,13 @@ untracked-but-not-ignored, same as any other source file.
 `examples/kb-shaped/` in this repo breaks that rule on purpose: it commits
 `hooks/`, `.whippletree/`, `.claude-plugin/plugin.json`, `.codex-plugin/` and `.plugin/`
 instead of gitignoring them, because that bundle exists to be read as a worked
-example of what `build` produces, not just run. Only `bin/whippletree-hook`
-stays gitignored there too (via the repo's root `.gitignore`), since that one
-file is a compiled binary tied to this repo's own `cmd/whippletree-hook`, with
-no documentation value in freezing it. Don't copy this pattern into your own
-bundle unless you have the same reason: for a real tool, gitignore everything
-`build` generates.
+example of what `build` produces, not just run. Two paths stay gitignored there
+even so (via the repo's root `.gitignore`): `bin/whippletree-hook`, a compiled
+binary tied to this repo's own `cmd/whippletree-hook` with no documentation
+value in freezing it, and `.whippletree/install-state.json`, which records one
+machine's probe of one harness. Don't copy this pattern into your own bundle
+unless you have the same reason: for a real tool, gitignore everything `build`
+generates.
 
 ## Contract field reference
 
@@ -90,7 +91,7 @@ One of five, closed set:
 
 | kind | fires on | needs |
 |---|---|---|
-| `blocking-gate` | a point where the harness can be told to refuse (only `turn-end` today) | `handler`, `event` |
+| `blocking-gate` | a point where the harness can be told to refuse (`turn-end` or `tool-pre`) | `handler`, `event` |
 | `lifecycle-signal` | a session/subagent/compact boundary | `handler`, `event` |
 | `observation-signal` | a tool-class alias, e.g. a file read | `handler`, `event` |
 | `executable-path` | nothing: it's a static check that a binary is reachable | `path`, no `event` |
@@ -114,9 +115,10 @@ alias for you (see `ADAPTER_PRIMITIVE` below). Omit `event` entirely for
 
 ### `minTier`
 
-The worst tier you'll accept: `T1` (native guarantee) down to `T4` (after-the-fact
-observation, no default). Compare against what `preflight`/`build` reports a
-target achieving for that requirement.
+The worst tier you'll accept: `T1` (native guarantee) down to `T4` (observer;
+reserved, never assigned today, so a `T4` floor accepts any tier the target
+actually reaches). Compare against what `preflight`/`build` reports a target
+achieving for that requirement.
 
 ### `hardRequired`
 
@@ -133,12 +135,12 @@ Worked example, the case that comes up most often: a hard
  "hardRequired":true,"handler":"./handlers/file-read-hard.sh"}
 ```
 
-Claude Code and opencode both have a native file-read tool (`Read` and `read`
-respectively), so this requirement lands at T1 there. Codex has no such tool
-(`targets/codex/target.yaml`'s `toolClassMap.read` is `null`); a `file-read` on
-codex only ever degrades to T2 via a command-matcher heuristic
-(`Bash|Edit|Write|apply_patch`). Because `hardRequired` is `true` and T2 is
-below the declared `T1` floor, `preflight` refuses on codex specifically:
+Claude Code, Copilot and opencode all have a native file-read tool (`Read`,
+`Read` and `read` respectively), so this requirement lands at T1 there. Codex
+has no such tool (`targets/codex/target.yaml`'s `toolClassMap.read` is `null`);
+a `file-read` on codex only ever degrades to T2 via a command-matcher
+heuristic (`Bash|Edit|Write|apply_patch`). Because `hardRequired` is `true` and
+T2 is below the declared `T1` floor, `preflight` refuses on codex specifically:
 
 ```
 $ whippletree preflight . --target codex --assume-version 0.146.0
@@ -156,8 +158,9 @@ silent DEGRADE-to-T2 on codex instead, install succeeding everywhere.
 
 Only `blocking-gate` reads it. Demands the target supply a native double-fire
 guard (Claude Code and Codex both expose `stop_hook_active` on their Stop
-event); without it a `turn-end` gate can't reach T1, since nothing stops the
-harness from calling the hook again after it already blocked once.
+event); without it a `turn-end` gate lands Absent on that target rather than
+merely below T1, since nothing stops the harness from calling the hook again
+after it already blocked once.
 
 ### `handler` / `path`
 
@@ -166,9 +169,9 @@ harness from calling the hook again after it already blocked once.
 `executable-path` and `skill`, neither of which has a handler to run: one
 checks for a file, the other places a directory.
 
-A requirement may also carry `handlerWindows`, which the dispatcher prefers on
-Windows. See [Windows handlers](#windows-handlers) for the extensions that are
-legal there and why the set is small.
+A requirement may also carry `handlerWindows`, the only handler the dispatcher
+runs on Windows. See [Windows handlers](#windows-handlers) for the extensions
+that are legal there and why the set is small.
 
 ### `fallbackSkill`
 
@@ -255,12 +258,12 @@ diagnostics on stderr or in files you control.
 ## Handler best practices
 
 - **Fail-open vs. fail-closed is the exit code, nothing else.** Exit 0 means
-  proceed; exit 2 means block, with the reason on stderr, the one dialect both
-  Claude Code and Codex share. Any other exit is logged and treated as
-  fail-open: a crashing or misconfigured handler never silently blocks a turn
-  it wasn't meant to. If a contract declares more than one handler for the
-  same event, the dispatcher runs them in order and stops as soon as one
-  exits 2: first block wins.
+  proceed; exit 2 means block, with the reason on stderr, the dialect every
+  target honours except Copilot's `Stop` (see "Per-target notes"). Any other
+  exit is logged and treated as fail-open: a crashing or misconfigured handler
+  never silently blocks a turn it wasn't meant to. If a contract declares more
+  than one handler for the same event, the dispatcher runs them in order and
+  stops as soon as one exits 2: first block wins.
 - **Low-millisecond budget, no network, on tool events.** `tool-pre`/`tool-post`
   handlers run in the hot path of every matching tool call; a slow or
   network-bound handler there costs you on every read/write/shell call the
@@ -381,7 +384,7 @@ Replace this body with the knowledge or workflow the skill teaches.
 <!-- compiled-tier: T3
      source-requirement: blocking-gate (blocking-gate, turn-end)
      fidelity: best-effort, no harness-level enforcement on this target: the model is instructed to run the step and usually will, but can skip it under pressure
-     compiled-by: whippletree v0.0.0-20260803130917-1305256b94e4+dirty, do not hand-edit (edit the bundle contract instead) -->
+     compiled-by: whippletree v0.0.0-20260803130917-1305256b94e4+dirty (https://whippletree.dev), do not hand-edit (edit the bundle contract instead) -->
 ## Manual step on this harness (turn-end)
 
 This harness has no enforced turn-end hook. Before writing any message that
@@ -398,8 +401,8 @@ step still failed and you should tell the user rather than silently finish.
 
 `__WHIPPLETREE_BUNDLE_ROOT__` is a placeholder in the built variant; `whippletree
 install` resolves it (replace-all) to the bundle's absolute path when it
-places the skill, exactly the way `placeTSPlugin` resolves its own HOOK
-placeholder for the ts-plugin backend. The two-run shape mirrors what a real
+places the skill; `placeTSPlugin` resolves its own HOOK placeholder at install
+for the same reason on the ts-plugin backend. The two-run shape mirrors what a real
 `turn-end` hook does automatically: run once with `ADAPTER_STOP_ACTIVE=false`,
 and if that blocks (exit 2), run again with `ADAPTER_STOP_ACTIVE=true` so the
 handler's own loop guard can let it through the second time, the same
@@ -528,7 +531,8 @@ platform than it was built on.
 
 The dispatcher runs a handler by path, with no interpreter. That limits
 `handlerWindows` to what the loader starts on its own: **`.exe`, `.com`, `.bat`
-and `.cmd`**. Anything else is rejected at build time.
+and `.cmd`**. `contract.Validate` rejects anything else, so `build`, `preflight`
+and `install` all refuse it.
 
 `.ps1` is the one that catches people out. PowerShell scripts are not in the
 default `PATHEXT` and do not launch from a bare path, and neither does `.sh`.
@@ -555,7 +559,7 @@ A requirement with no `handlerWindows` is **not carried on Windows**: the
 dispatcher says so and moves on, rather than trying to exec a shell script and
 failing with a loader error that looks like a broken install. Omitting it is
 therefore a decision, not an oversight, and contracts that never mention the
-field behave exactly as they did before.
+field behave exactly as they did before `contractVersion` 1.1.0.
 
 `preflight` does not model this. It reports the tier a requirement reaches on a
 target, and a target is a harness, not a platform. A requirement with no

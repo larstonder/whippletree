@@ -51,7 +51,9 @@
 
     <h2>What each event maps to</h2>
     <p>Where a harness has no equivalent, a requirement bound to that event lands ABSENT
-      there, and REFUSES if you marked it hard-required.</p>
+      there, or REFUSES outright if you marked it hard-required. A <code>blocking-gate</code>
+      or <code>lifecycle-signal</code> carrying a <code>fallbackSkill</code> is the one
+      exception, and lands T3.</p>
 
     <table>
       <thead><tr><th>event</th><th>claude-code</th><th>codex</th><th>copilot</th><th>opencode</th></tr></thead>
@@ -63,6 +65,11 @@
         <tr><td>tool-post</td><td>PostToolUse</td><td>PostToolUse</td><td>PostToolUse</td><td>tool.execute.after</td></tr>
       </tbody>
     </table>
+
+    <p>Four primitives are missing from that table. No target maps
+      <code>subagent-start</code>, <code>subagent-stop</code>, <code>compact-pre</code> or
+      <code>compact-post</code>, so a requirement bound to one of them lands ABSENT on every
+      target today, or REFUSES if you marked it hard-required.</p>
 
     <h2>What each tool class maps to</h2>
     <p>The <code>file-read</code>, <code>file-write</code> and
@@ -77,6 +84,12 @@
       </tbody>
     </table>
 
+    <p>The table hides a gap. <code>file-write</code> binds the write tool alone, so a
+      change to an existing file misses it on claude-code and copilot (which route that
+      through <code>Edit</code>) and on opencode (<code>edit</code>). On codex the alias
+      binds <code>apply_patch</code>, and codex has no probe note of its own, so whether an
+      edit to an existing file reaches it there is unverified.</p>
+
     <h2>claude-code</h2>
     <p>Every event in the table above maps to a native hook and every tool class names a real
       tool, so nothing degrades here. The plugin carries the skills.</p>
@@ -90,8 +103,9 @@
                                        may double-count</code></pre>
 
     <p>The target definition carries that lossage, so preflight prints it before you install
-      instead of after an install has already gone wrong. If T2 is not good enough, declare
-      <code>minTier: T1</code> and it will REFUSE here instead.</p>
+      instead of after an install has already gone wrong. If T2 is not good enough, raise
+      <code>minTier</code> to T1: a hard-required requirement then REFUSES on codex, a soft
+      one lands DEGRADE.</p>
 
     <h2>copilot</h2>
     <p>Copilot accepts the file Whippletree already emits, unchanged, so it needed no new
@@ -105,12 +119,12 @@
       <code>{"decision":"block"}</code> written to stdout on <code>Stop</code>: the
       hook re-fires and the agent acts on the reason.</p>
 
-    <div class="note">A hard-required <code>blocking-gate</code> on
-      <code>turn-end</code> <b>REFUSES</b> on copilot today, but not for opencode's
-      reason. opencode has no blocking stop event; Copilot has one Whippletree cannot yet
-      drive, because the dispatcher signals a block by exiting 2 and nothing else.
-      Reporting that as REFUSE rather than as a working gate is the honest answer, and
-      closing that gap would make this T1. Tracked as
+    <div class="note">A hard-required <code>blocking-gate</code> on <code>turn-end</code>
+      <b>REFUSES</b> on copilot today unless it declares a <code>fallbackSkill</code> and
+      accepts T3. The reason differs from opencode's. opencode has no blocking stop event;
+      Copilot has one Whippletree cannot yet drive, because the dispatcher signals a block
+      by exiting 2 and nothing else. Reporting that as REFUSE rather than as a working
+      gate is the honest answer, and closing that gap would make this T1. Tracked as
       <a href="https://github.com/larstonder/whippletree/issues/19">issue 19</a>.</div>
 
     <p>One trap: hooks are not auto-discovered, and Copilot reads
@@ -123,49 +137,57 @@
       and the agent loop carries on, so there is nothing to bind <code>turn-end</code> to.</p>
 
     <div class="note">A hard-required <code>blocking-gate</code> on <code>turn-end</code>
-      <b>REFUSES</b> on opencode. That is the correct answer, not a limitation to work around:
-      a gate that degrades to advice without saying so is worse than one that will not
-      install, because you would believe it was running.</div>
+      <b>REFUSES</b> on opencode unless it declares a <code>fallbackSkill</code> and accepts
+      T3. That is the correct answer, not a limitation to work around: a gate that degrades
+      to advice without saying so is worse than one that will not install, because you would
+      believe it was running.</div>
 
     <p>If advice is acceptable, pair the gate with a <code>skill</code> through
-      <code>fallbackSkill</code> and the step compiles into instructions at T3 instead of
-      refusing. opencode also uses a different backend: it has no plugin manifest to extend, so
-      <code>install</code> writes a TypeScript shim into <code>.opencode/plugin/</code> and
-      copies skills into <code>.opencode/skills</code> rather than shipping them in the bundle.</p>
+      <code>fallbackSkill</code>: the step compiles into instructions, and a
+      <code>minTier</code> of T3 turns that REFUSE into a SATISFY. opencode also uses a
+      different backend: it has no plugin manifest to extend, so <code>install</code> writes
+      a TypeScript shim into <code>.opencode/plugin/</code> and copies skills into
+      <code>.opencode/skills</code> rather than shipping them in the bundle.</p>
 
     <h2>Windows</h2>
-    <p>Windows is a property of the machine, not another target: all four
-      harnesses run there. A handler written as a shell script does not work,
-      because Windows has no shebang support. A requirement can declare
+    <p>Windows is a property of the machine, not another target: no target definition
+      changes there, and what changes is the handler. A handler written as a shell script
+      does not work, because Windows has no shebang support. A requirement can declare
       <code>handlerWindows</code> alongside <code>handler</code>, and the dispatcher
       picks per platform at run time. Where a requirement declares none, the
       dispatcher skips it on Windows and says so on stderr.</p>
-    <p>The handler has to be something Windows launches from a bare path, since the
-      dispatcher execs it with no interpreter: <code>.exe</code>, <code>.com</code>,
-      <code>.bat</code> or <code>.cmd</code>. <b><code>.ps1</code> is not one of them</b>:
-      it is absent from the default <code>PATHEXT</code>, so wrap it in a
-      <code>.cmd</code>. Anything else is refused at build time rather than left to fail
-      open at dispatch.</p>
+    <p>A <code>handlerWindows</code> has to be something Windows launches from a bare path,
+      since the dispatcher execs it with no interpreter: <code>.exe</code>,
+      <code>.com</code>, <code>.bat</code> or <code>.cmd</code>.
+      <b><code>.ps1</code> is not one of them</b>: it is absent from the default
+      <code>PATHEXT</code>, so wrap it in a <code>.cmd</code>. <code>contract.Validate</code>
+      rejects anything else, so <code>build</code>, <code>preflight</code> and
+      <code>install</code> all refuse it instead of leaving it to fail open at dispatch.</p>
 
     <div class="note"><b>Preflight does not model the platform.</b> It reports what a
       harness can carry, and a harness is not a machine. It still reports SATISFY for a
       requirement with no <code>handlerWindows</code>, which dispatch then skips on
       Windows.</div>
 
-    <p>Running a bundle on Windows is not finished: <code>init</code> scaffolds only
-      shell handlers, and the T3 instruction fallback is written as a POSIX shell
-      snippet. Tracked as
+    <p>No harness has been installed on Windows. The rules above come from spawning
+      the dispatcher and handlers directly on a Windows runner, so they say what the loader
+      launches, not what a given harness does with it. Running a bundle there is also
+      unfinished: <code>init</code> scaffolds only shell handlers, and the T3 instruction
+      fallback is written as a POSIX shell snippet. Tracked as
       <a href="https://github.com/larstonder/whippletree/issues/1">issue 1</a>.</p>
 
     <h2>How these claims are checked</h2>
-    <p>Every row above comes from a target definition in the repository, and each one records
-      the harness versions it was probed against. Those definitions record what the harness did
-      in a sandbox rather than what its documentation claims, and the probe notes live with
-      the code. A nightly job reinstalls claude-code, codex and opencode and reruns the
-      end-to-end suite, so a harness changing under a definition shows up as a failure
-      rather than as a wrong answer in your terminal. Copilot is not in that job yet: its
-      hooks only fire once an agent takes a turn, so its end-to-end script needs a real
-      login.</p>
+    <p>Every row above comes from a target definition in the repository, and each definition
+      declares the harness versions it is tested against. Most rows were measured against a
+      harness running in a sandbox. Where a probe could not provoke an event, or where a tool
+      name came out of the harness's source instead of a run, the notes say so, and they live
+      beside the code. Codex has no probe note of its own: its rows come from reading the
+      harness's source and from the nightly job. That job reinstalls claude-code, codex and
+      opencode and reruns the end-to-end suite, which watches installation, session-start,
+      preflight verdicts and the dispatcher's own output, so a harness moving under those
+      shows up as a failure instead of as a wrong answer in your terminal. Copilot is not in
+      the job yet: the events its script asserts on only fire once an agent takes a turn, so
+      it needs a real login.</p>
 
     <ul>
       <li><a href="https://github.com/larstonder/whippletree/tree/main/targets">Target definitions</a></li>

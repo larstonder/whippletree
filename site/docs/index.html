@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Docs — Whippletree</title>
-<meta name="description" content="Whippletree documentation: getting started, concepts, authoring a bundle, and what each harness can enforce.">
+<meta name="description" content="Whippletree documentation: getting started, concepts, what each harness can carry, authoring a bundle, and how to contribute.">
 <meta name="go-import" content="whippletree.dev git https://github.com/larstonder/whippletree">
 <link rel="icon" href="/brand/logo_black.svg" media="(prefers-color-scheme: light)">
 <link rel="icon" href="/brand/logo_white.svg" media="(prefers-color-scheme: dark)">
@@ -34,40 +34,41 @@
 <div class="doc">
   <div class="wrap">
     <h1>Docs</h1>
-    <p class="standfirst">Five pages. The probe notes behind every target definition live
-      <a href="https://github.com/larstonder/whippletree/tree/main/docs">in the repository</a>
-      beside the code they describe.</p>
+    <p class="standfirst">Five pages. The probe notes behind every target definition live in
+      <a href="https://github.com/larstonder/whippletree/tree/main/docs">the repo's docs
+      directory</a>.</p>
 
     <div class="entries">
       <a class="entry" href="/docs/getting-started/">
         <span class="entry-t">Getting started</span>
-        <p class="entry-d">Install the binaries, scaffold a bundle, read the preflight report, and
-          install your first tool onto a harness.</p>
+        <p class="entry-d">Install both binaries, scaffold a bundle, write a handler, build it,
+          and read the preflight report before you install onto a harness.</p>
       </a>
 
       <a class="entry" href="/docs/concepts/">
         <span class="entry-t">Concepts</span>
-        <p class="entry-d">What a contract declares, the five requirement kinds, the tier ladder,
-          and why a verdict can be a refusal.</p>
+        <p class="entry-d">Five requirement kinds, twelve events, four tiers, four verdicts, and
+          why file-read means one thing on Claude Code and something coarser on Codex.</p>
       </a>
 
       <a class="entry" href="/docs/harnesses/">
         <span class="entry-t">Harnesses</span>
-        <p class="entry-d">The four targets, what each one can enforce, and the things they
-          cannot do.</p>
+        <p class="entry-d">Claude Code, Codex, Copilot and opencode do not carry the same events.
+          Which events each has a native hook for, and where a hard gate refuses rather than
+          degrades. Windows gets its own section.</p>
       </a>
 
       <a class="entry" href="/docs/authoring/">
         <span class="entry-t">Authoring a bundle</span>
-        <p class="entry-d">Every contract field, the stdin and environment a handler receives,
-          and the exit-code contract.</p>
+        <p class="entry-d">JSON on stdin, six environment variables alongside it, an exit code
+          back. Plus every field the contract accepts, and what each target does differently.</p>
       </a>
 
       <a class="entry" href="/docs/contributing/">
         <span class="entry-t">Contributing</span>
-        <p class="entry-d">Run gofmt, vet and the tests before you open a pull request. A new
-          target definition has to come from probing the real harness; the harness's
-          documentation does not count.</p>
+        <p class="entry-d">Sign off your commits, and run gofmt, vet and the tests before you open
+          a pull request. A new target definition has to come from probing the real harness; the
+          harness's documentation does not count.</p>
       </a>
     </div>
   </div>
