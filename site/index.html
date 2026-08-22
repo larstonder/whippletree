@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Whippletree</title>
-<meta name="description" content="Declare an agent tool's lifecycle requirements once. Whippletree compiles them onto every AI coding harness at the best fidelity each can verify.">
+<meta name="description" content="Declare an agent tool's lifecycle once. Whippletree compiles it onto every AI coding harness at the best fidelity each can verify.">
 
 <!-- Go vanity import path: `go install whippletree.dev/cmd/whippletree@latest` -->
 <meta name="go-import" content="whippletree.dev git https://github.com/larstonder/whippletree">
@@ -65,7 +65,7 @@
 <section>
   <div class="wrap">
     <h2>It tells you what it cannot do</h2>
-    <p class="sub">Whippletree probes the installed harness and reports the tier every
+    <p class="sub">Whippletree probes the harness you have installed and reports the tier every
       requirement reaches, before it writes anything to disk.</p>
 <pre><b>$ whippletree preflight ./my-tool --target codex</b>
 whippletree preflight · target codex (probed 0.146.0)
@@ -83,8 +83,9 @@ Plan: 4 satisfy, 0 degrade, 0 refuse.</pre>
 <section>
   <div class="wrap">
     <h2>Four tiers, named honestly</h2>
-    <p class="sub">A requirement lands where the harness can carry it. Hard requirements that
-      fall short refuse to install rather than degrade quietly.</p>
+    <p class="sub">A requirement lands where the harness can carry it. When the harness cannot
+      meet a hard requirement, Whippletree refuses to install rather than degrading the
+      guarantee without saying so.</p>
     <div class="tiers">
       <div class="tier">
         <h3>T1</h3>
@@ -92,11 +93,11 @@ Plan: 4 satisfy, 0 degrade, 0 refuse.</pre>
       </div>
       <div class="tier">
         <h3>T2</h3>
-        <p><b>Degraded</b>Approximated through a coarser mechanism, with the lossage stated in full.</p>
+        <p><b>Degraded</b>A coarser mechanism stands in for the requirement, with the lossage stated in full.</p>
       </div>
       <div class="tier">
         <h3>T3</h3>
-        <p><b>Compiled to instructions</b>Best effort. The model is told to run the step and usually will, but can skip it under pressure.</p>
+        <p><b>Compiled to instructions</b>Best effort. The model is instructed to run the step and usually will, but can skip it under pressure.</p>
       </div>
       <div class="tier spent">
         <h3>T4</h3>

@@ -37,7 +37,7 @@
 
     <h1>Getting started</h1>
     <p class="standfirst">Install the binaries, scaffold a bundle, and put a working tool on a
-      harness. Ten minutes, and the last step tells you what it could not do.</p>
+      harness. It takes ten minutes, and preflight tells you what the harness could not do.</p>
 
     <h2 id="install">Install</h2>
     <p>Whippletree is two binaries and Go 1.22 or newer builds them. Install both, into the
@@ -73,10 +73,10 @@ targets (4):
   copilot      schema 1.0.0    tested &gt;=1.0.80
   opencode     schema 1.0.0    tested &gt;=1.18.10</pre>
 
-    <div class="note">Two conventions worth knowing before you start. Flags take a separate
-      argument: <code>--target codex</code>, never <code>--target=codex</code>. And only the
-      bare <code>whippletree --help</code> exists — a subcommand run with no arguments prints
-      its own usage line instead.</div>
+    <div class="note">Two conventions before you start. Flags take a separate argument:
+      <code>--target codex</code>, never <code>--target=codex</code>. And only the bare
+      <code>whippletree --help</code> exists: a subcommand run with no arguments prints its
+      own usage line instead.</div>
 
     <h2 id="scaffold">Scaffold a bundle</h2>
     <p>A bundle is a directory with a <code>plugin.json</code> and some handlers.
@@ -102,9 +102,9 @@ whippletree: scaffolded my-tool in /home/you/my-tool</pre>
   .gitignore
   README.md</pre>
 
-    <p>That is the whole authored surface. Everything else in the bundle is generated, and the
-      <code>.gitignore</code> <code>init</code> writes lists exactly which paths those are.
-      Commit what you wrote; let <code>build</code> own the rest.</p>
+    <p>That is the whole authored surface. Everything else in the bundle is generated, and
+      <code>init</code> writes a <code>.gitignore</code> naming those paths. Commit the five
+      files above, and let <code>build</code> write the rest.</p>
 
     <h3>The contract it wrote</h3>
 
@@ -152,9 +152,9 @@ whippletree: scaffolded my-tool in /home/you/my-tool</pre>
       <code>blocking-gate</code> and <code>executable-path</code> honour it: the other three
       cannot refuse. Asking for <code>skill</code> alongside
       <code>blocking-gate</code> wires them together, setting
-      <code>fallbackSkill</code> on the gate and dropping its <code>minTier</code> to T3, so a
-      harness with no blocking stop event compiles the step into instructions rather than
-      refusing.</p>
+      <code>fallbackSkill</code> on the gate and relaxing its <code>minTier</code> to T3, so on
+      a harness with no blocking stop event the compiler moves the step into instructions
+      rather than refusing.</p>
 
     <h2 id="handler">Write the handler</h2>
     <p>The scaffolded handler is a no-op that documents its own wire format:</p>
@@ -166,7 +166,7 @@ set -euo pipefail
 # ADAPTER_TARGET, ADAPTER_CWD.
 exit 0</code></pre>
 
-    <p>The payload arrives on stdin as JSON and the fields you usually want are already in the
+    <p>The payload arrives on stdin as JSON, and the common fields are already in the
       environment, so a handler that needs only those never has to parse anything. Exit 0 to
       carry on. A <code>blocking-gate</code> exits 2 with a reason on stderr to block, and must
       check <code>ADAPTER_STOP_ACTIVE</code> first. It is <code>true</code> when the gate has
@@ -179,8 +179,8 @@ exit 0</code></pre>
 <b>$ echo $?</b>
 0</pre>
 
-    <p>That is the fastest loop available, and the one to stay in while the handler is
-      still taking shape.</p>
+    <p>Stay in that loop while the handler is still taking shape, instead of reinstalling and
+      restarting a harness after each change.</p>
 
     <h2 id="build">Build</h2>
     <p><code>build</code> compiles the contract into per-target artifacts:</p>
@@ -213,9 +213,9 @@ target opencode: 1 satisfy, 0 degrade, 0 refuse, 0 absent</pre>
       that is not meant for every harness.</p>
 
     <h2 id="preflight">Read the preflight report</h2>
-    <p>This is the step the tool exists for. <code>preflight</code> probes the harness you
-      have installed and tells you the tier each requirement reaches on it, before
-      anything is written:</p>
+    <p><code>preflight</code> is the step the tool exists for. It probes the harness on your
+      machine and tells you the tier each requirement reaches there, before anything is
+      written:</p>
 
 <pre><b>$ whippletree preflight my-tool --target claude-code</b>
 whippletree preflight · target claude-code (probed 2.1.239)
@@ -243,10 +243,10 @@ whippletree preflight · target opencode (probed 1.18.10)
 
 Plan: 5 satisfy, 0 degrade, 0 refuse.</pre>
 
-    <p>The gate reached T3, not T1, because opencode has no blocking stop event. It satisfies
-      only because <code>fallbackSkill</code> lowered the bar to T3 and the step was compiled
-      into the skill's instructions. Declare that gate hard at T1 instead and the answer
-      changes:</p>
+    <p>The gate reached T3 rather than T1, because opencode has no blocking stop event. It
+      satisfies only because <code>fallbackSkill</code> lowered the bar to T3 and the compiler
+      moved the step into the skill's instructions. Declare that gate hard at T1 instead and
+      the answer changes:</p>
 
 <pre><b>$ whippletree preflight gate-tool --target opencode</b>
 whippletree preflight · target opencode (probed 1.18.10)
@@ -255,9 +255,8 @@ whippletree preflight · target opencode (probed 1.18.10)
 
 Plan: 0 satisfy, 0 degrade, 1 refuse.</pre>
 
-    <p>Exit 1, nothing installed. That is the intended outcome: a gate that becomes advice
-      with no warning is worse than one that never installed, because you will believe it is
-      running.</p>
+    <p>Exit 1, and nothing installed. A gate that becomes advice with no warning is worse than
+      one that refused, because you will believe it is running.</p>
 
     <p>Without a harness on the machine, <code>--assume-version</code> skips the probe. Probe a
       version outside the range a target definition was tested against and you get a warning at
@@ -282,14 +281,14 @@ install for claude-code is the harness's own plugin mechanism:
 
     <p>For claude-code, codex and copilot, Whippletree places nothing. Those harnesses have
       their own plugin marketplaces, and the compiled bundle is already in the shape they
-      expect, so Whippletree hands you the two commands rather than writing into their config
-      behind their backs. The marketplace name is your bundle's name with <code>-mkt</code>
+      expect, so Whippletree hands you the two commands instead of writing into their config.
+      The marketplace name is your bundle's name with <code>-mkt</code>
       appended, which is what <code>init</code> put in
       <code>.claude-plugin/marketplace.json</code>.
       Codex spells the second verb <code>add</code>; the other two use <code>install</code>.</p>
 
     <p>opencode has no marketplace, so Whippletree writes the shim itself, into the project
-      given by <code>--project</code> and defaulting to the working directory:</p>
+      directory <code>--project</code> names, or the working directory if you omit it:</p>
 
 <pre><b>$ whippletree install my-tool --target opencode --project .</b></pre>
 

@@ -36,8 +36,8 @@
     <p class="crumb"><a href="/docs/">Docs</a> / Harnesses</p>
 
     <h1>Harnesses</h1>
-    <p class="standfirst">Four targets today. They do not support the same things, and the
-      differences decide what your contract can promise.</p>
+    <p class="standfirst">Four targets today. They expose different events, not all of those
+      events can block, and the differences decide what your contract can promise.</p>
 
     <table>
       <thead><tr><th>harness</th><th>backend</th><th>install</th><th>tested against</th></tr></thead>
@@ -78,30 +78,30 @@
     </table>
 
     <h2>claude-code</h2>
-    <p>The most complete target. Every event maps to a native hook, all three tool classes have
-      a dedicated tool, and skills ride inside the plugin. Nothing degrades.</p>
+    <p>Every event in the table above maps to a native hook and every tool class names a real
+      tool, so nothing degrades here. The plugin carries the skills.</p>
 
     <h2>codex</h2>
-    <p>Identical on events, but it has <b>no file-read tool</b>. Rather than drop
-      <code>file-read</code>, the target definition declares a degradation to T2:</p>
+    <p>Its events match claude-code's, but it has <b>no file-read tool</b>. The target
+      definition keeps <code>file-read</code> by declaring a degradation to T2:</p>
 
 <pre><code>file-read  want ≥T4  got T2  SATISFY   matcher Bash|Edit|Write|apply_patch;
                                        misses reads in pipelines/heredocs/scripts;
                                        may double-count</code></pre>
 
-    <p>The lossage is written into the target definition, not discovered at runtime, so
-      preflight prints it before you install rather than after something goes wrong. If T2 is
-      not good enough, declare <code>minTier: T1</code> and it will REFUSE here instead.</p>
+    <p>The target definition carries that lossage, so preflight prints it before you install
+      instead of after an install has already gone wrong. If T2 is not good enough, declare
+      <code>minTier: T1</code> and it will REFUSE here instead.</p>
 
     <h2>copilot</h2>
-    <p>Hooks-json like the first two, and it accepts the file Whippletree already emits
-      unchanged, so it needed no new backend. Its own documented entry format is flatter,
-      but the nested Claude shape works and that is what ships.</p>
+    <p>Copilot accepts the file Whippletree already emits, unchanged, so it needed no new
+      backend. Its own documented entry format is flatter, but the nested Claude shape
+      works, and that is what ships.</p>
 
-    <p><b>Its turn-end gate does not work yet, and the reason is ours.</b> A handler
-      exiting 2 on <code>Stop</code> is ignored and the session ends; the same handler
-      exiting 2 on <code>PreToolUse</code> denies the call outright, which is the control
-      that makes this a measurement. But Copilot <i>does</i> honour a
+    <p><b>Whippletree cannot drive Copilot's turn-end gate yet, and the limit is in the
+      dispatcher.</b> A handler exiting 2 on <code>Stop</code> is ignored and the session
+      ends; the same handler exiting 2 on <code>PreToolUse</code> denies the call outright,
+      which is the control that makes this a measurement. Copilot <i>does</i> honour a
       <code>{"decision":"block"}</code> written to stdout on <code>Stop</code>: the
       hook re-fires and the agent acts on the reason.</p>
 
@@ -110,7 +110,7 @@
       reason. opencode has no blocking stop event; Copilot has one Whippletree cannot yet
       drive, because the dispatcher signals a block by exiting 2 and nothing else.
       Reporting that as REFUSE rather than as a working gate is the honest answer, and
-      closing it would make this T1. Tracked as
+      closing that gap would make this T1. Tracked as
       <a href="https://github.com/larstonder/whippletree/issues/19">issue 19</a>.</div>
 
     <p>One trap: hooks are not auto-discovered, and Copilot reads
@@ -119,14 +119,13 @@
       cleanly and registered nothing at all.</p>
 
     <h2>opencode</h2>
-    <p>The target with a real gap. <b>It has no blocking stop event.</b> A
-      thrown error fails a single tool call and the agent loop carries on, so there is nothing
-      to bind <code>turn-end</code> to.</p>
+    <p>opencode has <b>no blocking stop event</b>. A thrown error fails a single tool call
+      and the agent loop carries on, so there is nothing to bind <code>turn-end</code> to.</p>
 
     <div class="note">A hard-required <code>blocking-gate</code> on <code>turn-end</code>
       <b>REFUSES</b> on opencode. That is the correct answer, not a limitation to work around:
-      a gate that silently becomes advice is worse than one that will not install, because you
-      would believe it was running.</div>
+      a gate that degrades to advice without saying so is worse than one that will not
+      install, because you would believe it was running.</div>
 
     <p>If advice is acceptable, pair the gate with a <code>skill</code> through
       <code>fallbackSkill</code> and the step compiles into instructions at T3 instead of
@@ -139,8 +138,8 @@
       harnesses run there. A handler written as a shell script does not work,
       because Windows has no shebang support. A requirement can declare
       <code>handlerWindows</code> alongside <code>handler</code>, and the dispatcher
-      picks per platform at run time. A requirement without one is not
-      carried on Windows, and says so.</p>
+      picks per platform at run time. Where a requirement declares none, the
+      dispatcher skips it on Windows and says so on stderr.</p>
     <p>The handler has to be something Windows launches from a bare path, since the
       dispatcher execs it with no interpreter: <code>.exe</code>, <code>.com</code>,
       <code>.bat</code> or <code>.cmd</code>. <b><code>.ps1</code> is not one of them</b>:
@@ -149,9 +148,9 @@
       open at dispatch.</p>
 
     <div class="note"><b>Preflight does not model the platform.</b> It reports what a
-      harness can carry, and a harness is not a machine. A requirement with no
-      <code>handlerWindows</code> still reports SATISFY, then gets skipped at dispatch on
-      Windows. That is the one verdict on this page that is narrower than it looks.</div>
+      harness can carry, and a harness is not a machine. It still reports SATISFY for a
+      requirement with no <code>handlerWindows</code>, which dispatch then skips on
+      Windows.</div>
 
     <p>Running a bundle on Windows is not finished: <code>init</code> scaffolds only
       shell handlers, and the T3 instruction fallback is written as a POSIX shell

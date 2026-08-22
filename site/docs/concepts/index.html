@@ -37,7 +37,8 @@
 
     <h1>Concepts</h1>
     <p class="standfirst">A contract says what your tool needs. A target definition says what a
-      harness can give. Everything else is the arithmetic between them.</p>
+      harness can give. Whippletree compares the two and reports the tier each requirement
+      reaches on each target.</p>
 
     <h2>The contract</h2>
     <p>A bundle is a directory with a <code>plugin.json</code> and some handler scripts. The
@@ -83,14 +84,14 @@
     </table>
 
     <h2>Events</h2>
-    <p>A requirement binds to one event. Nine events are primitives, each mapping to a
+    <p>A requirement binds to one event. Nine events are primitives, each mapping to the
       harness's own hook:</p>
     <p><code>session-start</code> <code>session-end</code> <code>turn-end</code>
        <code>tool-pre</code> <code>tool-post</code> <code>subagent-start</code>
        <code>subagent-stop</code> <code>compact-pre</code> <code>compact-post</code></p>
 
-    <p>Three more are aliases that expand to a primitive plus a tool class, because
-      "tell me when a file is read" is what you mean:</p>
+    <p>Three more are aliases that expand to a primitive plus a tool class, so you can write
+      "tell me when a file is read" and let the target definition name the tool:</p>
 
     <table>
       <thead><tr><th>alias</th><th>expands to</th></tr></thead>
@@ -101,10 +102,10 @@
       </tbody>
     </table>
 
-    <p>The alias matters because harnesses disagree about what tools exist. Claude Code has a
-      dedicated <code>Read</code> tool. Codex has none, so <code>file-read</code> there degrades
-      to watching a broader matcher, which misses reads inside pipelines and heredocs. You wrote
-      the same requirement either way; Whippletree tells you which one you got.</p>
+    <p>Harnesses disagree about what tools exist. Claude Code has a dedicated <code>Read</code>
+      tool. Codex has none, so <code>file-read</code> there degrades to a broader matcher that
+      misses reads inside pipelines and heredocs. You wrote the same requirement either way;
+      Whippletree tells you which one you got.</p>
 
     <h2>The tier ladder</h2>
     <p>A requirement lands at the best tier the harness can carry it at.</p>
@@ -113,14 +114,14 @@
       <thead><tr><th>tier</th><th>meaning</th></tr></thead>
       <tbody>
         <tr><td>T1</td><td><b>Native.</b> A real hook, enforced by the harness itself.</td></tr>
-        <tr><td>T2</td><td><b>Degraded.</b> Approximated through a coarser mechanism, with the lossage stated in full.</td></tr>
+        <tr><td>T2</td><td><b>Degraded.</b> A coarser mechanism approximates it, and the report states the lossage in full.</td></tr>
         <tr><td>T3</td><td><b>Compiled to instructions.</b> The model is told to run the step and usually will, but can skip it under pressure.</td></tr>
         <tr><td>T4</td><td><b>Observer.</b> Reserved. Not implemented.</td></tr>
       </tbody>
     </table>
 
-    <p>You declare a <code>minTier</code>: the worst you are willing to accept. Whippletree
-      weighs it against what the harness achieves and reports the verdict.</p>
+    <p>You declare a <code>minTier</code>: the worst you are willing to accept. Fall below it and
+      the verdict turns on whether the requirement is hard.</p>
 
     <h2>Verdicts</h2>
 
@@ -129,24 +130,24 @@
       <tbody>
         <tr><td>SATISFY</td><td>Reached your declared minimum, or better.</td><td>0</td></tr>
         <tr><td>DEGRADE</td><td>Below the minimum, but the requirement is soft. Installs, and says so.</td><td>0</td></tr>
-        <tr><td>REFUSE</td><td>Below the minimum and <code>hardRequired</code>. Nothing is installed.</td><td>1</td></tr>
+        <tr><td>REFUSE</td><td>Below the minimum and <code>hardRequired</code>. Whippletree installs nothing.</td><td>1</td></tr>
         <tr><td>ABSENT</td><td>The harness has no mechanism at all, and the requirement is soft.</td><td>0</td></tr>
       </tbody>
     </table>
 
-    <div class="note"><b>REFUSE is the point.</b> A security gate that silently becomes advice is
-      worse than one that fails to install, because you will believe it is running. opencode has
-      no blocking stop event, so a hard <code>turn-end</code> gate refuses there rather than
-      pretending.</div>
+    <div class="note"><b>A silent downgrade is the dangerous case.</b> A security gate that
+      becomes advice is worse than one that fails to install, because you will believe it is
+      running. opencode has no blocking stop event, so a hard <code>turn-end</code> gate refuses
+      there rather than pretending.</div>
 
     <h2>Instruction fallback</h2>
-    <p>Refusing is not always what you want. Pair a <code>blocking-gate</code> with a
-      <code>skill</code> requirement through <code>fallbackSkill</code>, and on a harness with no
-      native gate Whippletree compiles the step into the skill's instructions instead of
-      refusing.</p>
+    <p>Sometimes you would rather have the weak version of a step than no install. Pair a
+      <code>blocking-gate</code> with a <code>skill</code> requirement through
+      <code>fallbackSkill</code>, and on a harness with no native gate Whippletree compiles the
+      step into the skill's instructions instead of refusing.</p>
 
-    <p>That is T3, and Whippletree says the same sentence about it everywhere it appears, in the
-      preflight report and in the generated <code>SKILL.md</code> itself:</p>
+    <p>That lands at T3, and Whippletree prints the same sentence about it in the preflight
+      report and in the generated <code>SKILL.md</code>:</p>
 
     <div class="note">best-effort, no harness-level enforcement on this target: the model is
       instructed to run the step and usually will, but can skip it under pressure</div>
@@ -162,8 +163,7 @@ whippletree preflight · target codex (probed 0.100.0)
   ! the verdicts below were not verified against this version</code></pre>
 
     <p>A warning, never a refusal. A harness shipping a new version must not break every install
-      that day, and Whippletree cannot know whether the change matters, so it stops asserting a
-      confidence it has not earned.</p>
+      that day, and Whippletree cannot tell whether the change matters.</p>
 
     <h2>Next</h2>
     <ul>
