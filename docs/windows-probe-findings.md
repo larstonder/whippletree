@@ -81,21 +81,21 @@ invokes the dispatcher on the opencode target, and Go `exec.Command`, which is
 what the dispatcher itself uses. A compiled bundle stays portable, and no
 artifact-format or contract change is needed.
 
-**Do not ship both names.** Not because everything breaks — the more awkward
-truth is that the resolvers disagree. `cmd`, Go and Node prefer the `.exe` and
-keep working; `Start-Process` and `sh` reach the extensionless file instead. In
-phase 3 that means `sh` silently executes the wrong file while `cmd` silently
-executes the right one, on the same machine, from the same path. A defect that
-depends on which harness spawned you is worse than one that fails everywhere,
-which is why `ensureDispatcher` provisions exactly one name.
+**Do not ship both names.** Nothing breaks outright. The resolvers disagree:
+`cmd`, Go and Node prefer the `.exe` and keep working, while `Start-Process`
+and `sh` reach the extensionless file instead. In phase 3 that means `sh`
+silently executes the wrong file while `cmd` silently executes the right one, on
+the same machine, from the same path. A defect that depends on which harness
+spawned you is worse than one that fails everywhere, which is why
+`ensureDispatcher` provisions exactly one name.
 
-The pwsh row is genuinely inconclusive in phases 2 and 3: `&` produced no output
-and exit 1, so it reached something and printed nothing. It is recorded rather
-than explained.
+The pwsh row is inconclusive in phases 2 and 3: `&` produced no output and exit
+1, so it reached something and printed nothing. The probe records it without
+explaining it.
 
 ## 2. Which handler extensions can the dispatcher launch?
 
-`runHandler` calls `exec.Command(handlerPath)` — no shell, no interpreter — so
+`runHandler` calls `exec.Command(handlerPath)` (no shell, no interpreter), so
 the set of usable `handlerWindows` values is whatever the loader starts on its
 own.
 
@@ -108,10 +108,9 @@ own.
 | `h.sh` | **failed**: `fork/exec handlers\h.sh: %1 is not a valid Win32 application` |
 
 `.ps1` is absent from the default `PATHEXT` and does not launch from a bare
-path. This matters more than it looks: a spawn failure fails open, so a
-hard-required `blocking-gate` declaring a `.ps1` handler would have stopped
-enforcing while reporting nothing a user would notice. `internal/contract`
-now refuses those extensions at build time.
+path. A spawn failure fails open, so a hard-required `blocking-gate` declaring
+a `.ps1` handler would have stopped enforcing while reporting nothing a user
+would notice. `internal/contract` now refuses those extensions at build time.
 
 ## 3. Incidental: `build` cannot provision its own dispatcher
 

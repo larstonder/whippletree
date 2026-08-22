@@ -46,7 +46,7 @@ var pages = []page{
 	{
 		src: "docs/AUTHORING.md", out: "docs/authoring", title: "Authoring a bundle", crumb: true,
 		next: []link{
-			{"/docs/get-started/", "Get started", "if you have not built a bundle yet."},
+			{"/docs/getting-started/", "Getting started", "if you have not built a bundle yet."},
 			{"/docs/harnesses/", "Harnesses", "for what each target can enforce, and what it cannot."},
 		},
 	},
@@ -88,7 +88,7 @@ const shell = `<!doctype html>
       </picture>
     </a>
     <nav>
-      <a href="/docs/get-started/">Get started</a>
+      <a href="/docs/getting-started/">Getting started</a>
       <a href="/docs/">Docs</a>
       <a href="https://github.com/larstonder/whippletree">GitHub</a>
     </nav>

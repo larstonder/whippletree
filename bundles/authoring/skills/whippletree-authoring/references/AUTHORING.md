@@ -98,7 +98,7 @@ One of five, closed set:
 
 The first three run a handler against a real dispatch event; `executable-path`
 never invokes anything, it's a build/preflight-time presence check. `skill` is
-the odd one out among the static kinds: it doesn't check for a binary, it
+the odd one out among the static kinds: instead of checking for a binary it
 places content, its own `SKILL.md` plus whatever else lives in its directory.
 See "Skills and instruction fallback" below for the full picture.
 
@@ -116,7 +116,7 @@ alias for you (see `ADAPTER_PRIMITIVE` below). Omit `event` entirely for
 
 The worst tier you'll accept: `T1` (native guarantee) down to `T4` (after-the-fact
 observation, no default). Compare against what `preflight`/`build` reports a
-target actually achieving for that requirement.
+target achieving for that requirement.
 
 ### `hardRequired`
 
@@ -125,7 +125,7 @@ requirement, so it's always explicit, never implied. `true` means: refuse
 install rather than silently run at a tier below `minTier`. `false` means:
 degrade quietly and still install.
 
-Worked example, the exact case that matters most in practice: a hard
+Worked example, the case that comes up most often: a hard
 `observation-signal` on `file-read` at `minTier: T1`.
 
 ```json
@@ -251,8 +251,8 @@ agent at session start. On codex the bytes are forwarded to its hook
 runner, with no specific effect probed or promised. On opencode the
 generated shim captures the dispatcher's stdout in its spawnSync result
 and never uses it, so stdout is discarded on this target. Keep
-diagnostics on stderr or in files you control: stdout is the payload
-channel, not the logging channel.
+diagnostics on stderr or in files you control; stdout is the payload
+channel.
 
 ## Handler best practices
 
@@ -262,11 +262,10 @@ channel, not the logging channel.
   fail-open: a crashing or misconfigured handler never silently blocks a turn
   it wasn't meant to. If a contract declares more than one handler for the
   same event, the dispatcher runs them in order and stops as soon as one
-  exits 2: first block wins, and later handlers in the list never run once an
-  earlier one already blocked.
+  exits 2: first block wins, and the rest never run.
 - **Low-millisecond budget, no network, on tool events.** `tool-pre`/`tool-post`
   handlers run in the hot path of every matching tool call; a slow or
-  network-bound handler there is felt on every read/write/shell call the
+  network-bound handler there costs you on every read/write/shell call the
   contract watches, not just once per turn. Keep those handlers local and fast;
   push anything slower to a `lifecycle-signal` (session/turn boundaries, far
   less frequent) or do it out-of-band from a background process the handler
@@ -289,19 +288,19 @@ channel, not the logging channel.
   ```
 
   No bundle build, no installed harness, no `whippletree-hook` required: this
-  is the fastest loop while writing a handler's actual logic.
+  is the fastest loop while writing a handler's logic.
 
 ## Skills and instruction fallback
 
 A `skill` requirement never runs against a dispatch event: it's a directory of
 instructions, `path: "./skills/<dir>"`, placed for the model to read rather
 than a handler the dispatcher invokes. Beyond the closed field set
-`contract.Validate` checks, one more rule is enforced by the shared
-filesystem check that build, preflight, and install all run
-(`internal/skillfile.Check`): the `SKILL.md` frontmatter's `name` must equal
-`<dir>` exactly, the identity the plugin-dir discovery convention keys on.
-`whippletree init --kinds skill` scaffolds `skills/<name>/SKILL.md` with the
-bundle's own name already in place, so this is never worked out by hand:
+`contract.Validate` checks, the shared filesystem check that build, preflight,
+and install all run (`internal/skillfile.Check`) enforces one more rule: the
+`SKILL.md` frontmatter's `name` must equal `<dir>` exactly, the identity the
+plugin-dir discovery convention keys on. `whippletree init --kinds skill`
+scaffolds `skills/<name>/SKILL.md` with the bundle's own name already in
+place, so you never work it out by hand:
 
 ```
 $ whippletree init acme-tool --kinds skill,blocking-gate --hard blocking-gate --yes
@@ -341,17 +340,15 @@ drift):
 `session-start`. Both are events a skill's one-sentence trigger clause can
 describe unambiguously; the other seven primitives have no such natural,
 single-sentence framing a model reliably acts on from a standing skill
-listing alone, so `fallbackSkill` is refused there.
+listing alone, so the validator refuses it there.
 
 ### Absent-only: the fallback never overrides a working native gate
 
 The expansion only ever fires where the requirement would otherwise land
 Absent, never on a target that already has a native (if lesser) mechanism.
-`internal/tier.Assign` checks this directly: a T3 fallback only replaces an
-Absent assignment, so a `blocking-gate` that degrades to some non-Absent tier
-on a target keeps that degradation untouched, it never gets silently
-upgraded (or downgraded) to the instruction path just because a skill happens
-to be wired.
+`internal/tier.Assign` checks this: a T3 fallback only replaces an Absent
+assignment, so a `blocking-gate` that degrades to some non-Absent tier on a
+target keeps that degradation untouched, even with a skill wired to it.
 
 ### The trigger clause
 
@@ -364,8 +361,8 @@ clause, appended once per fallback-eligible requirement it covers:
 | `session-start` | Use this skill at the start of a session, before other work. |
 
 This is the only thing that changes about the skill's standing, always-loaded
-listing; the model sees a slightly longer one-line description, not a whole
-new mechanism, until the trigger condition is actually reached.
+listing; the model sees a longer one-line description, not a whole new
+mechanism, until the trigger condition is reached.
 
 ### The two-run protocol
 
@@ -432,9 +429,8 @@ requirement (`assignSkill` in `internal/tier`) reports *placement* fidelity
 only: T1 means the file landed at the right path, nothing about whether the
 model reads or acts on it. A T3 fallback goes further and reports on
 *behavior*, but with the weakest honesty disclosure `preflight` ever prints,
-`contract.T3Fidelity` verbatim, rendered directly beneath the fallback's own
-line so it can't be missed. Real captured output, the same scaffold, probed
-against opencode:
+`contract.T3Fidelity` verbatim, rendered beneath the fallback's own line.
+Real captured output, the same scaffold, probed against opencode:
 
 ```
 $ whippletree preflight . --target opencode --assume-version 1.18.10
@@ -471,9 +467,9 @@ the skill channel:
   pointing at it.
 
 That key **replaces** the harness's discovery of `skills/` rather than adding
-to it, which is why it is set only when there is a variant, and why the variant
-contains every skill in the contract rather than just the expanded one. Both
-behaviours are measured in `docs/copilot-probe-findings.md`.
+to it, which is why `build` sets it only when there is a variant, and why the
+variant contains every skill in the contract rather than just the expanded one.
+Both behaviours are measured in `docs/copilot-probe-findings.md`.
 
 In practice this only triggers where a gate cannot be enforced natively, so
 claude-code and codex bundles never carry the key: both map `turn-end` and
@@ -537,11 +533,11 @@ The dispatcher runs a handler by path, with no interpreter. That limits
 and `.cmd`**. Anything else is rejected at build time.
 
 `.ps1` is the one that catches people out. PowerShell scripts are not in the
-default `PATHEXT` and do not launch from a bare path — measured, not assumed;
-see `docs/windows-probe-findings.md`. Nor does `.sh`. Both fail in the loader
-with `%1 is not a valid Win32 application`, and since a spawn failure fails
-open, a hard-required gate would quietly stop enforcing. Hence the build-time
-refusal: it is the last point where the author still sees the problem.
+default `PATHEXT` and do not launch from a bare path. That is measured, not
+assumed; see `docs/windows-probe-findings.md`. Nor does `.sh`. Both fail in the
+loader with `%1 is not a valid Win32 application`, and since a spawn failure
+fails open, a hard-required gate would quietly stop enforcing. Hence the
+build-time refusal: it is the last point where the author still sees the problem.
 
 To use PowerShell, wrap it:
 
@@ -550,7 +546,7 @@ To use PowerShell, wrap it:
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0capture.ps1"
 ```
 
-Handlers take no arguments — the payload arrives on stdin — so the argument
+Handlers take no arguments (the payload arrives on stdin), so the argument
 quoting that makes `.bat` and `.cmd` dangerous to invoke from a program does
 not arise here.
 
@@ -563,8 +559,8 @@ therefore a decision, not an oversight, and contracts that never mention it
 behave exactly as they did before.
 
 Note that `preflight` does not model this. It reports the tier a requirement
-reaches on a target, and a target is a harness, not a platform — so a
-requirement with no `handlerWindows` still reports SATISFY, and is then skipped
+reaches on a target, and a target is a harness, not a platform. A requirement
+with no `handlerWindows` therefore still reports SATISFY, and is then skipped
 at dispatch on Windows. Read a preflight verdict as "what this harness can
 carry", not "what will run on this machine".
 
@@ -576,6 +572,7 @@ into `SKILL.md` are a POSIX shell snippet naming `handler`, never
 uses it must declare 1.1.0 or later. That is enforced, not advisory: an older
 whippletree does not know the field, would drop it silently, and would then
 treat the missing Windows handler as the author's choice.
+
 ## Conventions this adds
 
 Three additions this implementation makes relative to `harness-adapter.architecture.md`:

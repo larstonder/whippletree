@@ -2,7 +2,7 @@
 
 ## Why this file exists
 
-Whippletree owning a target definition instead of leaning on a harness's own plugin
+Whippletree owning a target definition instead of relying on a harness's own plugin
 system is only worth doing if it stays cheap to keep correct. The opencode target is the
 test case: the bet is that keeping `targets/opencode/target.yaml`, the ts-plugin
 compiler, and the dispatcher's opencode-specific decoding correct against real upstream
@@ -16,20 +16,18 @@ knowledge to the same surface: `targets/opencode/target.yaml`'s `skillChannel.de
 (`.opencode/skills`) and `cmd/whippletree/main.go`'s `placeSkills`/`resolveSkillDest` are
 both placement decisions established by empirical probe (`docs/skill-discovery-probe.md`),
 not documented opencode API, so they carry the same upstream-drift risk as the rest of
-this list. Count time spent in any of those against the budget: the
-measurement is only honest if the denominator covers everywhere opencode knowledge
-lives. Every
-entry below is a data point toward proving or disproving that, logged as it happens
-rather than reconstructed afterward. If a quarter's total lands under roughly 6 hours,
-the bet holds. If it doesn't, a project-owned target definition is too expensive for a
-harness that moves this fast, and hooks-json-style manual upkeep or dropping the target
-should be reconsidered.
+this list. Count time spent in any of those against the budget: the measurement is only
+honest if the denominator covers everywhere opencode knowledge lives. Every entry below
+is a data point toward proving or disproving that, logged as it happens rather than
+reconstructed afterward. If a quarter's total lands under roughly 6 hours, the bet
+holds. If it doesn't, a project-owned target definition is too expensive for a harness
+that moves this fast; reconsider hooks-json-style manual upkeep, or drop the target.
 
 Every `test/e2e/run-*.sh` script prints a `harness=<name> version=<probed> date=<iso>`
 line before it does anything else. That line is the grep-able evidence trail behind the
 "harness", "upstream version", and "date" columns below: when logging an entry, grep the
-run's output for that line rather than trusting memory for which version was actually
-under test.
+run's output for that line rather than trusting memory for which version was under
+test.
 
 ## Maintenance surface
 
@@ -44,8 +42,8 @@ under test.
 - **harness**: `opencode`, `claude-code`, `codex`, or `copilot`.
 - **upstream version**: the exact version from that run's `harness=... version=...` line.
 - **what broke**: what changed upstream and what it broke here, in one line. For a risk
-  logged before anything has actually broken, say so plainly rather than inventing a
-  fake incident.
+  logged before anything has broken, say so plainly rather than inventing a fake
+  incident.
 - **minutes spent**: time spent diagnosing and fixing, rounded to the nearest 5. This is
   the number the quarterly total is measured against.
 - **commit**: the commit that fixed it, or, for a logged risk with no fix yet, the

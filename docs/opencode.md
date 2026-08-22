@@ -1,23 +1,23 @@
 # opencode target notes
 
 
-opencode has no blocking stop event at all: there is no native primitive `turn-end` can
-map to on this target. A hooks-json target blocks a whole turn; opencode can only ever
-block a single tool call, and even that isn't a native gate. It's Whippletree's own
-convention layered on top: the compiled shim throws a JavaScript error when the
-dispatcher exits 2, that error fails the one `tool.execute` call it was thrown from, and
-the agent loop continues past it. There is nothing on this target an author can point a
-`hardRequired` stop-gate at and have it actually stop anything.
+opencode has no blocking stop event: there is no native primitive `turn-end` can map to
+on this target. A hooks-json target blocks a whole turn; opencode can block only a single
+tool call, and that block is a Whippletree convention layered on top rather than a native
+gate: the compiled shim throws a JavaScript error when the dispatcher exits 2, that error
+fails the one `tool.execute` call it was thrown from, and the agent loop continues past
+it. There is nothing on this target an author can point a `hardRequired` stop-gate at and
+have it stop anything.
 
 The backend is different too. `targets/opencode/target.yaml` sets `backend: ts-plugin`
 instead of the hooks-json default, so `whippletree build` writes `hooks/opencode.ts`
 rather than a manifest pair: an in-process TypeScript plugin shim, zero npm imports,
 that spawns the compiled dispatcher directly via `node:child_process`'s `spawnSync`.
 
-Because the stop-gate requirement genuinely cannot be satisfied here, `examples/kb-shaped`
-refuses preflight and install on opencode exactly as shipped, by design: its `stop-gate`
-requirement is `hardRequired: true`, and the best tier opencode can ever land it at is
-Absent, never Satisfy or Degrade.
+Because opencode cannot satisfy the stop-gate requirement, `examples/kb-shaped` as shipped
+refuses preflight and install there, by design: its `stop-gate` requirement is
+`hardRequired: true`, and the best tier opencode can ever land it at is Absent, never
+Satisfy or Degrade.
 
 ```
 $ go run ./cmd/whippletree preflight examples/kb-shaped --target opencode --assume-version 1.18.10

@@ -1,3 +1,7 @@
+# The getting-started page was published at /docs/get-started/ first. The name
+# changed, the page did not.
+/docs/get-started*      /docs/getting-started/                                                    301
+
 # Pages that used to be hosted and now live in the repository. A redirect is
 # kinder than a 404: these URLs were public, and the documents still exist.
 #

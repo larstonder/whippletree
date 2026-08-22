@@ -11,11 +11,11 @@ Write one `plugin.json` saying what your agent tool needs from a coding harness:
 run this handler when a session starts, block the turn if a check fails, tell me
 when a file is read, make this binary reachable. `whippletree build` compiles that
 into each harness's own native hook format, so you write the requirement once
-instead of three times.
+instead of four times.
 
 Harnesses support different slices of that lifecycle, and none of them tell you
 which. Whippletree probes the harness you have installed and reports the tier
-every requirement actually reaches before it writes anything:
+every requirement reaches before it writes anything:
 
 ```
   stop-gate             want ≥T1  got T1  SATISFY   native Stop + stop_hook_active
@@ -23,8 +23,8 @@ every requirement actually reaches before it writes anything:
                                                     misses reads in pipelines and heredocs
 ```
 
-A hard requirement the harness cannot meet refuses to install rather than
-degrading quietly.
+Whippletree refuses to install when the harness cannot meet a hard requirement,
+rather than degrading the bundle without saying so.
 
 Targets today: Claude Code, Codex CLI, GitHub Copilot CLI, and opencode.
 
@@ -69,10 +69,10 @@ whippletree preflight · target claude-code (probed 2.1.238)
 Plan: 1 satisfy, 0 degrade, 0 refuse.
 ```
 
-You edit `plugin.json` and the handler scripts. Everything else is generated: per-target
-manifests, per-target hooks files, and the vendored `.whippletree/` the dispatcher reads
-at runtime. See [Authoring a bundle][authoring] for the field reference and the wire
-format handlers see.
+You edit `plugin.json` and the handler scripts. `build` generates everything else:
+per-target manifests, per-target hooks files, and the vendored `.whippletree/` the
+dispatcher reads at runtime. See [Authoring a bundle][authoring] for the field
+reference and the wire format handlers see.
 
 ## Commands
 
@@ -122,9 +122,9 @@ format handlers see.
 </details>
 
 Scaffolding `skill` alongside `blocking-gate` wires `fallbackSkill` and bumps the gate to
-`minTier: T3` automatically. `init` writes nothing at all if any file it would create
-already exists, and `install` only overwrites a destination whose first line is
-Whippletree's own generated-by marker.
+`minTier: T3`. `init` writes nothing if any file it would create already exists, and
+`install` only overwrites a destination whose first line is Whippletree's own
+generated-by marker.
 
 ## Performance
 
@@ -134,7 +134,7 @@ Silicon. A real turn-end dispatch (handler execution included) measures ~15.6ms 
 
 ## The tier ladder
 
-Where a requirement lands is what the harness can actually carry.
+A requirement lands at the tier the harness can carry.
 
 | tier | meaning |
 |---|---|
@@ -152,7 +152,7 @@ Comparing that against the requirement's declared `minTier` gives the verdict.
 | `REFUSE` | below the minimum and hard-required | 1 |
 | `ABSENT` | the target has no mechanism at all, requirement is soft | 0 |
 
-A target definition also declares the harness versions it was actually probed against.
+A target definition also declares the harness versions it was probed against.
 Probe something outside that range and preflight says so rather than claiming a
 confidence it has not earned. That is a warning, never a refusal: a harness shipping a
 new version must not break every install that day.
@@ -170,7 +170,7 @@ Definitions are embedded in the binary, so the CLI works from any directory. A h
 `turn-end` gate REFUSEs on two of them rather than pretending, for different reasons.
 opencode has no blocking stop event at all. Copilot has one and honours it, but only
 through a JSON decision on stdout, and the dispatcher signals a block by exiting 2 and
-nothing else — so that REFUSE reflects a limit in Whippletree, not in Copilot, and is
+nothing else. That REFUSE reflects a limit in Whippletree rather than in Copilot, and is
 tracked as [issue 19](https://github.com/larstonder/whippletree/issues/19). See
 [opencode notes][opencode] and [Copilot probe findings][copilot].
 
@@ -212,20 +212,20 @@ across harness classes); the remaining tiers and targets land in later slices.
 
 ## Windows
 
-**Partly, and the boundary is precise.** Authoring, building and installing a bundle
-work. Whether a bundle *runs* depends on what its handlers are written in.
+**Partly.** Authoring, building and installing a bundle work. Whether a bundle *runs*
+depends on what its handlers are written in.
 
 A requirement may declare `handlerWindows` alongside `handler`, and the dispatcher picks
 per platform at dispatch rather than at build, so one compiled bundle stays valid
 everywhere. The command baked into each hooks file names the dispatcher without a
 `.exe`, which resolves correctly on Windows across every spawn path a harness plausibly
-uses — measured, in [`docs/windows-probe-findings.md`](docs/windows-probe-findings.md),
-along with the reason shipping both filenames is the arrangement to avoid.
+uses. [`docs/windows-probe-findings.md`](docs/windows-probe-findings.md) has those
+measurements, along with the reason shipping both filenames is the arrangement to avoid.
 
 Handlers are limited to what the loader launches from a bare path: `.exe`, `.com`,
 `.bat`, `.cmd`. The dispatcher execs the handler directly, with no interpreter, so
-`.ps1` is not among them — wrap it in a `.cmd`. That is refused at build time rather
-than left to fail open at dispatch, because a spawn failure fails open and a
+`.ps1` is not among them. Wrap it in a `.cmd`. `build` refuses a `.ps1` handler rather
+than leaving it to fail open at dispatch, because a spawn failure fails open and a
 hard-required gate would otherwise stop enforcing silently.
 
 What is still missing:

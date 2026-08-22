@@ -1,7 +1,7 @@
 # opencode probe findings (empirical)
 
 Probe run: 2026-07-31, macOS (darwin 25.5.0, arm64).
-Every probe run happened in a `mktemp -d` sandbox with `XDG_CONFIG_HOME` / `XDG_DATA_HOME` / `XDG_CACHE_HOME` / `XDG_STATE_HOME` pointed inside it. No user config, auth or credential file was read, written or modified. One exception to the sandboxing, disclosed in full in section 2 below: the version check that ran before the sandbox env vars were exported created four empty XDG skeleton directories in the real home.
+Every probe run happened in a `mktemp -d` sandbox with `XDG_CONFIG_HOME` / `XDG_DATA_HOME` / `XDG_CACHE_HOME` / `XDG_STATE_HOME` pointed inside it. No user config, auth or credential file was read, written or modified. One exception to the sandboxing, disclosed in section 2 below: the version check that ran before the sandbox env vars were exported created four empty XDG skeleton directories in the real home.
 
 Companion document: `docs/opencode-research.md` (source-reading research from 2026-07-30). This file records what an actual run does, and where that differs from the research.
 
@@ -20,9 +20,9 @@ Companion document: `docs/opencode-research.md` (source-reading research from 20
 
 Evidence:
 
-- `opencode run "say hi"` in the isolated sandbox completed successfully (exit 0) and printed `Hi`.
+- `opencode run "say hi"` in the isolated sandbox completed (exit 0) and printed `Hi`.
 - The internal log line was `message=stream providerID=opencode modelID=big-pickle` followed by `llm.runtime=ai-sdk llm.provider=opencode llm.model=big-pickle`. opencode ships a default hosted model (`opencode/big-pickle`) that serves anonymous requests.
-- No `auth.json` was ever created in the sandbox config dir. The only files opencode wrote there were `.gitignore`, `package.json`, `package-lock.json`, `opencode.jsonc` (just `{"$schema": ...}`) plus a `node_modules/` tree.
+- No `auth.json` was ever created in the sandbox config dir. The only files opencode wrote there were `.gitignore`, `package.json`, `package-lock.json`, `opencode.jsonc` (only `{"$schema": ...}`) plus a `node_modules/` tree.
 - No `ANTHROPIC_API_KEY` (or any other provider key) exists in this machine's shell environment, so nothing could have leaked in through env.
 
 Consequence for later tasks: the class-1 style e2e for opencode needs no auth fixture and no secret handling. It can run in CI as long as the machine has network access to opencode's hosted default model.
@@ -31,7 +31,7 @@ Caveat to carry forward: the default model is a hosted service, so the e2e is ne
 
 ### Timing gotcha
 
-The very first run in a fresh config dir installs a `node_modules/` tree under `$XDG_CONFIG_HOME/opencode/`. That cold start took over five minutes and looks like a hang: the process prints nothing, and the plugin has already been loaded and logged by then. Subsequent runs in the same config dir finish in roughly 20 to 40 seconds. An e2e harness should either reuse a warm config dir or use a generous first run timeout.
+The very first run in a fresh config dir installs a `node_modules/` tree under `$XDG_CONFIG_HOME/opencode/`. That cold start took over five minutes and looks like a hang: the process prints nothing, and opencode has already loaded and logged the plugin by then. Subsequent runs in the same config dir finish in roughly 20 to 40 seconds. An e2e harness should either reuse a warm config dir or use a generous first run timeout.
 
 ### Isolation caveats worth knowing
 
@@ -44,7 +44,7 @@ XDG isolation works: during the probe runs in sections 3 to 5, every path openco
 - `~/.local/state/opencode/`
 - `~/.cache/opencode/` (containing empty `bin/`)
 
-All four were checked recursively afterwards: zero files in any of them, so no config content, no database, no auth material, nothing sensitive. They are directory skeletons only, and they were left in place. Anyone who wants a genuinely zero-footprint probe must export the XDG vars before the very first `opencode` invocation, version check included.
+All four were checked recursively afterwards: zero files in any of them, so no config content, no database, no auth material, nothing sensitive. They are directory skeletons only, and they remain in place. Anyone who wants a zero-footprint probe must export the XDG vars before the very first `opencode` invocation, version check included.
 
 **2. Skill discovery ignores XDG.** The run log showed opencode reading skills from `~/.claude/skills/` and `~/.agents/skills/` (it warned about duplicate skill names across those two dirs). That is read-only discovery of Claude Code compatible skills, not auth, but a test that wants full hermeticity must account for it.
 
@@ -74,7 +74,7 @@ Loader matrix, tested in a single run with one file per variant, each logging it
 | `.opencode/plugin/v-mjs.mjs` | named | **no** |
 | `.opencode/plugin/v-cjs.cjs` | named | **no** |
 
-So: directory `plugin` or `plugins` both work, extension must be `.ts` or `.js`, and both default and named function exports are accepted. This matches `docs/opencode-research.md` rows 4, 5 and 15 exactly.
+Directory `plugin` or `plugins` both work, the extension must be `.ts` or `.js`, and opencode accepts both default and named function exports. This matches `docs/opencode-research.md` rows 4, 5 and 15 exactly.
 
 **Recommendation for the emitter:** `.opencode/plugin/<name>.ts` with a single named export. It is the shape the docs use and the one verified working here.
 
@@ -131,7 +131,7 @@ Triggered with a `hello.txt` in the project dir and the prompt:
 opencode run --auto "read the file hello.txt and say its contents"
 ```
 
-`--auto` auto-approves permissions and is what made the tool call go through without an interactive prompt. The model chose the `read` tool, tool id string `"read"`, confirming research row 10.
+`--auto` auto-approves permissions and let the tool call go through without an interactive prompt. The model chose the `read` tool, tool id string `"read"`, confirming research row 10.
 
 Both hooks take **two** arguments (`input`, `output`). The committed fixtures wrap them as `{"input": ..., "output": ...}` so one file captures both.
 
@@ -179,12 +179,12 @@ Mapping notes for the dispatch layer:
 
 ## 6. Surprises versus `docs/opencode-research.md`
 
-1. **Row 20 resolved, and better than expected.** The research flagged "do plugins load and does `session.created` fire with zero auth" as unverified. Both do. Beyond that, the model call itself also succeeds unauthenticated via the built-in `opencode/big-pickle` default, which the research did not anticipate. That removes the auth question from the plan entirely.
+1. **Row 20 resolved, and better than expected.** The research flagged "do plugins load and does `session.created` fire with zero auth" as unverified. Both do. Beyond that, the model call itself also succeeds unauthenticated via the built-in `opencode/big-pickle` default, which the research did not anticipate. That removes the auth question from the plan.
 2. **`before` args live on `output`, not `input`.** Easy to get wrong from the type names alone.
 3. **Local plugins are invisible in `plugin.added`.** The bus event only reports opencode's internal plugins.
 4. **The documented event list is incomplete** (`catalog.updated`, `reference.updated`, `integration.updated` all fired and are not in `plugins.mdx`).
 5. **Cold start is slow enough to look like a hang** (over five minutes on first run in a fresh config dir, because of the `node_modules` install).
-6. **XDG isolation is real but not total**: skills are still discovered from `~/.claude/skills` and `~/.agents/skills` regardless of XDG, and any `opencode` invocation made before the XDG vars are exported (even `opencode --version`) creates an empty XDG skeleton in the real home. See section 2.
+6. **XDG isolation is real but not total**: opencode still discovers skills in `~/.claude/skills` and `~/.agents/skills` regardless of XDG, and any `opencode` invocation made before the XDG vars are exported (even `opencode --version`) creates an empty XDG skeleton in the real home. See section 2.
 7. Everything else the research asserted and this probe touched (plugin dirs, extensions, export shapes, `PluginInput` keys, tool id `read`, `session.idle` present but toothless) held exactly.
 
 ## 7. Reproducing

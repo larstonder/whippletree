@@ -72,27 +72,25 @@ a check that `whippletree build` still reproduces the committed
 change to what every user's bundle looks like, so if it fails, look before you
 regenerate.
 
-Conventions worth knowing before your first change are in
-[`CLAUDE.md`](CLAUDE.md) — in particular, comment what the code cannot say, and
-put the rationale for a change in its commit message rather than in a source
-file where it will rot.
+[`CLAUDE.md`](CLAUDE.md) has the conventions worth knowing before your first
+change. Comment what the code cannot say, and put the rationale for a change in
+its commit message rather than in a source file where it will rot.
 
 ## End-to-end tests
 
 `test/e2e/run-codex.sh`, `test/e2e/run-claude.sh`, `test/e2e/run-opencode.sh` and
-`test/e2e/run-copilot.sh` install
-the `examples/kb-shaped` bundle into a fresh, isolated harness home (`mktemp -d`,
-`CODEX_HOME` / `CLAUDE_CONFIG_DIR` / an XDG-isolated set of dirs respectively) and drive
-one real, unauthenticated turn against the installed `codex`, `claude`, and `opencode`
-CLIs, then assert on a marker file the example's handlers write to. They are standalone
-bash, not wired into `go test`; they're the environment-dependent, real-harness
-conformance layer.
+`test/e2e/run-copilot.sh` install the `examples/kb-shaped` bundle into a fresh, isolated
+harness home (`mktemp -d`, `CODEX_HOME` / `CLAUDE_CONFIG_DIR` / an XDG-isolated set of
+dirs respectively) and drive one real, unauthenticated turn against the installed
+`codex`, `claude`, and `opencode` CLIs, then assert on a marker file the example's
+handlers write to. They are standalone bash, not wired into `go test`; they're the
+environment-dependent, real-harness conformance layer.
 
 CI runs the first three nightly rather than per-push (`.github/workflows/e2e.yml`),
 installing each harness from npm first. `run-copilot.sh` is excluded: Copilot's hooks
 only fire once an agent takes a turn, so unlike the others it needs a real login, and it
-installs from Homebrew rather than npm. A failure there opens or comments on a drift issue instead of
-failing the build: a harness that has moved on is a finding about
+installs from Homebrew rather than npm. A failure there opens or comments on a drift
+issue instead of failing the build: a harness that has moved on is a finding about
 `metadata.testedVersions`, not a broken commit. Unit tests, vet, `gofmt` and an
 artifacts-reproduce check run per-push on Linux, macOS and Windows.
 
@@ -103,10 +101,10 @@ test/e2e/run-opencode.sh
 test/e2e/run-copilot.sh   # needs a real login, see above
 ```
 
-The first three run fully unauthenticated (no credentials are copied into the isolated
-home): the session-start signal is verified to fire before the harness makes any
-auth/model call, so the scripts tolerate the resulting 401/"not logged in" failure (or,
-for opencode, an anonymous hosted-model call that succeeds on its own) and assert only on
+The first three run unauthenticated (they copy no credentials into the isolated home):
+each one verifies that the session-start signal fires before the harness makes any
+auth/model call, so it tolerates the resulting 401/"not logged in" failure (or, for
+opencode, an anonymous hosted-model call that succeeds on its own) and asserts only on
 the marker file. `run-codex.sh` proves `SessionStart` fires end to end through the
 compiled hooks file and the dispatcher; `run-claude.sh` proves the same, plus that it
 fires exactly once, confirming `hooks/hooks.json` is never emitted alongside the
@@ -133,20 +131,20 @@ PASS: session-start fired exactly once on opencode
 ```
 
 Every e2e script also prints a `harness=<name> version=<probed> date=<iso>` line before
-it does anything else, so the exact upstream version and date a given PASS was measured
-against is always available by grepping test output rather than trusting memory. That
-line is also what backs the maintenance log's entries, see `MAINTENANCE.md`.
+it does anything else, so you can grep test output for the exact upstream version and
+date a given PASS was measured against rather than trusting memory. That line also backs
+the maintenance log's entries; see `MAINTENANCE.md`.
 
 ## Adding or changing a target
 
-Target definitions are claims about how a real harness behaves, so they are
-established by probing that harness, not by reading its documentation. See
+Target definitions are claims about how a real harness behaves, so you establish
+them by probing that harness, not by reading its documentation. See
 `docs/opencode-probe-findings.md` and `docs/skill-discovery-probe.md` for the
 method: a `mktemp -d` sandbox, an isolated harness home, and an honest record of
 anything the probe could not verify.
 
-`metadata.testedVersions` is the claim that a definition was actually exercised
-against a version range. Do not widen it for a version nobody ran.
+`metadata.testedVersions` is the claim that a definition was exercised against a
+version range. Do not widen it for a version nobody ran.
 
 ## Changing the contract surface
 
